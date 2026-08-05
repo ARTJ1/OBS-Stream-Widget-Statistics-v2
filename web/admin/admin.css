@@ -32,6 +32,28 @@ body {
   align-items: end;
   margin-bottom: 24px;
 }
+.header-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.lang-switch select {
+  min-width: 120px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #12151c;
+  color: var(--text);
+}
 .eyebrow {
   margin: 0 0 4px;
   color: var(--muted);

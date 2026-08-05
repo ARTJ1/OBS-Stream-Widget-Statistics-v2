@@ -27,9 +27,27 @@ let previewReady = false;
 let previewTimer = null;
 let selectedSkinId = 'default';
 let customSkins = [];
+let uiLang = 'ru';
 
 const DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
 const obsFields = ['obsHost', 'obsPort', 'obsPassword', 'obsSourceName', 'obsScene'];
+
+function t(key, vars) {
+  return window.AdminI18n?.t?.(key, vars) ?? key;
+}
+
+function applyUiLang(lang, { persist = false } = {}) {
+  uiLang = lang === 'en' ? 'en' : 'ru';
+  window.AdminI18n?.applyI18n?.(uiLang);
+  // Dynamic status texts should not be wiped by static i18n pass
+  if (bgDropHint && !form?.bgImage?.value) bgDropHint.textContent = t('look.bgFormats');
+  renderCopyLinks({ baseUrl: (overlayUrl || '').replace(/\/overlay\/?$/, '') || location.origin });
+  renderSkins();
+  renderCustomSkins();
+  if (persist) {
+    saveAllSettings().catch(() => {});
+  }
+}
 
 function setStatus(text, ok = false) {
   statusEl.textContent = text;
@@ -150,7 +168,7 @@ function setBgPreview(url) {
   } else {
     bgPreviewImg.removeAttribute('src');
     bgPreviewImg.hidden = true;
-    bgDropHint.textContent = 'PNG / JPG / WEBP / GIF';
+    bgDropHint.textContent = t('look.bgFormats');
   }
 }
 
@@ -218,6 +236,10 @@ function fillAppearance(settings) {
   form.hiddenTime.value = settings.hiddenTime ?? 8000;
   setBgPreview(settings.bgImage || '');
   selectedSkinId = settings.skinId || selectedSkinId;
+  if (settings.uiLang === 'en' || settings.uiLang === 'ru') {
+    uiLang = settings.uiLang;
+    window.AdminI18n?.applyI18n?.(uiLang);
+  }
   syncColorSwatches();
   fillMotion(settings);
   renderSkins();
@@ -265,6 +287,7 @@ function readAppearance() {
     animDurationOut: Number(form.animDurationOut.value) || 0,
     hiddenTime: Number(form.hiddenTime.value) || 0,
     skinId: selectedSkinId,
+    uiLang,
     ...readMotion(),
   };
 }
@@ -330,7 +353,7 @@ function renderCopyLinks(runtime) {
   overlayLink.href = overlayUrl;
   copyList.innerHTML = items.map(([label, url]) => `
     <div class="copy-item"><span>${label}</span><code>${url}</code>
-    <button type="button" data-copy="${url}">Copy</button></div>`).join('');
+    <button type="button" data-copy="${url}">${t('btn.copy')}</button></div>`).join('');
 }
 
 const RANK_FX_LABELS = {
@@ -370,7 +393,11 @@ function skinFxId(skin) {
 }
 
 function skinFxLabel(fx) {
-  return RANK_FX_LABELS[fx] || fx;
+  return t(`fx.${fx}`) || RANK_FX_LABELS[fx] || fx;
+}
+
+function skinLocalizedDesc(skin) {
+  return window.AdminI18n?.skinDesc?.(skin) || skin?.desc || skin?.name || '';
 }
 
 function filteredSortedSkins() {
@@ -379,13 +406,13 @@ function filteredSortedSkins() {
     list = list.filter((s) => skinFxId(s) === skinsFxFilter);
   }
   if (skinsSortMode === 'name') {
-    list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'));
+    list.sort((a, b) => String(a.name).localeCompare(String(b.name), uiLang === 'en' ? 'en' : 'ru'));
   } else {
     list.sort((a, b) => {
       const fa = skinFxId(a);
       const fb = skinFxId(b);
       if (fa !== fb) return fa.localeCompare(fb);
-      return String(a.name).localeCompare(String(b.name), 'ru');
+      return String(a.name).localeCompare(String(b.name), uiLang === 'en' ? 'en' : 'ru');
     });
   }
   return list;
@@ -393,14 +420,22 @@ function filteredSortedSkins() {
 
 function ensureSkinsFilterOptions() {
   const select = document.getElementById('skinsFxFilter');
-  if (!select || select.dataset.ready === '1') return;
+  if (!select) return;
+  const current = select.value || 'all';
   const fxs = [...new Set(listPresetSkins().map(skinFxId))].sort();
+  select.innerHTML = '';
+  const all = document.createElement('option');
+  all.value = 'all';
+  all.setAttribute('data-i18n', 'skins.allFx');
+  all.textContent = t('skins.allFx');
+  select.appendChild(all);
   for (const fx of fxs) {
     const opt = document.createElement('option');
     opt.value = fx;
     opt.textContent = skinFxLabel(fx);
     select.appendChild(opt);
   }
+  select.value = current;
   select.dataset.ready = '1';
 }
 
@@ -414,7 +449,7 @@ function renderSkinsFxChips() {
   }
   const fxs = Object.keys(counts).sort();
   const chips = [
-    `<button type="button" class="fx-chip ${skinsFxFilter === 'all' ? 'active' : ''}" data-fx-chip="all">Все <em>${listPresetSkins().length}</em></button>`,
+    `<button type="button" class="fx-chip ${skinsFxFilter === 'all' ? 'active' : ''}" data-fx-chip="all">${t('skins.all')} <em>${listPresetSkins().length}</em></button>`,
     ...fxs.map((fx) => `
       <button type="button" class="fx-chip ${skinsFxFilter === fx ? 'active' : ''}" data-fx-chip="${fx}">
         ${skinFxLabel(fx)} <em>${counts[fx]}</em>
@@ -446,9 +481,9 @@ function renderSkins() {
         <span class="skin-chip" style="background:${skin.preview.losses}"></span>
         <span class="skin-fx-badge">${skinFxLabel(fx)}</span>
       </div>
-      <div class="skin-meta"><strong>${skin.name}</strong><span>${skin.desc}</span></div>
+      <div class="skin-meta"><strong>${skin.name}</strong><span>${skinLocalizedDesc(skin)}</span></div>
     </button>`;
-  }).join('') || '<p class="setup-note">Нет скинов для этого фильтра.</p>';
+  }).join('') || `<p class="setup-note">${t('skins.emptyFilter')}</p>`;
   renderCustomSkins();
 }
 
@@ -474,11 +509,11 @@ function renderCustomSkins() {
             <span class="skin-chip" style="background:${preview.wins}"></span>
             <span class="skin-chip" style="background:${preview.losses}"></span>
           </div>
-          <div class="skin-meta"><strong>${escapeHtml(skin.name)}</strong><span>Свой скин</span></div>
+          <div class="skin-meta"><strong>${escapeHtml(skin.name)}</strong><span>${t('skins.customBadge')}</span></div>
         </button>
         <div class="custom-skin-actions">
-          <button type="button" data-custom-apply="${skin.id}">Применить</button>
-          <button type="button" class="danger" data-custom-delete="${skin.id}">Удалить</button>
+          <button type="button" data-custom-apply="${skin.id}">${t('skins.apply')}</button>
+          <button type="button" class="danger" data-custom-delete="${skin.id}">${t('skins.delete')}</button>
         </div>
       </div>
     `;
@@ -518,7 +553,7 @@ function applySkinSettings(settings, skinId) {
 function replaySkinDemo() {
   schedulePreviewPush();
   setTimeout(() => sendPreviewDemo('fullCycle'), 100);
-  setStatus('Демо скина запущено', true);
+  setStatus(t('msg.demoSkin'), true);
 }
 
 async function api(path, options) {
@@ -543,15 +578,15 @@ async function uploadBgFile(file) {
   body.append('file', file);
   const data = await api('/api/upload/bg', { method: 'POST', body });
   fillAppearance({ ...readAllSettings(), ...data.settings });
-  setStatus('Background uploaded', true);
+  setStatus(t('msg.bgUp'), true);
 }
 
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
-    setStatus('Copied', true);
+    setStatus(t('msg.copied'), true);
   } catch {
-    setStatus('Copy failed');
+    setStatus(t('msg.copyFail'));
   }
 }
 
@@ -566,12 +601,12 @@ async function refreshScenes() {
   obsSceneSelect.innerHTML = '';
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = data.scenes?.length ? '— выбери сцену —' : '— сцен нет —';
+  placeholder.textContent = data.scenes?.length ? t('main.obsPickScene') : t('main.obsNoScenes');
   obsSceneSelect.appendChild(placeholder);
   for (const name of (data.scenes || [])) {
     const opt = document.createElement('option');
     opt.value = name;
-    opt.textContent = name === data.currentProgram ? `${name} (сейчас в эфире)` : name;
+    opt.textContent = name === data.currentProgram ? `${name} ${t('main.obsLive')}` : name;
     obsSceneSelect.appendChild(opt);
   }
   const prefer = selected || data.selected || data.currentProgram || '';
@@ -579,7 +614,7 @@ async function refreshScenes() {
     ensureSceneOption(prefer);
     obsSceneSelect.value = prefer;
   }
-  setObsStatus(`OBS подключено · сцен: ${(data.scenes || []).length}`, true);
+  setObsStatus(t('main.obsConnected', { n: (data.scenes || []).length }), true);
 }
 
 document.getElementById('tabs').addEventListener('click', (e) => {
@@ -594,7 +629,7 @@ document.querySelectorAll('[data-action]').forEach((btn) => {
     try {
       const snap = await api(btn.dataset.action, { method: 'POST' });
       renderState(snap.state);
-      setStatus('Updated', true);
+      setStatus(t('msg.updated'), true);
     } catch (err) {
       setStatus(String(err.message || err));
     }
@@ -611,7 +646,7 @@ document.getElementById('rankApplyBtn').addEventListener('click', async () => {
       body: JSON.stringify({ rank }),
     });
     renderState(snap.state);
-    setStatus('Rank updated', true);
+    setStatus(t('msg.rankUpdated'), true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -637,7 +672,7 @@ form.addEventListener('submit', async (e) => {
     fillAppearance(snap.settings);
     fillObs(snap.settings);
     renderState(snap.state);
-    setStatus('Settings saved', true);
+    setStatus(t('msg.saved'), true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -647,30 +682,30 @@ document.getElementById('motionSaveBtn').addEventListener('click', async () => {
   try {
     const snap = await saveAllSettings();
     fillAppearance(snap.settings);
-    setStatus('Animations saved', true);
+    setStatus(t('msg.animSaved'), true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
 });
 document.getElementById('motionTestWin').addEventListener('click', () => {
   sendPreviewDemo('win');
-  setStatus('Превью: +Win', true);
+  setStatus(t('msg.previewWin'), true);
 });
 document.getElementById('motionTestLoss').addEventListener('click', () => {
   sendPreviewDemo('loss');
-  setStatus('Превью: +Loss', true);
+  setStatus(t('msg.previewLoss'), true);
 });
 document.getElementById('motionTestRankUp')?.addEventListener('click', () => {
   sendPreviewDemo('rankShowcase');
-  setStatus('Превью: ранг ↑↓ и возврат', true);
+  setStatus(t('msg.previewRank'), true);
 });
 document.getElementById('motionTestRankDown')?.addEventListener('click', () => {
   sendPreviewDemo('rankShowcase');
-  setStatus('Превью: ранг ↑↓ и возврат', true);
+  setStatus(t('msg.previewRank'), true);
 });
 document.getElementById('motionTestFillCycle')?.addEventListener('click', () => {
   sendPreviewDemo('fillCycle');
-  setStatus('Превью: полный цикл заливки', true);
+  setStatus(t('msg.previewFill'), true);
 });
 
 motionForm.rankFx?.addEventListener('change', () => {
@@ -684,7 +719,7 @@ document.querySelectorAll('[data-show-overlay]').forEach((btn) => {
       // Push current unsaved look to overlay first when possible.
       try { await saveAllSettings(); } catch { /* preview still works via show */ }
       await api('/api/show', { method: 'POST' });
-      setStatus('Виджет показан', true);
+      setStatus(t('msg.widgetShown'), true);
     } catch (err) {
       setStatus(String(err.message || err));
     }
@@ -719,7 +754,7 @@ document.getElementById('bgClearBtn').addEventListener('click', async (e) => {
   try {
     const snap = await saveAllSettings();
     fillAppearance(snap.settings);
-    setStatus('Background cleared', true);
+    setStatus(t('msg.bgClear'), true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -732,7 +767,7 @@ skinsGrid.addEventListener('click', (e) => {
   if (!skin) return;
   applySkinSettings(skin.settings, skin.id);
   renderSkins();
-  setStatus(`Скин: ${skin.name} · ${skinFxLabel(skinFxId(skin))}`, true);
+  setStatus(t('msg.skinPicked', { name: skin.name, fx: skinFxLabel(skinFxId(skin)) }), true);
 });
 
 document.getElementById('skinsFxFilter')?.addEventListener('change', (e) => {
@@ -759,7 +794,7 @@ customSkinsGrid?.addEventListener('click', async (e) => {
       if (selectedSkinId === id) selectedSkinId = 'default';
       await loadCustomSkins();
       renderSkins();
-      setStatus('Скин удалён', true);
+      setStatus(t('msg.skinDeleted'), true);
     } catch (err) {
       setStatus(String(err.message || err));
     }
@@ -772,11 +807,11 @@ customSkinsGrid?.addEventListener('click', async (e) => {
   if (!skin) return;
   applySkinSettings(skin.settings, skin.id);
   renderSkins();
-  setStatus(`Свой скин: ${skin.name}`, true);
+  setStatus(t('msg.customPicked', { name: skin.name }), true);
 });
 
 document.getElementById('customSkinSaveBtn')?.addEventListener('click', async () => {
-  const name = (customSkinName?.value || '').trim() || `Скин ${new Date().toLocaleString('ru-RU')}`;
+  const name = (customSkinName?.value || '').trim() || t('msg.defaultSkinName', { date: new Date().toLocaleString(uiLang === 'en' ? 'en-US' : 'ru-RU') });
   try {
     const skin = await api('/api/skins', {
       method: 'POST',
@@ -787,7 +822,7 @@ document.getElementById('customSkinSaveBtn')?.addEventListener('click', async ()
     if (customSkinName) customSkinName.value = '';
     await loadCustomSkins();
     renderSkins();
-    setStatus(`Сохранён скин: ${skin.name}`, true);
+    setStatus(t('msg.customSaved', { name: skin.name }), true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -797,7 +832,7 @@ document.getElementById('skinApplySaveBtn').addEventListener('click', async () =
   try {
     const snap = await saveAllSettings();
     fillAppearance(snap.settings);
-    setStatus('Skin saved to OBS', true);
+    setStatus(t('msg.skinSavedObs'), true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -812,7 +847,7 @@ document.getElementById('obsConnectBtn').addEventListener('click', async () => {
     await saveAllSettings();
     await api('/api/obs/connect', { method: 'POST' });
     await refreshScenes();
-    setStatus('OBS connected', true);
+    setStatus(t('msg.obsConnected'), true);
   } catch (err) {
     setObsStatus(`OBS: ${err.message}`);
     setStatus(String(err.message || err));
@@ -829,14 +864,14 @@ document.getElementById('obsRefreshScenesBtn').addEventListener('click', async (
 });
 document.getElementById('obsEnsureBtn').addEventListener('click', async () => {
   try {
-    if (!obsSceneSelect.value) throw new Error('Сначала выбери сцену');
+    if (!obsSceneSelect.value) throw new Error(t('msg.pickScene'));
     await saveAllSettings();
     const res = await api('/api/obs/ensure', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scene: obsSceneSelect.value }),
     });
-    setObsStatus(res.result?.message || 'Готово', true);
+    setObsStatus(res.result?.message || t('msg.done'), true);
     setStatus(res.result?.action || 'ok', true);
   } catch (err) {
     setObsStatus(`OBS: ${err.message}`);
@@ -855,13 +890,13 @@ document.getElementById('previewFrameMotion')?.addEventListener('load', () => {
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.addEventListener('open', () => setStatus('Live', true));
+  ws.addEventListener('open', () => setStatus(t('status.live'), true));
   ws.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
     if (msg.state) renderState(msg.state);
   });
   ws.addEventListener('close', () => {
-    setStatus('Reconnecting…');
+    setStatus(t('status.reconnect'));
     setTimeout(connectWS, 1500);
   });
 }
@@ -872,6 +907,7 @@ async function boot() {
   renderState(snap.state);
   fillAppearance(snap.settings);
   fillObs(snap.settings);
+  applyUiLang(snap.settings?.uiLang || uiLang);
   renderCopyLinks(runtime);
   await loadCustomSkins();
   connectWS();
@@ -879,8 +915,12 @@ async function boot() {
     await api('/api/obs/connect', { method: 'POST' });
     await refreshScenes();
   } catch {
-    setObsStatus('OBS: не подключено — укажи пароль WebSocket и нажми «Подключить OBS»');
+    setObsStatus(t('main.obsOfflineHint'));
   }
 }
+
+document.getElementById('uiLangSelect')?.addEventListener('change', (e) => {
+  applyUiLang(e.target.value, { persist: true });
+});
 
 boot().catch((err) => setStatus(String(err.message || err)));

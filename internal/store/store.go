@@ -45,6 +45,7 @@ type Settings struct {
 	VesselWave        bool   `json:"vesselWave"`
 	IdlePulse         bool   `json:"idlePulse"`
 	SkinID            string `json:"skinId"`
+	UiLang            string `json:"uiLang"` // ru | en
 
 	ObsHost       string `json:"obsHost"`
 	ObsPort       int    `json:"obsPort"`
@@ -93,6 +94,7 @@ func DefaultSettings() Settings {
 		VesselWave:      true,
 		IdlePulse:       true,
 		SkinID:          "default",
+		UiLang:          "ru",
 		ObsHost:         "127.0.0.1",
 		ObsPort:         4455,
 		ObsPassword:     "",
@@ -168,6 +170,9 @@ func (s *Store) clamp() {
 	}
 	if s.settings.AppearEffect == "" {
 		s.settings.AppearEffect = "slide"
+	}
+	if s.settings.UiLang != "en" && s.settings.UiLang != "ru" {
+		s.settings.UiLang = "ru"
 	}
 	if s.settings.FillLimit <= 0 {
 		s.settings.FillLimit = 10
