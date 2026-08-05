@@ -9,14 +9,24 @@ __pycache__/
 dist/
 build/
 *.exe
+*.exe~
 *.app
+widget-stats.exe
 
 # Local runtime / secrets
 .env
 .env.*
 !.env.example
 state.json
+settings.json
+runtime.json
+*.lock
 *.log
+*.wreq
+data/*
+!data/.gitkeep
+!data/.gitignore
+data/uploads/
 
 # OS / editor
 .DS_Store

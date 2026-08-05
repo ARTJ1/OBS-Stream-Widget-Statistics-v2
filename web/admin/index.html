@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Widget Stats Admin</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div>
+        <p class="eyebrow">OBS Stream Widget Statistics v2</p>
+        <h1>Admin</h1>
+      </div>
+      <div class="status" id="status">Connecting…</div>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab active" data-tab="main">Главное</button>
+      <button type="button" class="tab" data-tab="look">Внешний вид</button>
+      <button type="button" class="tab" data-tab="motion">Анимации</button>
+      <button type="button" class="tab" data-tab="skins">Скины</button>
+    </nav>
+
+    <section class="tab-panel active" data-panel="main">
+      <section class="panel setup-panel">
+        <h2>OBS: сцена для виджета</h2>
+        <p class="setup-note">Подключи WebSocket OBS, выбери сцену — источник создаётся только там и без дублей.</p>
+        <form id="obsForm" class="form-grid obs-grid">
+          <label>OBS host <input name="obsHost" type="text" value="127.0.0.1"></label>
+          <label>OBS port <input name="obsPort" type="number" value="4455"></label>
+          <label>WebSocket password <input name="obsPassword" type="password" autocomplete="off"></label>
+          <label>Имя источника <input name="obsSourceName" type="text" value="Widget Stats v2"></label>
+          <label class="full">Сцена
+            <select name="obsScene" id="obsSceneSelect"><option value="">— подключись к OBS —</option></select>
+          </label>
+          <div class="full actions">
+            <button type="button" id="obsConnectBtn">Подключить OBS</button>
+            <button type="button" id="obsRefreshScenesBtn">Обновить сцены</button>
+            <button type="button" id="obsEnsureBtn" class="primary">Поставить виджет на сцену</button>
+          </div>
+        </form>
+        <p class="setup-note" id="obsStatusText">OBS: не подключено</p>
+      </section>
+
+      <section class="panel">
+        <h2>Статистика</h2>
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="label">Wins</span>
+            <strong id="winsValue">0</strong>
+            <button data-action="/api/win">+1</button>
+          </div>
+          <div class="stat-card">
+            <span class="label">Losses</span>
+            <strong id="lossesValue">0</strong>
+            <button data-action="/api/loss">+1</button>
+          </div>
+          <div class="stat-card rank-card">
+            <span class="label">Ранг</span>
+            <strong id="rankLabel">Bronze 5</strong>
+            <div class="rank-pick">
+              <select id="rankDivision">
+                <option value="Bronze">Bronze</option>
+                <option value="Silver">Silver</option>
+                <option value="Gold">Gold</option>
+                <option value="Platinum">Platinum</option>
+                <option value="Diamond">Diamond</option>
+                <option value="Master">Master</option>
+                <option value="Grandmaster">Grandmaster</option>
+                <option value="Champion">Champion</option>
+                <option value="Top">Top 500</option>
+              </select>
+              <select id="rankLevel">
+                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+              </select>
+              <input id="rankTopInput" type="number" min="1" max="500" value="500" hidden>
+            </div>
+            <div class="btn-row">
+              <button type="button" id="rankApplyBtn">Применить</button>
+              <button data-action="/api/rank/down">−</button>
+              <button data-action="/api/rank/up">+</button>
+            </div>
+          </div>
+        </div>
+        <button class="danger" data-action="/api/reset">Сбросить W/L</button>
+      </section>
+
+      <section class="panel">
+        <h2>URL для OBS / Stream Deck</h2>
+        <div class="actions" style="margin-bottom:12px">
+          <button type="button" id="copyOverlayBtn" class="primary">Скопировать URL оверлея</button>
+          <button type="button" class="show-overlay-btn" data-show-overlay>Показать виджет</button>
+          <a id="overlayLink" href="/overlay/" target="_blank" rel="noopener">Открыть overlay</a>
+        </div>
+        <div class="copy-list" id="copyList"></div>
+      </section>
+    </section>
+
+    <section class="tab-panel" data-panel="look">
+      <section class="panel appearance-panel">
+        <div class="appearance-grid">
+          <div>
+            <h2>Внешний вид</h2>
+            <form id="settingsForm" class="form-grid">
+              <label class="color-field">
+                <span>Цвет фона</span>
+                <div class="color-row">
+                  <input name="bgColorPicker" type="color" value="#000000">
+                  <input name="bgAlpha" type="range" min="0" max="100" value="70" title="Прозрачность">
+                  <span class="swatch-text" id="bgSwatch">фон</span>
+                  <input name="bgColor" type="hidden" value="rgba(0,0,0,0.7)">
+                </div>
+              </label>
+              <label class="color-field">
+                <span>Цвет текста побед</span>
+                <div class="color-row">
+                  <input name="winsColor" type="color" value="#00ff00">
+                  <span class="swatch-text" id="winsSwatch">12</span>
+                </div>
+              </label>
+              <label class="color-field">
+                <span>Цвет текста поражений</span>
+                <div class="color-row">
+                  <input name="lossesColor" type="color" value="#ff0000">
+                  <span class="swatch-text" id="lossesSwatch">3</span>
+                </div>
+              </label>
+              <label class="color-field">
+                <span>Цвет текста ранга</span>
+                <div class="color-row">
+                  <input name="rankTextColor" type="color" value="#ffffff">
+                  <span class="swatch-text" id="rankSwatch">Gold 1</span>
+                </div>
+              </label>
+              <label class="color-field">
+                <span>Цвет иконок (кубок/череп)</span>
+                <div class="color-row">
+                  <input name="iconColor" type="color" value="#ffffff">
+                  <span class="swatch-text" id="iconSwatch">icon</span>
+                </div>
+              </label>
+              <label class="color-field">
+                <span>Цвет разделителя</span>
+                <div class="color-row">
+                  <input name="separatorColorPicker" type="color" value="#ffffff">
+                  <input name="separatorAlpha" type="range" min="20" max="100" value="55" title="Прозрачность">
+                  <input name="separatorColor" type="hidden" value="rgba(255,255,255,0.55)">
+                </div>
+              </label>
+              <label>Шрифт <select name="font" id="fontSelect"></select></label>
+              <label>Размер шрифта <input name="fontSize" type="number" min="10" max="64" value="16"></label>
+              <label>Стиль появления
+                <select name="appearEffect">
+                  <option value="slide">Слайд</option>
+                  <option value="fade">Фейд</option>
+                  <option value="bounce">Прыжок</option>
+                  <option value="zoom">Зум</option>
+                </select>
+              </label>
+              <label>Направление (для слайда)
+                <select name="animDirection">
+                  <option value="left">Слева</option>
+                  <option value="right">Справа</option>
+                  <option value="top">Сверху</option>
+                  <option value="bottom">Снизу</option>
+                </select>
+              </label>
+              <label>Появление (мс) <input name="animDurationIn" type="number" min="0" step="50" value="500"></label>
+              <label>Показ (мс) <input name="animStayTime" type="number" min="0" step="100" value="10000"></label>
+              <label>Исчезновение (мс) <input name="animDurationOut" type="number" min="0" step="50" value="500"></label>
+              <label>Пауза скрытия (мс) <input name="hiddenTime" type="number" min="0" step="100" value="8000"></label>
+
+              <div class="full dropzone" id="bgDropzone">
+                <input name="bgImage" type="hidden" value="">
+                <p><strong>Фон-картинка</strong> — перетащи сюда файл или кликни</p>
+                <p class="drop-hint" id="bgDropHint">PNG / JPG / WEBP / GIF</p>
+                <img id="bgPreviewImg" alt="" hidden>
+                <div class="btn-row">
+                  <button type="button" id="bgClearBtn">Убрать картинку</button>
+                </div>
+                <input id="bgFileInput" type="file" accept="image/*" hidden>
+              </div>
+
+              <div class="full actions">
+                <button type="submit">Сохранить в оверлей OBS</button>
+                <button type="button" class="show-overlay-btn" data-show-overlay>Показать виджет</button>
+              </div>
+            </form>
+          </div>
+          <aside class="preview-pane">
+            <div class="preview-header">
+              <h2>Превью</h2>
+              <span class="preview-hint">Live</span>
+            </div>
+            <div class="preview-stage">
+              <iframe class="widget-preview" id="previewFrame" title="Widget preview" src="/overlay/?preview=1"></iframe>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" data-panel="motion">
+      <section class="panel appearance-panel">
+        <div class="appearance-grid">
+          <div>
+            <h2>Анимации</h2>
+            <p class="setup-note">Кубок/череп заливаются жидкостью. Ранг играет в выбранном стиле — в покое тоже. Смотри справа в превью.</p>
+            <form id="motionForm" class="form-grid">
+              <label>Стиль заливки
+                <select name="fillStyle">
+                  <option value="liquid">Жидкость (волны)</option>
+                  <option value="solid">Ровный подъём</option>
+                  <option value="glow">Свечение</option>
+                  <option value="bubble">Пузырьки</option>
+                </select>
+              </label>
+              <label>Стиль анимации ранга
+                <select name="rankFx">
+                  <option value="classic">Classic</option>
+                  <option value="blaze">Blaze (огонь)</option>
+                  <option value="frost">Frost (лёд)</option>
+                  <option value="neon">Neon (глитч)</option>
+                  <option value="divine">Divine (сияние)</option>
+                  <option value="melt">Melt (штамп / плавка)</option>
+                  <option value="arcane">Arcane (магия)</option>
+                  <option value="toxic">Toxic (яд)</option>
+                  <option value="paper">Paper (книга)</option>
+                  <option value="vortex">Vortex (вихрь)</option>
+                  <option value="shatter">Shatter (стекло)</option>
+                  <option value="smoke">Smoke (дым)</option>
+                  <option value="lightning">Lightning (молния)</option>
+                  <option value="ripple">Ripple (рябь)</option>
+                  <option value="hologram">Hologram (голограмма)</option>
+                  <option value="pixel">Pixel (пиксели)</option>
+                  <option value="chrome">Chrome (хром)</option>
+                  <option value="phantom">Phantom (призрак)</option>
+                  <option value="sonic">Sonic (ударная волна)</option>
+                  <option value="bloom">Bloom (лепестки)</option>
+                  <option value="ink">Ink (тушь)</option>
+                  <option value="prism">Prism (призма)</option>
+                </select>
+              </label>
+              <label>Эффект опустошения
+                <select name="emptyEffect">
+                  <option value="drain">Слив вниз</option>
+                  <option value="splash">Всплеск</option>
+                  <option value="burst">Вспышка</option>
+                  <option value="pour">Выливание</option>
+                  <option value="fade">Затухание</option>
+                </select>
+              </label>
+              <label>Порог опустошения <input name="fillLimit" type="number" min="1" max="50" value="10"></label>
+              <label>Скорость заливки (мс) <input name="fillDurationMs" type="number" min="50" step="10" value="650"></label>
+              <label>Длительность опустошения (мс) <input name="emptyDurationMs" type="number" min="200" step="50" value="1600"></label>
+              <label>Анимация цифр (мс) <input name="numberAnimMs" type="number" min="100" step="50" value="500"></label>
+              <label class="check-field"><input name="vesselWave" type="checkbox" checked> Живая волна на поверхности</label>
+              <label class="check-field"><input name="idlePulse" type="checkbox" checked> Эффект ранга в покое</label>
+              <div class="full actions">
+                <button type="button" id="motionSaveBtn">Сохранить анимации</button>
+                <button type="button" class="show-overlay-btn" data-show-overlay>Показать виджет</button>
+              </div>
+              <div class="full actions preview-demo-actions">
+                <button type="button" id="motionTestWin" class="ghost">Превью +Win</button>
+                <button type="button" id="motionTestLoss" class="ghost">Превью +Loss</button>
+                <button type="button" id="motionTestRankUp" class="ghost">Превью Rank ↑↓</button>
+                <button type="button" id="motionTestRankDown" class="ghost">Превью Rank цикл</button>
+                <button type="button" id="motionTestFillCycle" class="ghost">Превью полный цикл</button>
+              </div>
+            </form>
+          </div>
+          <aside class="preview-pane">
+            <div class="preview-header">
+              <h2>Превью анимаций</h2>
+              <span class="preview-hint">Live</span>
+            </div>
+            <div class="preview-stage tall">
+              <iframe class="widget-preview" id="previewFrameMotion" title="Motion preview" src="/overlay/?preview=1"></iframe>
+            </div>
+            <p class="setup-note" style="margin-top:10px">Кнопки выше крутят только превью — статистика в OBS не меняется. «Показать виджет» — для реального оверлея.</p>
+          </aside>
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" data-panel="skins">
+      <section class="panel appearance-panel">
+        <div class="appearance-grid">
+          <div>
+            <h2>Галерея скинов</h2>
+            <p class="setup-note">Кликни пресет — справа полный прогон. Фильтр по анимации ранга — чтобы не листать весь список.</p>
+            <div class="skins-toolbar">
+              <label class="skins-filter-label">Анимация
+                <select id="skinsFxFilter">
+                  <option value="all">Все анимации</option>
+                </select>
+              </label>
+              <label class="skins-filter-label">Сортировка
+                <select id="skinsSort">
+                  <option value="fx">По анимации</option>
+                  <option value="name">По имени</option>
+                </select>
+              </label>
+            </div>
+            <div class="skins-fx-chips" id="skinsFxChips" aria-label="Быстрый фильтр анимаций"></div>
+            <div class="skins-grid" id="skinsGrid"></div>
+            <div class="actions" style="margin-top:14px">
+              <button type="button" id="skinApplySaveBtn" class="primary">Сохранить выбранный скин</button>
+              <button type="button" class="show-overlay-btn" data-show-overlay>Показать виджет</button>
+              <button type="button" id="skinReplayDemoBtn" class="ghost">Проиграть демо снова</button>
+            </div>
+
+            <section class="custom-skins-panel">
+              <h2>Мои скины</h2>
+              <p class="setup-note">Сохрани текущий вид отдельным скином.</p>
+              <div class="custom-skin-save">
+                <label>
+                  Название
+                  <input type="text" id="customSkinName" maxlength="48" placeholder="Мой скин">
+                </label>
+                <button type="button" id="customSkinSaveBtn" class="primary">Сохранить текущий вид</button>
+              </div>
+              <div class="skins-grid custom-skins-grid" id="customSkinsGrid"></div>
+              <p class="setup-note" id="customSkinsEmpty">Пока нет сохранённых скинов.</p>
+            </section>
+          </div>
+          <aside class="preview-pane">
+            <div class="preview-header">
+              <h2>Превью скина</h2>
+              <span class="preview-hint" id="skinDemoHint">Demo</span>
+            </div>
+            <div class="preview-stage tall">
+              <iframe class="widget-preview" id="previewFrameSkins" title="Skin preview" src="/overlay/?preview=1"></iframe>
+            </div>
+            <p class="setup-note" style="margin-top:10px">Авто-демо: появление → победы → поражения → смена ранга. Не меняет счёт в OBS.</p>
+          </aside>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="fonts.js"></script>
+  <script src="skins.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

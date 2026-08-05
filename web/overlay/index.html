@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Статистика игрока</title>
+  <link rel="stylesheet" href="widget.css">
+</head>
+<body>
+  <div class="widget appear-slide from-left" id="widget">
+    <div class="widget-fx-layer" id="widgetFxLayer" aria-hidden="true"></div>
+    <div class="stats">
+      <div class="stat-item">
+        <div class="icon-fill-container vessel" id="winsIconContainer" data-vessel="wins">
+          <div class="vessel-tilt">
+            <svg class="stat-icon" viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <defs>
+                <path id="trophyPath" d="M552 64H448V24c0-13.3-10.7-24-24-24H152c-13.3 0-24 10.7-24 24v40H24C10.7 64 0 74.7 0 88v56c0 35.7 22.5 72.4 61.9 100.7 31.5 22.7 69.8 37.1 110 41.7C203.3 338.5 240 360 240 360v72h-48c-35.3 0-64 20.7-64 56v12c0 6.6 5.4 12 12 12h296c6.6 0 12-5.4 12-12v-12c0-35.3-28.7-56-64-56h-48v-72s36.7-21.5 68.1-73.6c40.3-4.6 78.6-19 110-41.7 39.3-28.3 61.9-65 61.9-100.7V88c0-13.3-10.7-24-24-24zM99.3 192.8C74.9 175.2 64 155.6 64 144v-16h64.2c1 32.6 5.8 61.2 12.8 86.2-15.1-5.2-29.2-12.4-41.7-21.4zM512 144c0 16.1-17.7 36.1-35.3 48.8-12.5 9-26.7 16.2-41.8 21.4 7-25 11.8-53.6 12.8-86.2H512v16z"/>
+                <clipPath id="winsShapeClip"><path d="M552 64H448V24c0-13.3-10.7-24-24-24H152c-13.3 0-24 10.7-24 24v40H24C10.7 64 0 74.7 0 88v56c0 35.7 22.5 72.4 61.9 100.7 31.5 22.7 69.8 37.1 110 41.7C203.3 338.5 240 360 240 360v72h-48c-35.3 0-64 20.7-64 56v12c0 6.6 5.4 12 12 12h296c6.6 0 12-5.4 12-12v-12c0-35.3-28.7-56-64-56h-48v-72s36.7-21.5 68.1-73.6c40.3-4.6 78.6-19 110-41.7 39.3-28.3 61.9-65 61.9-100.7V88c0-13.3-10.7-24-24-24zM99.3 192.8C74.9 175.2 64 155.6 64 144v-16h64.2c1 32.6 5.8 61.2 12.8 86.2-15.1-5.2-29.2-12.4-41.7-21.4zM512 144c0 16.1-17.7 36.1-35.3 48.8-12.5 9-26.7 16.2-41.8 21.4 7-25 11.8-53.6 12.8-86.2H512v16z"/></clipPath>
+              </defs>
+              <use href="#trophyPath" class="vessel-shell" fill="currentColor"/>
+              <g clip-path="url(#winsShapeClip)">
+                <g class="liquid-tilt">
+                  <g class="liquid-layer" id="winsLiquid" transform="translate(0 512)">
+                    <rect class="liquid-body" x="-80" y="0" width="740" height="620" fill="#39ff14"/>
+                    <path class="liquid-meniscus" d="M-80 0 Q64 -12 208 0 T496 0 T736 0 V12 H-80 Z" fill="#39ff14"/>
+                    <path class="liquid-foam" d="M-80 0 Q64 -8 208 0 T496 0 T736 0 V8 H-80 Z" fill="rgba(255,255,255,0.45)"/>
+                  </g>
+                </g>
+              </g>
+              <use href="#trophyPath" class="vessel-outline" fill="none" stroke="currentColor" stroke-width="18" stroke-linejoin="round"/>
+            </svg>
+            <div class="pour-stream" aria-hidden="true">
+              <span class="pour-lip"></span>
+              <span class="pour-sheet"></span>
+            </div>
+          </div>
+          <div class="vessel-fx" aria-hidden="true"></div>
+        </div>
+        <span id="wins" class="stat-value">0</span>
+      </div>
+      <span class="stat-sep" id="statSep">|</span>
+      <div class="stat-item">
+        <div class="icon-fill-container vessel" id="lossesIconContainer" data-vessel="losses">
+          <div class="vessel-tilt">
+            <svg class="stat-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <defs>
+                <path id="skullPath" d="M256 0C114.6 0 0 100.3 0 224c0 70.1 36.9 132.6 94.5 173.7 9.6 6.9 15.2 18.1 13.5 29.9l-9.4 66.2c-1.4 9.6 6 18.2 15.7 18.2H192v-56c0-4.4 3.6-8 8-8h16c4.4 0 8 3.6 8 8v56h64v-56c0-4.4 3.6-8 8-8h16c4.4 0 8 3.6 8 8v56h77.7c9.7 0 17.1-8.6 15.7-18.2l-9.4-66.2c-1.7-11.7 3.8-23 13.5-29.9C475.1 356.6 512 294.1 512 224 512 100.3 397.4 0 256 0zm-96 320c-35.3 0-64-28.7-64-64s28.7-64 64-64 64 28.7 64 64-28.7 64-64 64zm192 0c-35.3 0-64-28.7-64-64s28.7-64 64-64 64 28.7 64 64-28.7 64-64 64z"/>
+                <clipPath id="lossesShapeClip"><path d="M256 0C114.6 0 0 100.3 0 224c0 70.1 36.9 132.6 94.5 173.7 9.6 6.9 15.2 18.1 13.5 29.9l-9.4 66.2c-1.4 9.6 6 18.2 15.7 18.2H192v-56c0-4.4 3.6-8 8-8h16c4.4 0 8 3.6 8 8v56h64v-56c0-4.4 3.6-8 8-8h16c4.4 0 8 3.6 8 8v56h77.7c9.7 0 17.1-8.6 15.7-18.2l-9.4-66.2c-1.7-11.7 3.8-23 13.5-29.9C475.1 356.6 512 294.1 512 224 512 100.3 397.4 0 256 0zm-96 320c-35.3 0-64-28.7-64-64s28.7-64 64-64 64 28.7 64 64-28.7 64-64 64zm192 0c-35.3 0-64-28.7-64-64s28.7-64 64-64 64 28.7 64 64-28.7 64-64 64z"/></clipPath>
+              </defs>
+              <use href="#skullPath" class="vessel-shell" fill="currentColor"/>
+              <g clip-path="url(#lossesShapeClip)">
+                <g class="liquid-tilt">
+                  <g class="liquid-layer" id="lossesLiquid" transform="translate(0 512)">
+                    <rect class="liquid-body" x="-80" y="0" width="680" height="620" fill="#ff3131"/>
+                    <path class="liquid-meniscus" d="M-80 0 Q48 -12 176 0 T432 0 T688 0 V12 H-80 Z" fill="#ff3131"/>
+                    <path class="liquid-foam" d="M-80 0 Q48 -8 176 0 T432 0 T688 0 V8 H-80 Z" fill="rgba(255,255,255,0.4)"/>
+                  </g>
+                </g>
+              </g>
+              <use href="#skullPath" class="vessel-outline" fill="none" stroke="currentColor" stroke-width="18" stroke-linejoin="round"/>
+            </svg>
+            <div class="pour-stream" aria-hidden="true">
+              <span class="pour-lip"></span>
+              <span class="pour-sheet"></span>
+            </div>
+          </div>
+          <div class="vessel-fx" aria-hidden="true"></div>
+        </div>
+        <span id="losses" class="stat-value">0</span>
+      </div>
+    </div>
+    <div class="rank-section" id="rankSection">
+      <div id="rank-animation-wrapper">
+        <div class="rank-fx-layer" id="rankFxLayer" aria-hidden="true"></div>
+        <img id="rankImageUnder" class="rank-img rank-img-under" src="assets/uploads/Bronze.png" alt="">
+        <img id="rankImage" class="rank-img rank-img-over" src="assets/uploads/Bronze.png" alt="Rank">
+      </div>
+      <span id="rankValue">Bronze 5</span>
+    </div>
+  </div>
+  <!-- SVG filters for rank FX (fire / melt / frost / etc.) -->
+  <svg class="fx-defs" aria-hidden="true" width="0" height="0" style="position:absolute;overflow:hidden">
+    <defs>
+      <filter id="fxFire" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.028 0.055" numOctaves="4" seed="7" result="noise">
+          <animate attributeName="baseFrequency" dur="0.7s"
+            values="0.025 0.05;0.04 0.07;0.03 0.055;0.035 0.065;0.025 0.05" repeatCount="indefinite"/>
+        </feTurbulence>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="9" xChannelSelector="R" yChannelSelector="G" result="warp"/>
+        <feColorMatrix in="warp" type="matrix" values="
+          1.55 0.35 0.05 0 0.06
+          0.45 0.85 0.05 0 0.02
+          0.05 0.2 0.35 0 0
+          0 0 0 1 0" result="tint"/>
+        <feGaussianBlur in="tint" stdDeviation="0.35" result="soft"/>
+        <feMerge>
+          <feMergeNode in="soft"/>
+          <feMergeNode in="tint"/>
+        </feMerge>
+      </filter>
+      <filter id="fxMelt" x="-30%" y="-20%" width="160%" height="180%">
+        <feTurbulence type="turbulence" baseFrequency="0.03" numOctaves="2" result="n">
+          <animate attributeName="baseFrequency" dur="1.2s" values="0.025;0.04;0.025" repeatCount="indefinite"/>
+        </feTurbulence>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+      <filter id="fxFrost" x="-25%" y="-25%" width="150%" height="150%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.08" numOctaves="2" result="ice"/>
+        <feDisplacementMap in="SourceGraphic" in2="ice" scale="3"/>
+        <feColorMatrix type="matrix" values="
+          0.85 0.1 0.15 0 0.12
+          0.1 0.95 0.2 0 0.1
+          0.15 0.2 1.15 0 0.18
+          0 0 0 1 0"/>
+      </filter>
+      <filter id="fxArcane" x="-35%" y="-35%" width="170%" height="170%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" result="m">
+          <animate attributeName="baseFrequency" dur="0.9s" values="0.04;0.06;0.04" repeatCount="indefinite"/>
+        </feTurbulence>
+        <feDisplacementMap in="SourceGraphic" in2="m" scale="7"/>
+        <feColorMatrix type="hueRotate" values="40">
+          <animate attributeName="values" dur="1.4s" values="20;70;20" repeatCount="indefinite"/>
+        </feColorMatrix>
+      </filter>
+      <filter id="fxToxic" x="-30%" y="-30%" width="160%" height="160%">
+        <feTurbulence type="turbulence" baseFrequency="0.06" numOctaves="2" result="t"/>
+        <feDisplacementMap in="SourceGraphic" in2="t" scale="6"/>
+        <feColorMatrix type="matrix" values="
+          0.6 0.5 0 0 0.1
+          0.4 1.1 0.1 0 0.15
+          0 0.4 0.3 0 0
+          0 0 0 1 0"/>
+      </filter>
+      <filter id="fxChar" x="-20%" y="-20%" width="140%" height="140%">
+        <feColorMatrix type="matrix" values="
+          0.25 0.25 0.25 0 0
+          0.15 0.15 0.15 0 0
+          0.1 0.1 0.1 0 0
+          0 0 0 1 0"/>
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="0.7" intercept="0"/>
+          <feFuncG type="linear" slope="0.55" intercept="0"/>
+          <feFuncB type="linear" slope="0.4" intercept="0"/>
+        </feComponentTransfer>
+      </filter>
+      <filter id="fxIceBlock" x="-20%" y="-20%" width="140%" height="140%">
+        <feColorMatrix type="matrix" values="
+          0.7 0.15 0.2 0 0.25
+          0.15 0.85 0.25 0 0.2
+          0.2 0.25 1.2 0 0.3
+          0 0 0 1 0"/>
+        <feGaussianBlur stdDeviation="0.4"/>
+      </filter>
+    </defs>
+  </svg>
+  <script src="/admin/fonts.js"></script>
+  <script src="widget.js"></script>
+</body>
+</html>
