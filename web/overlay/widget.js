@@ -44,6 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
     rankImage: document.getElementById('rankImage'),
     rankImageUnder: document.getElementById('rankImageUnder'),
     rankValue: document.getElementById('rankValue'),
+    roleBadge: document.getElementById('roleBadge'),
+    roleIcon: document.getElementById('roleIcon'),
+  };
+
+  const ROLE_ICONS = {
+    tank: 'assets/roles/tank.png',
+    support: 'assets/roles/support.png',
+    damage: 'assets/roles/damage.png',
   };
 
   // Query-string URLs (?preview=1) break svg clip-path url(#id) in Chromium —
@@ -80,8 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let waveRaf = 0;
   let waveTime = 0;
 
-  let previousState = { wins: 0, losses: 0, rank: 0 };
-  let currentState = { wins: 0, losses: 0, rank: 0 };
+  let currentState = { wins: 0, losses: 0, rank: 0, mode: 'classic', role: 'tank' };
+  let previousState = { ...currentState };
   let settings = null;
 
   const sepEl = document.getElementById('statSep');
@@ -186,14 +194,51 @@ document.addEventListener('DOMContentLoaded', () => {
     return isPreview && settings && settings.__previewLocal;
   }
 
+  function viewFromSnap(snap) {
+    if (snap?.view && typeof snap.view.wins === 'number') {
+      return {
+        wins: snap.view.wins || 0,
+        losses: snap.view.losses || 0,
+        rank: snap.view.rank || 0,
+        mode: snap.view.mode || snap.state?.mode || 'classic',
+        role: snap.view.role || snap.state?.role || 'tank',
+      };
+    }
+    const st = snap?.state || {};
+    const mode = st.mode || 'classic';
+    const role = st.role || 'tank';
+    if (mode === 'roles_shared') {
+      const r = (st.roles && st.roles[role]) || {};
+      return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role };
+    }
+    if (mode === 'roles_split') {
+      const r = (st.roles && st.roles[role]) || {};
+      return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role };
+    }
+    return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role };
+  }
+
+  function updateRoleBadge(view) {
+    const mode = view?.mode || 'classic';
+    const role = view?.role || 'tank';
+    document.body.classList.remove('mode-classic', 'mode-roles_shared', 'mode-roles_split');
+    document.body.classList.add(`mode-${mode}`);
+    if (!dom.roleBadge || !dom.roleIcon) return;
+    if (mode === 'classic') {
+      dom.roleBadge.hidden = true;
+      return;
+    }
+    dom.roleBadge.hidden = false;
+    dom.roleIcon.src = ROLE_ICONS[role] || ROLE_ICONS.tank;
+    dom.roleIcon.alt = role;
+  }
+
   function applyRemoteStateOnly(snap) {
-    if (!snap?.state) return;
-    currentState = {
-      wins: snap.state.wins ?? currentState.wins,
-      losses: snap.state.losses ?? currentState.losses,
-      rank: snap.state.rank ?? currentState.rank,
-    };
+    if (!snap) return;
+    const v = viewFromSnap(snap);
+    currentState = { ...v };
     previousState = { ...currentState };
+    updateRoleBadge(v);
     dom.wins.textContent = currentState.wins;
     dom.losses.textContent = currentState.losses;
     setLiquidLevel(dom.winsLiquid, currentState.wins, { instant: true });
@@ -1492,11 +1537,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     previousState = { ...currentState };
-    currentState = {
-      wins: snap.state?.wins ?? 0,
-      losses: snap.state?.losses ?? 0,
-      rank: snap.state?.rank ?? 0,
-    };
+    currentState = viewFromSnap(snap);
+    updateRoleBadge(currentState);
 
     const visible = dom.widget.classList.contains('visible');
     if (!visible) {
@@ -1520,13 +1562,10 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadInitial() {
     const res = await fetch('/api/snapshot');
     const snap = await res.json();
-    previousState = {
-      wins: snap.state.wins,
-      losses: snap.state.losses,
-      rank: snap.state.rank,
-    };
-    currentState = { ...previousState };
+    currentState = viewFromSnap(snap);
+    previousState = { ...currentState };
     applySettings(snap.settings);
+    updateRoleBadge(currentState);
     dom.wins.textContent = currentState.wins;
     dom.losses.textContent = currentState.losses;
     setLiquidLevel(dom.winsLiquid, currentState.wins, { instant: true });
@@ -1555,13 +1594,10 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         if (msg.settings) applySettings(msg.settings);
-        if (msg.state) {
-          currentState = {
-            wins: msg.state.wins ?? currentState.wins,
-            losses: msg.state.losses ?? currentState.losses,
-            rank: msg.state.rank ?? currentState.rank,
-          };
+        if (msg.state || msg.view) {
+          currentState = viewFromSnap(msg);
           previousState = { ...currentState };
+          updateRoleBadge(currentState);
           dom.wins.textContent = currentState.wins;
           dom.losses.textContent = currentState.losses;
           setLiquidLevel(dom.winsLiquid, currentState.wins, { instant: true });

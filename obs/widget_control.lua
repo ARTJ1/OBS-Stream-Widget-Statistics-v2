@@ -12,6 +12,8 @@ local hotkey_loss = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_rank_up = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_rank_down = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_reset = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_mode = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_role = obs.OBS_INVALID_HOTKEY_ID
 
 local hotkey_seq = 0
 local started_once = false
@@ -216,6 +218,8 @@ function script_load(settings)
   hotkey_rank_up = obs.obs_hotkey_register_frontend("v2_widget_rank_up", "V2 Виджет: Ранг вверх", on_hotkey("rank_up"))
   hotkey_rank_down = obs.obs_hotkey_register_frontend("v2_widget_rank_down", "V2 Виджет: Ранг вниз", on_hotkey("rank_down"))
   hotkey_reset = obs.obs_hotkey_register_frontend("v2_widget_reset", "V2 Виджет: Сброс W/L", on_hotkey("reset"))
+  hotkey_mode = obs.obs_hotkey_register_frontend("v2_widget_mode", "V2 Виджет: Следующий режим", on_hotkey("mode_next"))
+  hotkey_role = obs.obs_hotkey_register_frontend("v2_widget_role", "V2 Виджет: Следующая роль", on_hotkey("role_next"))
 
   local function load_hk(id, key)
     local arr = obs.obs_data_get_array(settings, key)
@@ -229,6 +233,8 @@ function script_load(settings)
   load_hk(hotkey_rank_up, "v2_widget_rank_up")
   load_hk(hotkey_rank_down, "v2_widget_rank_down")
   load_hk(hotkey_reset, "v2_widget_reset")
+  load_hk(hotkey_mode, "v2_widget_mode")
+  load_hk(hotkey_role, "v2_widget_role")
 
   if config.auto_start then
     ensure_server()
@@ -253,6 +259,8 @@ function script_save(settings)
   save_hk(hotkey_rank_up, "v2_widget_rank_up")
   save_hk(hotkey_rank_down, "v2_widget_rank_down")
   save_hk(hotkey_reset, "v2_widget_reset")
+  save_hk(hotkey_mode, "v2_widget_mode")
+  save_hk(hotkey_role, "v2_widget_role")
 end
 
 function script_unload()

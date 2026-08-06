@@ -9,10 +9,41 @@ import (
 
 const MaxRankIndex = 40 + 500 // Bronze..Champion (40) + Top 500 = 540 entries, indices 0..539
 
-type State struct {
+const (
+	ModeClassic     = "classic"
+	ModeRolesShared = "roles_shared" // shared W/L, per-role rank
+	ModeRolesSplit  = "roles_split"  // per-role W/L and rank
+
+	RoleTank    = "tank"
+	RoleSupport = "support"
+	RoleDamage  = "damage"
+)
+
+var modeOrder = []string{ModeClassic, ModeRolesShared, ModeRolesSplit}
+var roleOrder = []string{RoleTank, RoleSupport, RoleDamage}
+
+type RoleStats struct {
 	Wins   int `json:"wins"`
 	Losses int `json:"losses"`
 	Rank   int `json:"rank"`
+}
+
+type State struct {
+	Mode   string               `json:"mode"`
+	Role   string               `json:"role"`
+	Wins   int                  `json:"wins"`
+	Losses int                  `json:"losses"`
+	Rank   int                  `json:"rank"`
+	Roles  map[string]RoleStats `json:"roles"`
+}
+
+// View is the currently displayed W/L/rank for overlay clients.
+type View struct {
+	Wins   int    `json:"wins"`
+	Losses int    `json:"losses"`
+	Rank   int    `json:"rank"`
+	Mode   string `json:"mode"`
+	Role   string `json:"role"`
 }
 
 type Settings struct {
@@ -30,22 +61,21 @@ type Settings struct {
 	AnimDurationOut int    `json:"animDurationOut"`
 	HiddenTime      int    `json:"hiddenTime"`
 
-	IconColor       string `json:"iconColor"`
-	SeparatorColor  string `json:"separatorColor"`
-	AppearEffect    string `json:"appearEffect"` // slide | fade | bounce | zoom
-	FillStyle       string `json:"fillStyle"`    // liquid | solid | glow | bubble
-	RankFx          string `json:"rankFx"`       // classic | blaze | frost | neon | divine | melt | arcane | toxic | paper
+	IconColor      string `json:"iconColor"`
+	SeparatorColor string `json:"separatorColor"`
+	AppearEffect   string `json:"appearEffect"` // slide | fade | bounce | zoom
+	FillStyle      string `json:"fillStyle"`    // liquid | solid | glow | bubble
+	RankFx         string `json:"rankFx"`
 
-	// Vessel / fill animations
-	FillLimit         int    `json:"fillLimit"`
-	FillDurationMs    int    `json:"fillDurationMs"`
-	EmptyDurationMs   int    `json:"emptyDurationMs"`
-	EmptyEffect       string `json:"emptyEffect"` // drain | splash | burst | pour | fade
-	NumberAnimMs      int    `json:"numberAnimMs"`
-	VesselWave        bool   `json:"vesselWave"`
-	IdlePulse         bool   `json:"idlePulse"`
-	SkinID            string `json:"skinId"`
-	UiLang            string `json:"uiLang"` // ru | en
+	FillLimit       int    `json:"fillLimit"`
+	FillDurationMs  int    `json:"fillDurationMs"`
+	EmptyDurationMs int    `json:"emptyDurationMs"`
+	EmptyEffect     string `json:"emptyEffect"`
+	NumberAnimMs    int    `json:"numberAnimMs"`
+	VesselWave      bool   `json:"vesselWave"`
+	IdlePulse       bool   `json:"idlePulse"`
+	SkinID          string `json:"skinId"`
+	UiLang          string `json:"uiLang"` // ru | en
 
 	ObsHost       string `json:"obsHost"`
 	ObsPort       int    `json:"obsPort"`
@@ -57,6 +87,7 @@ type Settings struct {
 type Snapshot struct {
 	State    State    `json:"state"`
 	Settings Settings `json:"settings"`
+	View     View     `json:"view"`
 }
 
 type Store struct {
@@ -103,13 +134,29 @@ func DefaultSettings() Settings {
 	}
 }
 
+func defaultRoles() map[string]RoleStats {
+	return map[string]RoleStats{
+		RoleTank:    {},
+		RoleSupport: {},
+		RoleDamage:  {},
+	}
+}
+
+func DefaultState() State {
+	return State{
+		Mode:  ModeClassic,
+		Role:  RoleTank,
+		Roles: defaultRoles(),
+	}
+}
+
 func New(dataDir string) (*Store, error) {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, err
 	}
 	s := &Store{
 		dir:      dataDir,
-		state:    State{},
+		state:    DefaultState(),
 		settings: DefaultSettings(),
 	}
 	_ = s.loadJSON("state.json", &s.state)
@@ -134,19 +181,48 @@ func (s *Store) saveJSON(name string, v any) error {
 	return os.WriteFile(filepath.Join(s.dir, name), b, 0o644)
 }
 
+func clampRank(n int) int {
+	if n < 0 {
+		return 0
+	}
+	if n > MaxRankIndex-1 {
+		return MaxRankIndex - 1
+	}
+	return n
+}
+
+func clampNonNeg(n int) int {
+	if n < 0 {
+		return 0
+	}
+	return n
+}
+
 func (s *Store) clamp() {
-	if s.state.Wins < 0 {
-		s.state.Wins = 0
+	if s.state.Mode != ModeClassic && s.state.Mode != ModeRolesShared && s.state.Mode != ModeRolesSplit {
+		s.state.Mode = ModeClassic
 	}
-	if s.state.Losses < 0 {
-		s.state.Losses = 0
+	if s.state.Role != RoleTank && s.state.Role != RoleSupport && s.state.Role != RoleDamage {
+		s.state.Role = RoleTank
 	}
-	if s.state.Rank < 0 {
-		s.state.Rank = 0
+	if s.state.Roles == nil {
+		s.state.Roles = defaultRoles()
 	}
-	if s.state.Rank > MaxRankIndex-1 {
-		s.state.Rank = MaxRankIndex - 1
+	for _, id := range roleOrder {
+		rs, ok := s.state.Roles[id]
+		if !ok {
+			s.state.Roles[id] = RoleStats{}
+			continue
+		}
+		rs.Wins = clampNonNeg(rs.Wins)
+		rs.Losses = clampNonNeg(rs.Losses)
+		rs.Rank = clampRank(rs.Rank)
+		s.state.Roles[id] = rs
 	}
+	s.state.Wins = clampNonNeg(s.state.Wins)
+	s.state.Losses = clampNonNeg(s.state.Losses)
+	s.state.Rank = clampRank(s.state.Rank)
+
 	if s.settings.FontSize <= 0 {
 		s.settings.FontSize = 16
 	}
@@ -191,6 +267,26 @@ func (s *Store) clamp() {
 	}
 }
 
+func (st State) View() View {
+	v := View{Mode: st.Mode, Role: st.Role}
+	switch st.Mode {
+	case ModeRolesShared:
+		rs := st.Roles[st.Role]
+		v.Wins, v.Losses, v.Rank = st.Wins, st.Losses, rs.Rank
+	case ModeRolesSplit:
+		rs := st.Roles[st.Role]
+		v.Wins, v.Losses, v.Rank = rs.Wins, rs.Losses, rs.Rank
+	default:
+		v.Wins, v.Losses, v.Rank = st.Wins, st.Losses, st.Rank
+		v.Mode = ModeClassic
+	}
+	return v
+}
+
+func (s *Store) snapLocked() Snapshot {
+	return Snapshot{State: s.state, Settings: s.settings, View: s.state.View()}
+}
+
 func (s *Store) Dir() string {
 	return s.dir
 }
@@ -198,7 +294,7 @@ func (s *Store) Dir() string {
 func (s *Store) Snapshot() Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return Snapshot{State: s.state, Settings: s.settings}
+	return s.snapLocked()
 }
 
 func (s *Store) State() State {
@@ -221,70 +317,197 @@ func (s *Store) persistSettings() error {
 	return s.saveJSON("settings.json", s.settings)
 }
 
+func (s *Store) rolePtr() *RoleStats {
+	rs := s.state.Roles[s.state.Role]
+	s.state.Roles[s.state.Role] = rs
+	r := s.state.Roles[s.state.Role]
+	return &r
+}
+
+func (s *Store) getRole(id string) RoleStats {
+	if s.state.Roles == nil {
+		return RoleStats{}
+	}
+	return s.state.Roles[id]
+}
+
+func (s *Store) setRole(id string, rs RoleStats) {
+	if s.state.Roles == nil {
+		s.state.Roles = defaultRoles()
+	}
+	rs.Wins = clampNonNeg(rs.Wins)
+	rs.Losses = clampNonNeg(rs.Losses)
+	rs.Rank = clampRank(rs.Rank)
+	s.state.Roles[id] = rs
+}
+
 func (s *Store) AddWin() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state.Wins++
+	switch s.state.Mode {
+	case ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		rs.Wins++
+		s.setRole(s.state.Role, rs)
+	default:
+		s.state.Wins++
+	}
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
 }
 
 func (s *Store) AddLoss() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state.Losses++
+	switch s.state.Mode {
+	case ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		rs.Losses++
+		s.setRole(s.state.Role, rs)
+	default:
+		s.state.Losses++
+	}
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
 }
 
 func (s *Store) RankUp() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.state.Rank < MaxRankIndex-1 {
-		s.state.Rank++
+	switch s.state.Mode {
+	case ModeRolesShared, ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		if rs.Rank < MaxRankIndex-1 {
+			rs.Rank++
+		}
+		s.setRole(s.state.Role, rs)
+	default:
+		if s.state.Rank < MaxRankIndex-1 {
+			s.state.Rank++
+		}
 	}
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
 }
 
 func (s *Store) RankDown() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.state.Rank > 0 {
-		s.state.Rank--
+	switch s.state.Mode {
+	case ModeRolesShared, ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		if rs.Rank > 0 {
+			rs.Rank--
+		}
+		s.setRole(s.state.Role, rs)
+	default:
+		if s.state.Rank > 0 {
+			s.state.Rank--
+		}
 	}
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
 }
 
 func (s *Store) Reset() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state.Wins = 0
-	s.state.Losses = 0
+	switch s.state.Mode {
+	case ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		rs.Wins = 0
+		rs.Losses = 0
+		s.setRole(s.state.Role, rs)
+	default:
+		s.state.Wins = 0
+		s.state.Losses = 0
+	}
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
 }
 
 func (s *Store) SetRank(rank int) (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state.Rank = rank
+	rank = clampRank(rank)
+	switch s.state.Mode {
+	case ModeRolesShared, ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		rs.Rank = rank
+		s.setRole(s.state.Role, rs)
+	default:
+		s.state.Rank = rank
+	}
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+func (s *Store) CycleMode() (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := 0
+	for i, m := range modeOrder {
+		if m == s.state.Mode {
+			idx = i
+			break
+		}
+	}
+	s.state.Mode = modeOrder[(idx+1)%len(modeOrder)]
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+func (s *Store) CycleRole() (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx := 0
+	for i, r := range roleOrder {
+		if r == s.state.Role {
+			idx = i
+			break
+		}
+	}
+	s.state.Role = roleOrder[(idx+1)%len(roleOrder)]
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+func (s *Store) SetMode(mode string) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.Mode = mode
 	s.clamp()
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
+}
+
+func (s *Store) SetRole(role string) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.Role = role
+	s.clamp()
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
 }
 
 func (s *Store) SetState(st State) (Snapshot, error) {
@@ -295,9 +518,8 @@ func (s *Store) SetState(st State) (Snapshot, error) {
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
 }
-
 
 func (s *Store) UpdateSettings(next Settings) (Snapshot, error) {
 	s.mu.Lock()
@@ -307,5 +529,5 @@ func (s *Store) UpdateSettings(next Settings) (Snapshot, error) {
 	if err := s.persistSettings(); err != nil {
 		return Snapshot{}, err
 	}
-	return Snapshot{State: s.state, Settings: s.settings}, nil
+	return s.snapLocked(), nil
 }

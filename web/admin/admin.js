@@ -306,12 +306,56 @@ function readAllSettings() {
   return { ...readAppearance(), ...readObs() };
 }
 
-function renderState(state) {
-  document.getElementById('winsValue').textContent = state.wins;
-  document.getElementById('lossesValue').textContent = state.losses;
-  fillRankControls(state.rank);
-  document.getElementById('winsSwatch').textContent = String(state.wins);
-  document.getElementById('lossesSwatch').textContent = String(state.losses);
+function viewFromSnap(snap) {
+  if (snap?.view && typeof snap.view.wins === 'number') {
+    return {
+      wins: snap.view.wins || 0,
+      losses: snap.view.losses || 0,
+      rank: snap.view.rank || 0,
+      mode: snap.view.mode || snap.state?.mode || 'classic',
+      role: snap.view.role || snap.state?.role || 'tank',
+    };
+  }
+  const st = snap?.state || snap || {};
+  const mode = st.mode || 'classic';
+  const role = st.role || 'tank';
+  if (mode === 'roles_shared') {
+    const r = (st.roles && st.roles[role]) || {};
+    return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role };
+  }
+  if (mode === 'roles_split') {
+    const r = (st.roles && st.roles[role]) || {};
+    return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role };
+  }
+  return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role };
+}
+
+function renderModeRole(view) {
+  const modeEl = document.getElementById('gameModeSelect');
+  const roleEl = document.getElementById('gameRoleSelect');
+  if (modeEl && modeEl.value !== view.mode) modeEl.value = view.mode || 'classic';
+  if (roleEl) {
+    if (roleEl.value !== view.role) roleEl.value = view.role || 'tank';
+    roleEl.disabled = (view.mode || 'classic') === 'classic';
+  }
+}
+
+function renderState(snapOrState) {
+  const view = snapOrState?.view || snapOrState?.state
+    ? viewFromSnap(snapOrState)
+    : {
+        wins: snapOrState?.wins || 0,
+        losses: snapOrState?.losses || 0,
+        rank: snapOrState?.rank || 0,
+        mode: snapOrState?.mode || 'classic',
+        role: snapOrState?.role || 'tank',
+      };
+  document.getElementById('winsValue').textContent = view.wins;
+  document.getElementById('lossesValue').textContent = view.losses;
+  fillRankControls(view.rank);
+  document.getElementById('winsSwatch').textContent = String(view.wins);
+  document.getElementById('lossesSwatch').textContent = String(view.losses);
+  renderModeRole(view);
 }
 
 function pushPreviewSettings() {
@@ -349,6 +393,7 @@ function renderCopyLinks(runtime) {
     ['Overlay', overlayUrl], ['Admin', `${base}/admin/`],
     ['Win +1', `${base}/api/win`], ['Loss +1', `${base}/api/loss`],
     ['Rank up', `${base}/api/rank/up`], ['Rank down', `${base}/api/rank/down`], ['Reset', `${base}/api/reset`],
+    ['Mode next', `${base}/api/mode/next`], ['Role next', `${base}/api/role/next`],
   ];
   overlayLink.href = overlayUrl;
   copyList.innerHTML = items.map(([label, url]) => `
@@ -628,7 +673,7 @@ document.querySelectorAll('[data-action]').forEach((btn) => {
   btn.addEventListener('click', async () => {
     try {
       const snap = await api(btn.dataset.action, { method: 'POST' });
-      renderState(snap.state);
+      renderState(snap);
       setStatus(t('msg.updated'), true);
     } catch (err) {
       setStatus(String(err.message || err));
@@ -645,7 +690,7 @@ document.getElementById('rankApplyBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rank }),
     });
-    renderState(snap.state);
+    renderState(snap);
     setStatus(t('msg.rankUpdated'), true);
   } catch (err) {
     setStatus(String(err.message || err));
@@ -671,7 +716,7 @@ form.addEventListener('submit', async (e) => {
     const snap = await saveAllSettings();
     fillAppearance(snap.settings);
     fillObs(snap.settings);
-    renderState(snap.state);
+    renderState(snap);
     setStatus(t('msg.saved'), true);
   } catch (err) {
     setStatus(String(err.message || err));
@@ -893,7 +938,7 @@ function connectWS() {
   ws.addEventListener('open', () => setStatus(t('status.live'), true));
   ws.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
-    if (msg.state) renderState(msg.state);
+    if (msg.state || msg.view) renderState(msg);
   });
   ws.addEventListener('close', () => {
     setStatus(t('status.reconnect'));
@@ -904,7 +949,7 @@ function connectWS() {
 async function boot() {
   populateFonts();
   const [snap, runtime] = await Promise.all([api('/api/snapshot'), api('/api/runtime')]);
-  renderState(snap.state);
+  renderState(snap);
   fillAppearance(snap.settings);
   fillObs(snap.settings);
   applyUiLang(snap.settings?.uiLang || uiLang);
@@ -918,6 +963,25 @@ async function boot() {
     setObsStatus(t('main.obsOfflineHint'));
   }
 }
+
+document.getElementById('gameModeSelect')?.addEventListener('change', async (e) => {
+  try {
+    const snap = await api(`/api/mode?set=${encodeURIComponent(e.target.value)}`, { method: 'POST' });
+    renderState(snap);
+    setStatus(t('msg.updated'), true);
+  } catch (err) {
+    setStatus(String(err.message || err));
+  }
+});
+document.getElementById('gameRoleSelect')?.addEventListener('change', async (e) => {
+  try {
+    const snap = await api(`/api/role?set=${encodeURIComponent(e.target.value)}`, { method: 'POST' });
+    renderState(snap);
+    setStatus(t('msg.updated'), true);
+  } catch (err) {
+    setStatus(String(err.message || err));
+  }
+});
 
 document.getElementById('uiLangSelect')?.addEventListener('change', (e) => {
   applyUiLang(e.target.value, { persist: true });

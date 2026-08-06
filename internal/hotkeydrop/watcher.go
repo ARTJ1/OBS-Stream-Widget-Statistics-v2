@@ -18,6 +18,8 @@ const (
 	RankUp   Action = "rank_up"
 	RankDown Action = "rank_down"
 	Reset    Action = "reset"
+	ModeNext Action = "mode_next"
+	RoleNext Action = "role_next"
 	Quit     Action = "quit"
 )
 
@@ -91,6 +93,10 @@ func parse(s string) Action {
 		return RankDown
 	case "reset", "api_reset":
 		return Reset
+	case "mode_next", "mode", "api_mode_next":
+		return ModeNext
+	case "role_next", "role", "api_role_next":
+		return RoleNext
 	case "quit", "exit", "shutdown", "stop":
 		return Quit
 	default:

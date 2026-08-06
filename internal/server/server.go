@@ -64,6 +64,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/rank/down", s.methodAction(s.Store.RankDown, "rank"))
 	s.mux.HandleFunc("/api/rank/set", s.setRank)
 	s.mux.HandleFunc("/api/reset", s.methodAction(s.Store.Reset, "reset"))
+	s.mux.HandleFunc("/api/mode/next", s.methodAction(s.Store.CycleMode, "mode"))
+	s.mux.HandleFunc("/api/role/next", s.methodAction(s.Store.CycleRole, "role"))
+	s.mux.HandleFunc("/api/mode", s.modeHandler)
+	s.mux.HandleFunc("/api/role", s.roleHandler)
 	s.mux.HandleFunc("/api/state", s.stateHandler)
 	s.mux.HandleFunc("/api/settings", s.settings)
 	s.mux.HandleFunc("/api/runtime", s.getRuntime)
@@ -135,6 +139,10 @@ func (s *Server) ApplyHotkey(name string) {
 		fn, msgType = s.Store.RankDown, "rank"
 	case "reset":
 		fn, msgType = s.Store.Reset, "reset"
+	case "mode_next", "mode":
+		fn, msgType = s.Store.CycleMode, "mode"
+	case "role_next", "role":
+		fn, msgType = s.Store.CycleRole, "role"
 	default:
 		return
 	}
@@ -144,6 +152,60 @@ func (s *Server) ApplyHotkey(name string) {
 		return
 	}
 	s.Hub.Broadcast(msgType, snap)
+}
+
+func (s *Server) modeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	mode := r.URL.Query().Get("set")
+	if mode == "" && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+		var req struct {
+			Mode string `json:"mode"`
+		}
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		_ = json.Unmarshal(body, &req)
+		mode = req.Mode
+	}
+	if mode == "" {
+		http.Error(w, "mode required", http.StatusBadRequest)
+		return
+	}
+	snap, err := s.Store.SetMode(mode)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.Hub.Broadcast("mode", snap)
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Server) roleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.URL.Query().Get("set")
+	if role == "" && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+		var req struct {
+			Role string `json:"role"`
+		}
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		_ = json.Unmarshal(body, &req)
+		role = req.Role
+	}
+	if role == "" {
+		http.Error(w, "role required", http.StatusBadRequest)
+		return
+	}
+	snap, err := s.Store.SetRole(role)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.Hub.Broadcast("role", snap)
+	writeJSON(w, http.StatusOK, snap)
 }
 
 func (s *Server) getState(w http.ResponseWriter, r *http.Request) {

@@ -55,6 +55,23 @@
 
       <section class="panel">
         <h2 data-i18n="main.stats">Статистика</h2>
+        <div class="form-grid mode-role-grid" style="margin-bottom:14px">
+          <label><span data-i18n="main.mode">Режим</span>
+            <select id="gameModeSelect">
+              <option value="classic" data-i18n="mode.classic">Обычный</option>
+              <option value="roles_shared" data-i18n="mode.rolesShared">Роли: общий W/L</option>
+              <option value="roles_split" data-i18n="mode.rolesSplit">Роли: раздельный W/L</option>
+            </select>
+          </label>
+          <label><span data-i18n="main.role">Роль</span>
+            <select id="gameRoleSelect">
+              <option value="tank" data-i18n="role.tank">Tank</option>
+              <option value="support" data-i18n="role.support">Support</option>
+              <option value="damage" data-i18n="role.damage">Damage</option>
+            </select>
+          </label>
+        </div>
+        <p class="setup-note" id="modeRoleHint" data-i18n="main.modeHint">В обычном режиме роль скрыта. В ролевых режимах правка идёт для выбранной роли.</p>
         <div class="stats-row">
           <div class="stat-card">
             <span class="label">Wins</span>

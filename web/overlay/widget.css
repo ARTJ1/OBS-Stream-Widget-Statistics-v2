@@ -70,9 +70,31 @@ html.preview-mode .widget {
   overflow: visible;
 }
 .widget > .stats,
-.widget > .rank-section {
+.widget > .rank-section,
+.widget > .role-badge {
   position: relative;
   z-index: 1;
+}
+
+.role-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 2px 0 6px;
+  flex-shrink: 0;
+}
+.role-badge[hidden] {
+  display: none !important;
+}
+.role-icon {
+  width: 1.95em;
+  height: 1.95em;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+}
+body.mode-roles_shared .role-badge,
+body.mode-roles_split .role-badge {
+  display: flex;
 }
 
 /* Appear: slide (default) */
