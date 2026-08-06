@@ -961,7 +961,12 @@ document.getElementById('previewFrameMotion')?.addEventListener('load', () => {
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.addEventListener('open', () => setStatus(t('status.live'), true));
+  ws.addEventListener('open', () => {
+    setStatus(t('status.live'), true);
+    if (awaitingServerRestart || knownAppVersion) {
+      maybeReloadAfterUpdate();
+    }
+  });
   ws.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
     if (msg.state || msg.view) renderState(msg);
@@ -991,12 +996,84 @@ async function boot() {
   }
 }
 
+let knownAppVersion = '';
+let awaitingServerRestart = false;
+let updateWaitTimer = 0;
 let latestUpdateInfo = null;
+
+async function fetchAppVersion() {
+  try {
+    const res = await fetch('/api/version', { cache: 'no-store' });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return String(data.version || '');
+  } catch {
+    return '';
+  }
+}
+
+function reloadAdminFresh(ver) {
+  const url = new URL(location.href);
+  url.searchParams.delete('update');
+  if (ver) url.searchParams.set('_v', ver);
+  else url.searchParams.set('_t', String(Date.now()));
+  location.replace(url.toString());
+}
+
+async function maybeReloadAfterUpdate() {
+  const ver = await fetchAppVersion();
+  if (!ver) return;
+  if (awaitingServerRestart) {
+    const target = latestUpdateInfo?.latest || '';
+    if ((target && ver === target) || (knownAppVersion && ver !== knownAppVersion)) {
+      setStatus(t('update.reloading'), true);
+      reloadAdminFresh(ver);
+    }
+    return;
+  }
+  if (knownAppVersion && ver !== knownAppVersion) {
+    reloadAdminFresh(ver);
+  }
+}
+
+function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {}) {
+  awaitingServerRestart = true;
+  if (previousVersion) knownAppVersion = previousVersion;
+  clearInterval(updateWaitTimer);
+  setStatus(t('update.waiting'), true);
+  const banner = document.getElementById('updateBanner');
+  if (banner) banner.hidden = true;
+  let tries = 0;
+  updateWaitTimer = setInterval(async () => {
+    tries += 1;
+    setStatus(`${t('update.waiting')} (${tries})`, true);
+    const ver = await fetchAppVersion();
+    if (!ver) return;
+    const ready = (expectVersion && ver === expectVersion)
+      || (previousVersion && ver !== previousVersion);
+    if (ready) {
+      clearInterval(updateWaitTimer);
+      awaitingServerRestart = false;
+      setStatus(t('update.reloading'), true);
+      reloadAdminFresh(ver);
+      return;
+    }
+    if (tries > 90) {
+      clearInterval(updateWaitTimer);
+      awaitingServerRestart = false;
+      const btn = document.getElementById('updateApplyBtn');
+      if (btn) btn.disabled = false;
+      setStatus(t('update.waiting'));
+    }
+  }, 1000);
+}
+
 async function checkForUpdates({ forceBanner = false } = {}) {
   try {
     const info = await api('/api/update/check');
     const verEl = document.getElementById('appVersion');
     if (verEl && info.current) verEl.textContent = info.current;
+    if (info.current) knownAppVersion = info.current;
     latestUpdateInfo = info;
     const banner = document.getElementById('updateBanner');
     if (!banner) return;
@@ -1022,11 +1099,18 @@ document.getElementById('updateLaterBtn')?.addEventListener('click', () => {
 });
 document.getElementById('updateApplyBtn')?.addEventListener('click', async () => {
   const btn = document.getElementById('updateApplyBtn');
+  const prev = knownAppVersion || latestUpdateInfo?.current || '';
+  const expect = latestUpdateInfo?.latest || '';
   try {
     if (btn) btn.disabled = true;
     setStatus(t('update.applying'), true);
-    await api('/api/update/apply', { method: 'POST' });
+    try {
+      await api('/api/update/apply', { method: 'POST' });
+    } catch {
+      // Server often dies mid-response while restarting — expected.
+    }
     setStatus(t('update.done'), true);
+    waitForServerRestart({ expectVersion: expect, previousVersion: prev });
   } catch (err) {
     setStatus(String(err.message || err));
     if (btn) btn.disabled = false;
