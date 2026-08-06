@@ -55,6 +55,9 @@ func main() {
 		log.Fatalf("skins: %v", err)
 	}
 	updater := update.NewChecker(version.Display(), dataDir)
+	if exePath, err := os.Executable(); err == nil {
+		update.CleanupJunk(filepath.Dir(exePath))
+	}
 	srv := server.New(st, skinStore, h, obs, info, webassets.FS, updater)
 
 	httpServer := &http.Server{Handler: srv.Handler()}

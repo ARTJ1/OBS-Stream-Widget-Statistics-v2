@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-$Version = if ($env:WIDGET_STATS_VERSION) { $env:WIDGET_STATS_VERSION } else { "v2.0.9" }
+$Version = if ($env:WIDGET_STATS_VERSION) { $env:WIDGET_STATS_VERSION } else { "v2.0.10" }
 if ($Version -notmatch '^v') { $Version = "v$Version" }
 
 Write-Host "Embedding Windows icon..."

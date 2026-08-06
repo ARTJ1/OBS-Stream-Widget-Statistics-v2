@@ -1,6 +1,7 @@
 package update
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -24,7 +25,7 @@ func downloadClient() *http.Client {
 			TLSHandshakeTimeout:   20 * time.Second,
 			ResponseHeaderTimeout: 30 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
-			ForceAttemptHTTP2:     false, // GitHub CDN is more reliable on HTTP/1.1 for large binaries
+			ForceAttemptHTTP2:     false,
 			MaxIdleConns:          4,
 			DisableCompression:    true,
 		},
@@ -32,15 +33,72 @@ func downloadClient() *http.Client {
 			if len(via) >= 8 {
 				return fmt.Errorf("too many redirects")
 			}
-			// Keep UA on redirects to objects.githubusercontent.com
 			req.Header.Set("User-Agent", userAgent)
 			return nil
 		},
 	}
 }
 
-// Apply downloads release assets and schedules a restart that replaces the running exe.
-// OBS is not restarted — only widget-stats.exe.
+// CleanupJunk removes leftover updater files next to the exe (no new folders created).
+func CleanupJunk(exeDir string) {
+	if exeDir == "" {
+		return
+	}
+	names := []string{
+		"widget-stats.exe.new",
+		"widget-stats.exe.new.part",
+		"widget-stats.exe.part",
+		"widget-stats.exe.update.bat",
+		"widget_control.lua.new",
+		"widget_control.lua.new.part",
+		"widget_control.lua.part",
+	}
+	for _, name := range names {
+		_ = os.Remove(filepath.Join(exeDir, name))
+	}
+	entries, err := os.ReadDir(exeDir)
+	if err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			lower := strings.ToLower(name)
+			// Odd leftovers like widget_control.lua5 / .lua.new / numbered copies.
+			if strings.HasPrefix(lower, "widget_control.lua") && lower != "widget_control.lua" {
+				_ = os.Remove(filepath.Join(exeDir, name))
+			}
+			if strings.HasPrefix(lower, "widget-stats.exe.") &&
+				(strings.HasSuffix(lower, ".new") ||
+					strings.HasSuffix(lower, ".part") ||
+					strings.HasSuffix(lower, ".bat") ||
+					strings.Contains(lower, ".update.")) {
+				_ = os.Remove(filepath.Join(exeDir, name))
+			}
+		}
+	}
+	// Remove auto-created empty (or lua-only) obs/ clutter from older updaters.
+	obsDir := filepath.Join(exeDir, "obs")
+	if ents, err := os.ReadDir(obsDir); err == nil {
+		onlyOurs := true
+		for _, e := range ents {
+			n := strings.ToLower(e.Name())
+			if n != "widget_control.lua" && !strings.HasPrefix(n, "widget_control.lua") {
+				onlyOurs = false
+				break
+			}
+		}
+		if onlyOurs {
+			for _, e := range ents {
+				_ = os.Remove(filepath.Join(obsDir, e.Name()))
+			}
+			_ = os.Remove(obsDir)
+		}
+	}
+}
+
+// Apply downloads the new exe (and optionally updates an existing lua script in place).
+// Does not create obs/ or extra lua copies. Restarts only widget-stats.exe.
 func Apply(info Info, dataDir string) error {
 	if !info.Available {
 		return fmt.Errorf("no update available")
@@ -59,37 +117,72 @@ func Apply(info Info, dataDir string) error {
 		return err
 	}
 	exeDir := filepath.Dir(exe)
-	newExe := exe + ".new"
-	_ = os.Remove(newExe)
+	CleanupJunk(exeDir)
+
+	staging := filepath.Join(dataDir, "update-staging")
+	_ = os.RemoveAll(staging)
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(staging) }()
 
 	client := downloadClient()
+	newExe := filepath.Join(staging, "widget-stats.exe")
 	if err := downloadWithRetry(client, exeURLs, newExe); err != nil {
-		_ = os.Remove(newExe)
 		return fmt.Errorf("download exe: %w", err)
 	}
 
+	// Lua: only patch paths that already exist; skip if identical.
 	if luaURLs := info.LuaURLs(); len(luaURLs) > 0 {
-		tmpLua := filepath.Join(exeDir, "widget_control.lua.new")
-		_ = os.Remove(tmpLua)
-		if err := downloadWithRetry(client, luaURLs, tmpLua); err != nil {
-			_ = os.Remove(tmpLua)
-			return fmt.Errorf("download lua: %w", err)
+		if targets := existingLuaTargets(exeDir, dataDir); len(targets) > 0 {
+			tmpLua := filepath.Join(staging, "widget_control.lua")
+			if err := downloadWithRetry(client, luaURLs, tmpLua); err != nil {
+				// Lua is optional for most releases — don't fail the whole update.
+			} else if b, err := os.ReadFile(tmpLua); err == nil {
+				for _, dest := range targets {
+					old, _ := os.ReadFile(dest)
+					if bytes.Equal(old, b) {
+						continue
+					}
+					_ = os.WriteFile(dest, b, 0o644)
+				}
+			}
 		}
-		b, err := os.ReadFile(tmpLua)
-		if err != nil {
-			return err
-		}
-		for _, dest := range luaTargets(exeDir, dataDir) {
-			_ = os.MkdirAll(filepath.Dir(dest), 0o755)
-			_ = os.WriteFile(dest, b, 0o644)
-		}
-		_ = os.Remove(tmpLua)
+	}
+
+	finalNew := exe + ".new"
+	_ = os.Remove(finalNew)
+	if err := copyFile(newExe, finalNew); err != nil {
+		return fmt.Errorf("stage exe: %w", err)
 	}
 
 	if runtime.GOOS != "windows" {
 		return fmt.Errorf("auto-apply is only supported on Windows")
 	}
-	return scheduleWindowsReplace(exe, newExe, os.Getpid())
+	return scheduleWindowsReplace(exe, finalNew, os.Getpid())
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(dst)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(dst)
+		return closeErr
+	}
+	return nil
 }
 
 func (info Info) ExeURLs() []string {
@@ -114,25 +207,26 @@ func uniqURLs(urls ...string) []string {
 	return out
 }
 
-func luaTargets(exeDir, dataDir string) []string {
+// existingLuaTargets returns only lua files that already exist — never creates folders/copies.
+func existingLuaTargets(exeDir, dataDir string) []string {
 	seen := map[string]bool{}
 	var out []string
-	add := func(p string) {
-		p = filepath.Clean(p)
+	addIfExists := func(p string) {
+		p = filepath.Clean(strings.TrimSpace(p))
 		if p == "" || seen[p] {
+			return
+		}
+		fi, err := os.Stat(p)
+		if err != nil || fi.IsDir() {
 			return
 		}
 		seen[p] = true
 		out = append(out, p)
 	}
-	add(filepath.Join(exeDir, "widget_control.lua"))
-	add(filepath.Join(exeDir, "obs", "widget_control.lua"))
+	addIfExists(filepath.Join(exeDir, "widget_control.lua"))
 	if dataDir != "" {
 		if b, err := os.ReadFile(filepath.Join(dataDir, "lua_path.txt")); err == nil {
-			p := strings.TrimSpace(string(b))
-			if p != "" {
-				add(p)
-			}
+			addIfExists(string(b))
 		}
 	}
 	return out
