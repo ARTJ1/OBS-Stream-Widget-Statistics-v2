@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -453,6 +454,42 @@ func (s *Store) RankDown() (Snapshot, error) {
 			s.state.Rank--
 		}
 	}
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+// RankUpRole bumps rank for an explicit role (Stream Deck / hotkeys), independent of current selection.
+func (s *Store) RankUpRole(role string) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !isValidRole(role) {
+		return Snapshot{}, fmt.Errorf("invalid role %q", role)
+	}
+	rs := s.getRole(role)
+	if rs.Rank < MaxRankIndex-1 {
+		rs.Rank++
+	}
+	s.setRole(role, rs)
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+// RankDownRole lowers rank for an explicit role (Stream Deck / hotkeys).
+func (s *Store) RankDownRole(role string) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !isValidRole(role) {
+		return Snapshot{}, fmt.Errorf("invalid role %q", role)
+	}
+	rs := s.getRole(role)
+	if rs.Rank > 0 {
+		rs.Rank--
+	}
+	s.setRole(role, rs)
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}

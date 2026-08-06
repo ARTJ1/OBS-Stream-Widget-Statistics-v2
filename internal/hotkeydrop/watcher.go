@@ -82,6 +82,26 @@ func parse(s string) Action {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.TrimPrefix(s, "/api/")
 	s = strings.ReplaceAll(s, "/", "_")
+	// rank_up?role=tank  /  rank/up?role=tank (after / → _)
+	if i := strings.IndexByte(s, '?'); i >= 0 {
+		base, q := s[:i], s[i+1:]
+		role := ""
+		for _, part := range strings.Split(q, "&") {
+			kv := strings.SplitN(part, "=", 2)
+			if len(kv) == 2 && kv[0] == "role" {
+				role = strings.TrimSpace(kv[1])
+			}
+		}
+		if role != "" {
+			switch base {
+			case "rank_up", "rankup", "api_rank_up":
+				return Action("rank_up_" + role)
+			case "rank_down", "rankdown", "api_rank_down":
+				return Action("rank_down_" + role)
+			}
+		}
+		s = base
+	}
 	switch s {
 	case "win", "api_win":
 		return Win
@@ -100,6 +120,9 @@ func parse(s string) Action {
 	case "quit", "exit", "shutdown", "stop":
 		return Quit
 	default:
+		if strings.HasPrefix(s, "rank_up_") || strings.HasPrefix(s, "rank_down_") {
+			return Action(s)
+		}
 		return ""
 	}
 }

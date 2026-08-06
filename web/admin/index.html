@@ -10,7 +10,7 @@
   <main class="page">
     <header class="header">
       <div>
-        <p class="eyebrow">OBS Stream Widget Statistics v2</p>
+        <p class="eyebrow">OBS Stream Widget Statistics v2 <span id="appVersion" class="ver-tag"></span></p>
         <h1>Admin</h1>
       </div>
       <div class="header-right">
@@ -24,6 +24,17 @@
         <div class="status" id="status">Connecting…</div>
       </div>
     </header>
+
+    <div class="update-banner" id="updateBanner" hidden>
+      <div>
+        <strong id="updateBannerTitle" data-i18n="update.title">Доступно обновление</strong>
+        <p id="updateBannerText" class="setup-note" style="margin:4px 0 0"></p>
+      </div>
+      <div class="actions">
+        <button type="button" id="updateApplyBtn" class="primary" data-i18n="update.apply">Обновить</button>
+        <button type="button" id="updateLaterBtn" data-i18n="update.later">Позже</button>
+      </div>
+    </div>
 
     <nav class="tabs" id="tabs">
       <button type="button" class="tab active" data-tab="main" data-i18n="tab.main">Главное</button>

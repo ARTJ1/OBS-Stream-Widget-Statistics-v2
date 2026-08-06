@@ -14,15 +14,27 @@ local hotkey_rank_down = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_reset = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_mode = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_role = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_rank_up_tank = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_rank_up_support = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_rank_up_damage = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_rank_down_tank = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_rank_down_support = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_rank_down_damage = obs.OBS_INVALID_HOTKEY_ID
 
 local hotkey_seq = 0
 local started_once = false
+local update_announced = nil
+local update_latest = nil
 
-local function script_dir()
+local function script_path()
   local info = debug.getinfo(1, "S")
   local src = info and info.source or ""
   src = src:gsub("^@", "")
-  src = src:gsub("\\", "/")
+  return src:gsub("/", "\\")
+end
+
+local function script_dir()
+  local src = script_path():gsub("\\", "/")
   return src:match("^(.*)/[^/]+$") or "."
 end
 
@@ -163,12 +175,77 @@ local function request_quit()
   queue_action("quit")
 end
 
+local function write_lua_path()
+  local exe = resolve_exe()
+  local data = data_dir_for_exe(exe)
+  if not data then return end
+  local f = io.open(data .. "\\lua_path.txt", "w")
+  if not f then return end
+  f:write(script_path())
+  f:close()
+end
+
+local function read_update_json()
+  local exe = resolve_exe()
+  local data = data_dir_for_exe(exe)
+  if not data then return nil end
+  local f = io.open(data .. "\\update.json", "r")
+  if not f then return nil end
+  local content = f:read("*a")
+  f:close()
+  if not content or content == "" then return nil end
+  local available = content:match('"available"%s*:%s*true') ~= nil
+  local latest = content:match('"latest"%s*:%s*"(.-)"')
+  local current = content:match('"current"%s*:%s*"(.-)"')
+  return {
+    available = available,
+    latest = latest,
+    current = current,
+  }
+end
+
+local function open_update_admin()
+  ensure_server()
+  local rt = read_runtime()
+  local admin = rt.admin or (config.base_url .. "/admin/")
+  if not admin:find("%?update=1") then
+    if admin:sub(-1) == "/" then
+      admin = admin .. "?update=1"
+    else
+      admin = admin .. "/?update=1"
+    end
+  end
+  open_url_hidden(admin)
+end
+
+local function poll_update_status()
+  local info = read_update_json()
+  if not info or not info.available or not info.latest then
+    return
+  end
+  update_latest = info.latest
+  if update_announced == info.latest then
+    return
+  end
+  update_announced = info.latest
+  local msg = string.format(
+    "Widget Stats: доступно обновление %s (сейчас %s). Tools → Scripts → кнопка «Открыть обновление», либо админка.",
+    info.latest,
+    info.current or "?"
+  )
+  obs.script_log(obs.LOG_WARNING, msg)
+end
+
 function script_description()
+  local extra = ""
+  if update_latest then
+    extra = "\n\n⚠ Доступно обновление " .. update_latest .. " — открой админку и нажми «Обновить»."
+  end
   return [[OBS Stream Widget Statistics v2
 
 Автозапуск без долгого ожидания.
 Хоткеи и выключение — через файл data/hk_*.wreq (без окон консоли).
-Сцену настраивай в админке.]]
+Сцену настраивай в админке.]] .. extra
 end
 
 function script_properties()
@@ -179,6 +256,10 @@ function script_properties()
   obs.obs_properties_add_text(props, "base_url", "Base URL (fallback)", obs.OBS_TEXT_DEFAULT)
   obs.obs_properties_add_button(props, "open_admin", "Открыть админку", function()
     open_admin()
+    return true
+  end)
+  obs.obs_properties_add_button(props, "open_update", "Открыть обновление", function()
+    open_update_admin()
     return true
   end)
   obs.obs_properties_add_button(props, "start_server", "Запустить сервер", function()
@@ -220,6 +301,12 @@ function script_load(settings)
   hotkey_reset = obs.obs_hotkey_register_frontend("v2_widget_reset", "V2 Виджет: Сброс W/L", on_hotkey("reset"))
   hotkey_mode = obs.obs_hotkey_register_frontend("v2_widget_mode", "V2 Виджет: Следующий режим", on_hotkey("mode_next"))
   hotkey_role = obs.obs_hotkey_register_frontend("v2_widget_role", "V2 Виджет: Следующая роль", on_hotkey("role_next"))
+  hotkey_rank_up_tank = obs.obs_hotkey_register_frontend("v2_widget_rank_up_tank", "V2 Виджет: Ранг↑ Tank", on_hotkey("rank_up_tank"))
+  hotkey_rank_up_support = obs.obs_hotkey_register_frontend("v2_widget_rank_up_support", "V2 Виджет: Ранг↑ Support", on_hotkey("rank_up_support"))
+  hotkey_rank_up_damage = obs.obs_hotkey_register_frontend("v2_widget_rank_up_damage", "V2 Виджет: Ранг↑ Damage", on_hotkey("rank_up_damage"))
+  hotkey_rank_down_tank = obs.obs_hotkey_register_frontend("v2_widget_rank_down_tank", "V2 Виджет: Ранг↓ Tank", on_hotkey("rank_down_tank"))
+  hotkey_rank_down_support = obs.obs_hotkey_register_frontend("v2_widget_rank_down_support", "V2 Виджет: Ранг↓ Support", on_hotkey("rank_down_support"))
+  hotkey_rank_down_damage = obs.obs_hotkey_register_frontend("v2_widget_rank_down_damage", "V2 Виджет: Ранг↓ Damage", on_hotkey("rank_down_damage"))
 
   local function load_hk(id, key)
     local arr = obs.obs_data_get_array(settings, key)
@@ -235,10 +322,18 @@ function script_load(settings)
   load_hk(hotkey_reset, "v2_widget_reset")
   load_hk(hotkey_mode, "v2_widget_mode")
   load_hk(hotkey_role, "v2_widget_role")
+  load_hk(hotkey_rank_up_tank, "v2_widget_rank_up_tank")
+  load_hk(hotkey_rank_up_support, "v2_widget_rank_up_support")
+  load_hk(hotkey_rank_up_damage, "v2_widget_rank_up_damage")
+  load_hk(hotkey_rank_down_tank, "v2_widget_rank_down_tank")
+  load_hk(hotkey_rank_down_support, "v2_widget_rank_down_support")
+  load_hk(hotkey_rank_down_damage, "v2_widget_rank_down_damage")
 
   if config.auto_start then
     ensure_server()
   end
+  write_lua_path()
+  obs.timer_add(poll_update_status, 10000)
 end
 
 function script_save(settings)
@@ -261,6 +356,12 @@ function script_save(settings)
   save_hk(hotkey_reset, "v2_widget_reset")
   save_hk(hotkey_mode, "v2_widget_mode")
   save_hk(hotkey_role, "v2_widget_role")
+  save_hk(hotkey_rank_up_tank, "v2_widget_rank_up_tank")
+  save_hk(hotkey_rank_up_support, "v2_widget_rank_up_support")
+  save_hk(hotkey_rank_up_damage, "v2_widget_rank_up_damage")
+  save_hk(hotkey_rank_down_tank, "v2_widget_rank_down_tank")
+  save_hk(hotkey_rank_down_support, "v2_widget_rank_down_support")
+  save_hk(hotkey_rank_down_damage, "v2_widget_rank_down_damage")
 end
 
 function script_unload()

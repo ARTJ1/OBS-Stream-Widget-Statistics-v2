@@ -18,6 +18,8 @@ import (
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/runtimeinfo"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/skins"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/store"
+	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/update"
+	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/version"
 	"github.com/gorilla/websocket"
 )
 
@@ -28,11 +30,13 @@ type Server struct {
 	OBS     *obsbridge.Bridge
 	Runtime runtimeinfo.Info
 	WebFS   fs.FS
+	Updater *update.Checker
+	OnQuit  func()
 	mux     *http.ServeMux
 }
 
-func New(st *store.Store, skinStore *skins.Store, h *hub.Hub, obs *obsbridge.Bridge, info runtimeinfo.Info, webFS fs.FS) *Server {
-	s := &Server{Store: st, Skins: skinStore, Hub: h, OBS: obs, Runtime: info, WebFS: webFS, mux: http.NewServeMux()}
+func New(st *store.Store, skinStore *skins.Store, h *hub.Hub, obs *obsbridge.Bridge, info runtimeinfo.Info, webFS fs.FS, updater *update.Checker) *Server {
+	s := &Server{Store: st, Skins: skinStore, Hub: h, OBS: obs, Runtime: info, WebFS: webFS, Updater: updater, mux: http.NewServeMux()}
 	s.syncOBSFromSettings()
 	s.routes()
 	return s
@@ -60,8 +64,8 @@ func (s *Server) Serve(ln net.Listener) error {
 func (s *Server) routes() {
 	s.mux.HandleFunc("/api/win", s.methodAction(s.Store.AddWin, "win"))
 	s.mux.HandleFunc("/api/loss", s.methodAction(s.Store.AddLoss, "loss"))
-	s.mux.HandleFunc("/api/rank/up", s.methodAction(s.Store.RankUp, "rank"))
-	s.mux.HandleFunc("/api/rank/down", s.methodAction(s.Store.RankDown, "rank"))
+	s.mux.HandleFunc("/api/rank/up", s.rankUpHandler)
+	s.mux.HandleFunc("/api/rank/down", s.rankDownHandler)
 	s.mux.HandleFunc("/api/rank/set", s.setRank)
 	s.mux.HandleFunc("/api/reset", s.methodAction(s.Store.Reset, "reset"))
 	s.mux.HandleFunc("/api/mode/next", s.methodAction(s.Store.CycleMode, "mode"))
@@ -81,6 +85,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/upload/bg", s.uploadBg)
 	s.mux.HandleFunc("/api/skins", s.customSkins)
 	s.mux.HandleFunc("/api/show", s.showOverlay)
+	s.mux.HandleFunc("/api/version", s.getVersion)
+	s.mux.HandleFunc("/api/update/check", s.updateCheck)
+	s.mux.HandleFunc("/api/update/apply", s.updateApply)
 	s.mux.HandleFunc("/ws", s.ws)
 	s.mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -127,32 +134,89 @@ func (s *Server) methodAction(fn actionFn, msgType string) http.HandlerFunc {
 // ApplyHotkey runs the same mutations as /api/* for the OBS file-drop hotkey path
 // (no HTTP / no console from Lua).
 func (s *Server) ApplyHotkey(name string) {
-	var fn actionFn
+	name = strings.ToLower(strings.TrimSpace(name))
+	var snap store.Snapshot
+	var err error
 	var msgType string
-	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "win":
-		fn, msgType = s.Store.AddWin, "win"
-	case "loss":
-		fn, msgType = s.Store.AddLoss, "loss"
-	case "rank_up":
-		fn, msgType = s.Store.RankUp, "rank"
-	case "rank_down":
-		fn, msgType = s.Store.RankDown, "rank"
-	case "reset":
-		fn, msgType = s.Store.Reset, "reset"
-	case "mode_next", "mode":
-		fn, msgType = s.Store.CycleMode, "mode"
-	case "role_next", "role":
-		fn, msgType = s.Store.CycleRole, "role"
+
+	switch {
+	case name == "win":
+		snap, err = s.Store.AddWin()
+		msgType = "win"
+	case name == "loss":
+		snap, err = s.Store.AddLoss()
+		msgType = "loss"
+	case name == "rank_up":
+		snap, err = s.Store.RankUp()
+		msgType = "rank"
+	case name == "rank_down":
+		snap, err = s.Store.RankDown()
+		msgType = "rank"
+	case strings.HasPrefix(name, "rank_up_"):
+		snap, err = s.Store.RankUpRole(strings.TrimPrefix(name, "rank_up_"))
+		msgType = "rank"
+	case strings.HasPrefix(name, "rank_down_"):
+		snap, err = s.Store.RankDownRole(strings.TrimPrefix(name, "rank_down_"))
+		msgType = "rank"
+	case name == "reset":
+		snap, err = s.Store.Reset()
+		msgType = "reset"
+	case name == "mode_next" || name == "mode":
+		snap, err = s.Store.CycleMode()
+		msgType = "mode"
+	case name == "role_next" || name == "role":
+		snap, err = s.Store.CycleRole()
+		msgType = "role"
 	default:
 		return
 	}
-	snap, err := fn()
 	if err != nil {
 		log.Printf("hotkey %s: %v", name, err)
 		return
 	}
 	s.Hub.Broadcast(msgType, snap)
+}
+
+func (s *Server) rankUpHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	role := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("role")))
+	var snap store.Snapshot
+	var err error
+	if role != "" {
+		snap, err = s.Store.RankUpRole(role)
+	} else {
+		snap, err = s.Store.RankUp()
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.Hub.Broadcast("rank", snap)
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Server) rankDownHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	role := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("role")))
+	var snap store.Snapshot
+	var err error
+	if role != "" {
+		snap, err = s.Store.RankDownRole(role)
+	} else {
+		snap, err = s.Store.RankDown()
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.Hub.Broadcast("rank", snap)
+	writeJSON(w, http.StatusOK, snap)
 }
 
 func (s *Server) modeHandler(w http.ResponseWriter, r *http.Request) {
@@ -334,6 +398,65 @@ func (s *Server) getRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.Runtime)
+}
+
+func (s *Server) getVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"version": version.Display()})
+}
+
+func (s *Server) updateCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Updater == nil {
+		writeJSON(w, http.StatusOK, update.Info{
+			Current:    version.Display(),
+			Skipped:    true,
+			SkipReason: "updater unavailable",
+		})
+		return
+	}
+	force := r.URL.Query().Get("force") == "1" || r.URL.Query().Get("force") == "true"
+	info := s.Updater.Check(force)
+	writeJSON(w, http.StatusOK, info)
+}
+
+func (s *Server) updateApply(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Updater == nil {
+		http.Error(w, "updater unavailable", http.StatusInternalServerError)
+		return
+	}
+	info := s.Updater.Check(true)
+	if !info.Available {
+		http.Error(w, "no update available", http.StatusConflict)
+		return
+	}
+	if err := update.Apply(info, s.Store.Dir()); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "update staged; restarting widget-stats.exe",
+		"latest":  info.Latest,
+	})
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		if s.OnQuit != nil {
+			s.OnQuit()
+			return
+		}
+		os.Exit(0)
+	}()
 }
 
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {

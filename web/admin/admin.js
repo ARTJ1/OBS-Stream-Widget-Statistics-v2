@@ -414,6 +414,12 @@ function renderCopyLinks(runtime) {
     ['Win +1', `${base}/api/win`], ['Loss +1', `${base}/api/loss`],
     ['Rank up', `${base}/api/rank/up`], ['Rank down', `${base}/api/rank/down`], ['Reset', `${base}/api/reset`],
     ['Mode next', `${base}/api/mode/next`], ['Role next', `${base}/api/role/next`],
+    ['Rank↑ Tank', `${base}/api/rank/up?role=tank`],
+    ['Rank↑ Support', `${base}/api/rank/up?role=support`],
+    ['Rank↑ Damage', `${base}/api/rank/up?role=damage`],
+    ['Rank↓ Tank', `${base}/api/rank/down?role=tank`],
+    ['Rank↓ Support', `${base}/api/rank/down?role=support`],
+    ['Rank↓ Damage', `${base}/api/rank/down?role=damage`],
   ];
   overlayLink.href = overlayUrl;
   copyList.innerHTML = items.map(([label, url]) => `
@@ -976,6 +982,7 @@ async function boot() {
   renderCopyLinks(runtime);
   await loadCustomSkins();
   connectWS();
+  checkForUpdates({ forceBanner: new URLSearchParams(location.search).has('update') });
   try {
     await api('/api/obs/connect', { method: 'POST' });
     await refreshScenes();
@@ -983,6 +990,48 @@ async function boot() {
     setObsStatus(t('main.obsOfflineHint'));
   }
 }
+
+let latestUpdateInfo = null;
+async function checkForUpdates({ forceBanner = false } = {}) {
+  try {
+    const info = await api('/api/update/check');
+    const verEl = document.getElementById('appVersion');
+    if (verEl && info.current) verEl.textContent = info.current;
+    latestUpdateInfo = info;
+    const banner = document.getElementById('updateBanner');
+    if (!banner) return;
+    if (info.available && info.latest) {
+      banner.hidden = false;
+      const text = document.getElementById('updateBannerText');
+      if (text) {
+        text.textContent = t('update.text', { current: info.current || '?', latest: info.latest });
+      }
+      if (forceBanner) banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      banner.hidden = true;
+      if (forceBanner && !info.skipped) setStatus(t('update.none'), true);
+    }
+  } catch {
+    /* offline / no github */
+  }
+}
+
+document.getElementById('updateLaterBtn')?.addEventListener('click', () => {
+  const banner = document.getElementById('updateBanner');
+  if (banner) banner.hidden = true;
+});
+document.getElementById('updateApplyBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('updateApplyBtn');
+  try {
+    if (btn) btn.disabled = true;
+    setStatus(t('update.applying'), true);
+    await api('/api/update/apply', { method: 'POST' });
+    setStatus(t('update.done'), true);
+  } catch (err) {
+    setStatus(String(err.message || err));
+    if (btn) btn.disabled = false;
+  }
+});
 
 document.getElementById('gameModeSelect')?.addEventListener('change', async (e) => {
   try {
