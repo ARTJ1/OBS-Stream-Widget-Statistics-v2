@@ -1,41 +1,59 @@
 # OBS Stream Widget Statistics v2
 
-A local stream stats widget: wins, losses, and rank. Nothing in the cloud. Your OBS Browser Source doesn’t flicker on every update — changes go over a WebSocket.
+A local application for displaying stream statistics in OBS Studio: wins, losses, and current rank. Updates are delivered over WebSocket without reloading the Browser Source.
 
-[Русский README](README.md)
+[Русская версия](README.md)
 
-## What’s in the box
+## Features
 
-A Windows tray exe, a browser admin UI, and an optional OBS Lua script.
+- Local Windows server with a system tray icon
+- Overlay for OBS Browser Source
+- Web-based admin panel for appearance, motion effects, and skins
+- Optional Lua script: auto-start, hotkeys, and shutdown when OBS closes
+- Admin UI language: English / Russian
+- Compatible with Stream Deck, Bitfocus Companion, and other HTTP clients
 
-- Run: `widget-stats.exe`
-- Overlay: `http://127.0.0.1:19123/overlay/`
-- Admin: `http://127.0.0.1:19123/admin/`
-- Hotkeys / auto-start: `obs/widget_control.lua`
+| Component | Path / URL |
+|-----------|------------|
+| Application | `widget-stats.exe` |
+| Overlay | `http://127.0.0.1:19123/overlay/` |
+| Admin | `http://127.0.0.1:19123/admin/` |
+| OBS script | `obs/widget_control.lua` |
 
-The admin UI can switch between English and Russian.
+Release builds are published under [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
 
-## Setup (about two minutes)
+## Installation
 
-1. Grab `widget-stats.exe` and optionally `widget_control.lua` from [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
-2. Launch the exe. Tray icon → Open Admin.
-3. In OBS: **Tools → WebSocket Server Settings** (port `4455`, password optional).
-4. In admin: **Connect OBS** → pick a scene → **Place widget on scene**.
+1. Download `widget-stats.exe` (and optionally `widget_control.lua`) from [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
+2. Run `widget-stats.exe`. Open the admin panel via **Open Admin** in the tray menu.
+3. In OBS Studio, enable **Tools → WebSocket Server Settings** (default port `4455`; password optional).
+4. In the admin panel, click **Connect OBS**, select a scene, then **Place widget on scene**.
 
-If the Lua script sits next to the exe and is loaded in OBS Scripts, the server starts with OBS and stops when OBS closes. Hotkeys don’t flash a black cmd window.
+The source is created only on the selected scene. Placing it again does not create duplicates.
 
-## Antivirus / SmartScreen
+### OBS script (recommended)
 
-The exe is **not code-signed**. Windows Defender and SmartScreen often complain about an “unknown publisher.” That’s common for small open-source tools without a paid certificate — not proof of malware.
+Add `widget_control.lua` under **Tools → Scripts**. When the script is located next to `widget-stats.exe`:
 
-Source is in this repo. You can:
-- click “More info” → “Run anyway”;
-- add an exclusion;
-- or build it yourself: `.\scripts\build.ps1`.
+- the server starts when OBS starts;
+- it stops when OBS closes;
+- hotkeys run without showing a command-prompt window.
 
-## Stream Deck and friends
+## Security software notices
 
-Anything that can hit a local HTTP endpoint works:
+The executable is **not signed** with a code-signing certificate. Windows SmartScreen, Microsoft Defender, and third-party antivirus products may warn about an unknown publisher.
+
+This is expected for open-source software distributed without a commercial certificate and does not, by itself, indicate malicious content. The source code is available in this repository.
+
+Recommended steps:
+
+1. In the SmartScreen dialog: **More info** → **Run anyway**.
+2. If needed, add the file or folder to antivirus exclusions.
+3. Build the application from source (see Build).
+
+## Stream Deck and similar devices
+
+HTTP clients may call the local API with GET or POST:
 
 ```
 http://127.0.0.1:19123/api/win
@@ -45,35 +63,39 @@ http://127.0.0.1:19123/api/rank/down
 http://127.0.0.1:19123/api/reset
 ```
 
-GET or POST — both fine. Check the admin (or `data/runtime.json`) if port `19123` is taken.
+If port `19123` is unavailable, the current base URL is shown in the admin panel and in `data/runtime.json`.
 
-No HTTP on the deck? Bind the same hotkeys you use in OBS.
+Devices without HTTP support can use the same hotkeys configured in OBS.
 
 ## Build
 
-Needs [Go](https://go.dev/dl/) 1.22+.
+Requires [Go](https://go.dev/dl/) 1.22 or newer.
 
 ```powershell
 .\scripts\build.ps1
 ```
 
-You’ll get `widget-stats.exe` next to the script. A `data/` folder appears on first run.
+This produces `widget-stats.exe`. The `data/` directory is created on first launch.
 
-## API cheat sheet
+## HTTP API
 
-| | |
-|---|---|
-| `/api/win` `/api/loss` | +1 |
-| `/api/rank/up` `/api/rank/down` | rank |
-| `/api/reset` | clear W/L |
-| `/api/state` `/api/settings` | read / write |
-| `/api/runtime` | current URLs |
-| `/ws` | live push |
-| `/health` | is the server up |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET / POST | `/api/win` | Increment wins |
+| GET / POST | `/api/loss` | Increment losses |
+| GET / POST | `/api/rank/up` | Rank up |
+| GET / POST | `/api/rank/down` | Rank down |
+| GET / POST | `/api/reset` | Reset W/L |
+| GET | `/api/state` | Current state |
+| GET / PUT | `/api/settings` | Settings |
+| GET | `/api/runtime` | Base URL and port |
+| GET | `/api/snapshot` | State and settings |
+| WS | `/ws` | Real-time updates |
+| GET | `/health` | Health check |
 
-## vs v1
+## Differences from version 1
 
-v1 rewrote the Browser Source URL and the page blinked. v2 keeps one localhost overlay and pushes updates over WebSocket.
+Version 1 updated statistics by changing the Browser Source URL, which caused visual flicker. Version 2 keeps a persistent localhost overlay and pushes updates over WebSocket.
 
 ## License
 
