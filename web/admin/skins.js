@@ -110,6 +110,32 @@ window.WIDGET_SKINS = [
       emptyEffect: 'burst', vesselWave: true, idlePulse: true, skinId: 'neon-alley',
     },
   },
+  {
+    id: 'glitch-district',
+    name: 'Glitch District',
+    desc: 'Neon · киберпанк-глитч',
+    preview: { bg: 'rgba(12,4,22,0.95)', wins: '#ff2bd6', losses: '#ffe600' },
+    settings: {
+      bgColor: 'rgba(12,4,22,0.95)', bgImage: '', winsColor: '#ff2bd6', lossesColor: '#ffe600',
+      rankTextColor: '#f5d0fe', iconColor: '#fdf4ff', separatorColor: 'rgba(255,43,214,0.45)',
+      font: "'Orbitron', sans-serif", fontSize: 15, appearEffect: 'bounce', fillStyle: 'glow', rankFx: 'neon',
+      animDirection: 'left', fillLimit: 10, fillDurationMs: 380, emptyDurationMs: 1350,
+      emptyEffect: 'burst', vesselWave: true, idlePulse: true, skinId: 'glitch-district',
+    },
+  },
+  {
+    id: 'data-breach',
+    name: 'Data Breach',
+    desc: 'Neon · взлом / матрица',
+    preview: { bg: 'rgba(2,8,6,0.96)', wins: '#39ff14', losses: '#ff1744' },
+    settings: {
+      bgColor: 'rgba(2,8,6,0.96)', bgImage: '', winsColor: '#39ff14', lossesColor: '#ff1744',
+      rankTextColor: '#b8ff9f', iconColor: '#e8ffe0', separatorColor: 'rgba(57,255,20,0.4)',
+      font: "'Chakra Petch', sans-serif", fontSize: 16, appearEffect: 'zoom', fillStyle: 'glow', rankFx: 'neon',
+      animDirection: 'right', fillLimit: 10, fillDurationMs: 360, emptyDurationMs: 1300,
+      emptyEffect: 'burst', vesselWave: true, idlePulse: true, skinId: 'data-breach',
+    },
+  },
 
   /* —— divine (2) —— */
   {
@@ -416,6 +442,32 @@ window.WIDGET_SKINS = [
       font: "'Chakra Petch', sans-serif", fontSize: 15, appearEffect: 'slide', fillStyle: 'glow', rankFx: 'hologram',
       animDirection: 'left', fillLimit: 10, fillDurationMs: 420, emptyDurationMs: 1400,
       emptyEffect: 'fade', vesselWave: true, idlePulse: true, skinId: 'cyan-project',
+    },
+  },
+  {
+    id: 'pink-scanline',
+    name: 'Pink Scanline',
+    desc: 'Hologram · розовавая голограмма',
+    preview: { bg: 'rgba(18,4,28,0.94)', wins: '#ff4ecd', losses: '#00f0ff' },
+    settings: {
+      bgColor: 'rgba(18,4,28,0.94)', bgImage: '', winsColor: '#ff4ecd', lossesColor: '#00f0ff',
+      rankTextColor: '#fbcfe8', iconColor: '#fdf2f8', separatorColor: 'rgba(255,78,205,0.42)',
+      font: "'Audiowide', system-ui", fontSize: 14, appearEffect: 'fade', fillStyle: 'glow', rankFx: 'hologram',
+      animDirection: 'top', fillLimit: 10, fillDurationMs: 430, emptyDurationMs: 1450,
+      emptyEffect: 'burst', vesselWave: true, idlePulse: true, skinId: 'pink-scanline',
+    },
+  },
+  {
+    id: 'grid-runner',
+    name: 'Grid Runner',
+    desc: 'Hologram · сетка / wireframe',
+    preview: { bg: 'rgba(4,6,14,0.95)', wins: '#fbbf24', losses: '#38bdf8' },
+    settings: {
+      bgColor: 'rgba(4,6,14,0.95)', bgImage: '', winsColor: '#fbbf24', lossesColor: '#38bdf8',
+      rankTextColor: '#fef3c7', iconColor: '#fffbeb', separatorColor: 'rgba(56,189,248,0.4)',
+      font: "'Orbitron', sans-serif", fontSize: 15, appearEffect: 'zoom', fillStyle: 'glow', rankFx: 'hologram',
+      animDirection: 'bottom', fillLimit: 10, fillDurationMs: 410, emptyDurationMs: 1400,
+      emptyEffect: 'fade', vesselWave: true, idlePulse: true, skinId: 'grid-runner',
     },
   },
 
