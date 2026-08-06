@@ -11,6 +11,7 @@ type Message struct {
 	Type     string         `json:"type"`
 	State    store.State    `json:"state"`
 	Settings store.Settings `json:"settings"`
+	View     store.View     `json:"view"`
 }
 
 type client chan []byte
@@ -44,6 +45,7 @@ func (h *Hub) Broadcast(msgType string, snap store.Snapshot) {
 		Type:     msgType,
 		State:    snap.State,
 		Settings: snap.Settings,
+		View:     snap.View,
 	})
 	if err != nil {
 		return

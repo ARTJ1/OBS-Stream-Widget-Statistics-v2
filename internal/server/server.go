@@ -684,7 +684,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	snap := s.Store.Snapshot()
-	_ = conn.WriteJSON(hub.Message{Type: "hello", State: snap.State, Settings: snap.Settings})
+	_ = conn.WriteJSON(hub.Message{Type: "hello", State: snap.State, Settings: snap.Settings, View: snap.View})
 
 	ch := s.Hub.Subscribe()
 	defer s.Hub.Unsubscribe(ch)

@@ -29,6 +29,7 @@ let selectedSkinId = 'default';
 let customSkins = [];
 let uiLang = 'ru';
 let currentGame = 'overwatch';
+let lastSnap = null;
 
 const OW_DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
 const APEX_DIVISIONS = ['Rookie', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master'];
@@ -449,6 +450,9 @@ function renderModeRole(view) {
 }
 
 function renderState(snapOrState) {
+  if (snapOrState?.state || snapOrState?.view || snapOrState?.settings) {
+    lastSnap = snapOrState;
+  }
   const view = snapOrState?.view || snapOrState?.state
     ? viewFromSnap(snapOrState)
     : {
@@ -467,6 +471,7 @@ function renderState(snapOrState) {
   document.getElementById('winsSwatch').textContent = String(view.wins);
   document.getElementById('lossesSwatch').textContent = String(view.losses);
   renderModeRole(view);
+  pushPreviewState(snapOrState);
 }
 
 function pushPreviewSettings() {
@@ -475,6 +480,26 @@ function pushPreviewSettings() {
   document.querySelectorAll('iframe.widget-preview').forEach((frame) => {
     try {
       frame.contentWindow?.postMessage({ type: 'widget-preview-settings', settings }, '*');
+    } catch { /* ignore */ }
+  });
+}
+
+function pushPreviewState(snapOrState) {
+  const source = snapOrState || lastSnap;
+  if (!source) return;
+  const view = viewFromSnap(source);
+  const state = source.state || {
+    game: view.game,
+    mode: view.mode,
+    role: view.role,
+    roleCycle: view.roleCycle,
+    wins: view.wins,
+    losses: view.losses,
+    rank: view.rank,
+  };
+  document.querySelectorAll('iframe.widget-preview').forEach((frame) => {
+    try {
+      frame.contentWindow?.postMessage({ type: 'widget-preview-state', view, state }, '*');
     } catch { /* ignore */ }
   });
 }
@@ -1045,9 +1070,15 @@ document.getElementById('obsEnsureBtn').addEventListener('click', async () => {
 previewFrame.addEventListener('load', () => {
   previewReady = true;
   pushPreviewSettings();
+  pushPreviewState(lastSnap);
 });
 document.getElementById('previewFrameMotion')?.addEventListener('load', () => {
   pushPreviewSettings();
+  pushPreviewState(lastSnap);
+});
+document.getElementById('previewFrameSkins')?.addEventListener('load', () => {
+  pushPreviewSettings();
+  pushPreviewState(lastSnap);
 });
 
 function connectWS() {

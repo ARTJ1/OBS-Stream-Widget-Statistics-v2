@@ -1652,7 +1652,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (msg.type === 'show') {
         // Preview keeps unsaved look from postMessage; don't let WS wipe rankFx.
         if (preferPreviewLocalSettings()) {
-          if (msg.state) applyRemoteStateOnly(msg);
+          if (msg.state || msg.view) applyRemoteStateOnly(msg);
           showWidget(false);
           return;
         }
@@ -1677,11 +1677,12 @@ document.addEventListener('DOMContentLoaded', () => {
         applySnapshot(msg, { animate: false, settingsOnly: true });
         return;
       }
+      // Preview with local unsaved look: sync stats/game only, keep local settings.
+      if (isPreview && preferPreviewLocalSettings()) {
+        if (msg.state || msg.view) applyRemoteStateOnly(msg);
+        return;
+      }
       if (msg.type === 'hello') {
-        if (preferPreviewLocalSettings()) {
-          applyRemoteStateOnly(msg);
-          return;
-        }
         applySnapshot(msg, { animate: false });
         return;
       }
@@ -1699,6 +1700,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.type === 'widget-preview-settings') {
         const next = { ...data.settings, __previewLocal: true };
         applySettings(next);
+        showWidget(false);
+        return;
+      }
+      if (data.type === 'widget-preview-state') {
+        applyRemoteStateOnly(data);
         showWidget(false);
         return;
       }
