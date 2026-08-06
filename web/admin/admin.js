@@ -28,8 +28,11 @@ let previewTimer = null;
 let selectedSkinId = 'default';
 let customSkins = [];
 let uiLang = 'ru';
+let currentGame = 'overwatch';
 
-const DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
+const OW_DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
+const APEX_DIVISIONS = ['Rookie', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master'];
+const APEX_ROMAN = { 4: 'IV', 3: 'III', 2: 'II', 1: 'I' };
 const obsFields = ['obsHost', 'obsPort', 'obsPassword', 'obsSourceName', 'obsScene'];
 
 function t(key, vars) {
@@ -125,31 +128,100 @@ function fillSeparatorColor(value) {
   form.separatorColor.value = value || buildSeparatorColor();
 }
 
+function isApex() {
+  return currentGame === 'apex';
+}
+
 function rankIndexFromParts(division, level, top) {
+  if (isApex()) {
+    if (division === 'Predator') return 28 + (750 - clamp(Number(top) || 750, 1, 750));
+    const di = APEX_DIVISIONS.indexOf(division);
+    const lvl = clamp(Number(level) || 4, 1, 4);
+    return di < 0 ? 0 : di * 4 + (4 - lvl);
+  }
   if (division === 'Top') return 40 + (500 - clamp(Number(top) || 500, 1, 500));
-  const di = DIVISIONS.indexOf(division);
+  const di = OW_DIVISIONS.indexOf(division);
   const lvl = clamp(Number(level) || 5, 1, 5);
   return di < 0 ? 0 : di * 5 + (5 - lvl);
 }
 
 function partsFromRankIndex(index) {
+  if (isApex()) {
+    const i = clamp(Number(index) || 0, 0, 777);
+    if (i >= 28) return { division: 'Predator', level: 4, top: 750 - (i - 28) };
+    return { division: APEX_DIVISIONS[Math.floor(i / 4)] || 'Rookie', level: 4 - (i % 4), top: 750 };
+  }
   const i = clamp(Number(index) || 0, 0, 539);
   if (i >= 40) return { division: 'Top', level: 5, top: 500 - (i - 40) };
-  return { division: DIVISIONS[Math.floor(i / 5)] || 'Bronze', level: 5 - (i % 5), top: 500 };
+  return { division: OW_DIVISIONS[Math.floor(i / 5)] || 'Bronze', level: 5 - (i % 5), top: 500 };
 }
 
 function formatRankLabel(index) {
   const p = partsFromRankIndex(index);
+  if (isApex()) {
+    if (p.division === 'Predator') return `#${p.top}`;
+    return `${p.division} ${APEX_ROMAN[p.level] || p.level}`;
+  }
   return p.division === 'Top' ? `#${p.top}` : `${p.division} ${p.level}`;
 }
 
+function rebuildRankDivisionOptions() {
+  if (!rankDivision) return;
+  const prev = rankDivision.value;
+  rankDivision.innerHTML = '';
+  const list = isApex()
+    ? [...APEX_DIVISIONS, 'Predator']
+    : [...OW_DIVISIONS, 'Top'];
+  for (const name of list) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name === 'Top' ? 'Top 500' : (name === 'Predator' ? 'Apex Predator' : name);
+    rankDivision.appendChild(opt);
+  }
+  if ([...rankDivision.options].some((o) => o.value === prev)) {
+    rankDivision.value = prev;
+  }
+  rebuildRankLevelOptions();
+}
+
+function rebuildRankLevelOptions() {
+  if (!rankLevel) return;
+  const prev = rankLevel.value;
+  rankLevel.innerHTML = '';
+  if (isApex()) {
+    for (const lvl of [4, 3, 2, 1]) {
+      const opt = document.createElement('option');
+      opt.value = String(lvl);
+      opt.textContent = APEX_ROMAN[lvl];
+      rankLevel.appendChild(opt);
+    }
+  } else {
+    for (const lvl of [5, 4, 3, 2, 1]) {
+      const opt = document.createElement('option');
+      opt.value = String(lvl);
+      opt.textContent = String(lvl);
+      rankLevel.appendChild(opt);
+    }
+  }
+  if ([...rankLevel.options].some((o) => o.value === prev)) {
+    rankLevel.value = prev;
+  } else {
+    rankLevel.value = isApex() ? '4' : '5';
+  }
+}
+
 function updateRankControlsVisibility() {
-  const isTop = rankDivision.value === 'Top';
-  rankLevel.hidden = isTop;
-  rankTopInput.hidden = !isTop;
+  const topLike = isApex() ? rankDivision.value === 'Predator' : rankDivision.value === 'Top';
+  rankLevel.hidden = topLike;
+  rankTopInput.hidden = !topLike;
+  if (rankTopInput) {
+    rankTopInput.max = isApex() ? '750' : '500';
+    rankTopInput.min = '1';
+  }
 }
 
 function fillRankControls(index) {
+  rebuildRankDivisionOptions();
   const p = partsFromRankIndex(index);
   rankDivision.value = p.division;
   rankLevel.value = String(p.level);
@@ -307,6 +379,7 @@ function readAllSettings() {
 }
 
 function viewFromSnap(snap) {
+  const game = snap?.view?.game || snap?.state?.game || currentGame || 'overwatch';
   if (snap?.view && typeof snap.view.wins === 'number') {
     return {
       wins: snap.view.wins || 0,
@@ -315,30 +388,35 @@ function viewFromSnap(snap) {
       mode: snap.view.mode || snap.state?.mode || 'classic',
       role: snap.view.role || snap.state?.role || 'tank',
       roleCycle: snap.state?.roleCycle || ['tank', 'support', 'damage'],
+      game,
     };
   }
   const st = snap?.state || snap || {};
   const mode = st.mode || 'classic';
   const role = st.role || 'tank';
   const roleCycle = st.roleCycle || ['tank', 'support', 'damage'];
+  if (game === 'apex') {
+    return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role, roleCycle, game };
+  }
   if (mode === 'roles_shared' || mode === 'roles_rotate') {
     const r = (st.roles && st.roles[role]) || {};
-    return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role, roleCycle };
+    return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role, roleCycle, game };
   }
   if (mode === 'roles_split') {
     const r = (st.roles && st.roles[role]) || {};
-    return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role, roleCycle };
+    return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role, roleCycle, game };
   }
-  return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role, roleCycle };
+  return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role, roleCycle, game };
 }
 
 function renderRoleCycle(snapOrView) {
   const row = document.getElementById('roleCycleRow');
+  const game = snapOrView?.game || currentGame;
   const mode = snapOrView?.mode || snapOrView?.view?.mode || snapOrView?.state?.mode || 'classic';
   const cycle = snapOrView?.roleCycle
     || snapOrView?.state?.roleCycle
     || ['tank', 'support', 'damage'];
-  if (row) row.hidden = mode !== 'roles_rotate';
+  if (row) row.hidden = game === 'apex' || mode !== 'roles_rotate';
   const set = new Set(cycle);
   document.querySelectorAll('input[name="roleCycle"]').forEach((el) => {
     el.checked = set.has(el.value);
@@ -346,15 +424,26 @@ function renderRoleCycle(snapOrView) {
 }
 
 function renderModeRole(view) {
+  const game = view.game || currentGame || 'overwatch';
+  currentGame = game;
   const mode = view.mode || 'classic';
+  const gameEl = document.getElementById('gameSelect');
   const modeEl = document.getElementById('gameModeSelect');
+  const modeField = document.getElementById('gameModeField');
   const roleEl = document.getElementById('gameRoleSelect');
   const roleField = document.getElementById('gameRoleField');
+  const modeHint = document.getElementById('modeRoleHint');
+  const apexHint = document.getElementById('apexHint');
+  if (gameEl && gameEl.value !== game) gameEl.value = game;
+  const apex = game === 'apex';
+  if (modeField) modeField.hidden = apex;
+  if (modeHint) modeHint.hidden = apex;
+  if (apexHint) apexHint.hidden = !apex;
   if (modeEl && modeEl.value !== mode) modeEl.value = mode;
-  if (roleField) roleField.hidden = mode === 'classic';
+  if (roleField) roleField.hidden = apex || mode === 'classic';
   if (roleEl) {
     if (roleEl.value !== view.role) roleEl.value = view.role || 'tank';
-    roleEl.disabled = mode === 'classic';
+    roleEl.disabled = apex || mode === 'classic';
   }
   renderRoleCycle(view);
 }
@@ -369,7 +458,9 @@ function renderState(snapOrState) {
         mode: snapOrState?.mode || 'classic',
         role: snapOrState?.role || 'tank',
         roleCycle: snapOrState?.roleCycle || ['tank', 'support', 'damage'],
+        game: snapOrState?.game || currentGame || 'overwatch',
       };
+  currentGame = view.game || currentGame || 'overwatch';
   document.getElementById('winsValue').textContent = view.wins;
   document.getElementById('lossesValue').textContent = view.losses;
   fillRankControls(view.rank);
@@ -413,6 +504,7 @@ function renderCopyLinks(runtime) {
     ['Overlay', overlayUrl], ['Admin', `${base}/admin/`],
     ['Win +1', `${base}/api/win`], ['Loss +1', `${base}/api/loss`],
     ['Rank up', `${base}/api/rank/up`], ['Rank down', `${base}/api/rank/down`], ['Reset', `${base}/api/reset`],
+    ['Game next', `${base}/api/game/next`],
     ['Mode next', `${base}/api/mode/next`], ['Role next', `${base}/api/role/next`],
     ['Rank↑ Tank', `${base}/api/rank/up?role=tank`],
     ['Rank↑ Support', `${base}/api/rank/up?role=support`],
@@ -1117,6 +1209,15 @@ document.getElementById('updateApplyBtn')?.addEventListener('click', async () =>
   }
 });
 
+document.getElementById('gameSelect')?.addEventListener('change', async (e) => {
+  try {
+    const snap = await api(`/api/game?set=${encodeURIComponent(e.target.value)}`, { method: 'POST' });
+    renderState(snap);
+    setStatus(t('msg.updated'), true);
+  } catch (err) {
+    setStatus(String(err.message || err));
+  }
+});
 document.getElementById('gameModeSelect')?.addEventListener('change', async (e) => {
   try {
     const snap = await api(`/api/mode?set=${encodeURIComponent(e.target.value)}`, { method: 'POST' });

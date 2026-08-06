@@ -8,9 +8,16 @@ import (
 	"sync"
 )
 
-const MaxRankIndex = 40 + 500 // Bronze..Champion (40) + Top 500 = 540 entries, indices 0..539
+const MaxRankOverwatch = 40 + 500 // Bronze..Champion (40) + Top 500 = 540
+const MaxRankApex = 7*4 + 750     // Rookie..Master (28) + Predator 750 = 778
+
+// Deprecated alias — prefer maxRankFor(game).
+const MaxRankIndex = MaxRankOverwatch
 
 const (
+	GameOverwatch = "overwatch"
+	GameApex      = "apex"
+
 	ModeClassic     = "classic"
 	ModeRolesShared = "roles_shared" // shared W/L, per-role rank
 	ModeRolesSplit  = "roles_split"  // per-role W/L and rank
@@ -23,6 +30,7 @@ const (
 
 var modeOrder = []string{ModeClassic, ModeRolesShared, ModeRolesSplit, ModeRolesRotate}
 var roleOrder = []string{RoleTank, RoleSupport, RoleDamage}
+var gameOrder = []string{GameOverwatch, GameApex}
 
 type RoleStats struct {
 	Wins   int `json:"wins"`
@@ -30,7 +38,8 @@ type RoleStats struct {
 	Rank   int `json:"rank"`
 }
 
-type State struct {
+// GameBlob is a snapshot of play stats for one game title.
+type GameBlob struct {
 	Mode      string               `json:"mode"`
 	Role      string               `json:"role"`
 	RoleCycle []string             `json:"roleCycle"`
@@ -40,6 +49,18 @@ type State struct {
 	Roles     map[string]RoleStats `json:"roles"`
 }
 
+type State struct {
+	Game      string               `json:"game"`
+	Mode      string               `json:"mode"`
+	Role      string               `json:"role"`
+	RoleCycle []string             `json:"roleCycle"`
+	Wins      int                  `json:"wins"`
+	Losses    int                  `json:"losses"`
+	Rank      int                  `json:"rank"`
+	Roles     map[string]RoleStats `json:"roles"`
+	Saved     map[string]GameBlob  `json:"saved,omitempty"`
+}
+
 // View is the currently displayed W/L/rank for overlay clients.
 type View struct {
 	Wins   int    `json:"wins"`
@@ -47,6 +68,7 @@ type View struct {
 	Rank   int    `json:"rank"`
 	Mode   string `json:"mode"`
 	Role   string `json:"role"`
+	Game   string `json:"game"`
 }
 
 type Settings struct {
@@ -147,10 +169,12 @@ func defaultRoles() map[string]RoleStats {
 
 func DefaultState() State {
 	return State{
+		Game:      GameOverwatch,
 		Mode:      ModeClassic,
 		Role:      RoleTank,
 		RoleCycle: append([]string(nil), roleOrder...),
 		Roles:     defaultRoles(),
+		Saved:     map[string]GameBlob{},
 	}
 }
 
@@ -185,12 +209,24 @@ func (s *Store) saveJSON(name string, v any) error {
 	return os.WriteFile(filepath.Join(s.dir, name), b, 0o644)
 }
 
+func maxRankFor(game string) int {
+	if game == GameApex {
+		return MaxRankApex
+	}
+	return MaxRankOverwatch
+}
+
 func clampRank(n int) int {
+	return clampRankFor(GameOverwatch, n)
+}
+
+func clampRankFor(game string, n int) int {
 	if n < 0 {
 		return 0
 	}
-	if n > MaxRankIndex-1 {
-		return MaxRankIndex - 1
+	max := maxRankFor(game) - 1
+	if n > max {
+		return max
 	}
 	return n
 }
@@ -200,6 +236,10 @@ func clampNonNeg(n int) int {
 		return 0
 	}
 	return n
+}
+
+func isValidGame(game string) bool {
+	return game == GameOverwatch || game == GameApex
 }
 
 func isValidRole(id string) bool {
@@ -229,6 +269,13 @@ func normalizeRoleCycle(in []string) []string {
 }
 
 func (s *Store) clamp() {
+	if !isValidGame(s.state.Game) {
+		s.state.Game = GameOverwatch
+	}
+	if s.state.Game == GameApex {
+		// Apex has no role ladder — keep classic display behavior.
+		s.state.Mode = ModeClassic
+	}
 	if !isValidMode(s.state.Mode) {
 		s.state.Mode = ModeClassic
 	}
@@ -251,6 +298,9 @@ func (s *Store) clamp() {
 	if s.state.Roles == nil {
 		s.state.Roles = defaultRoles()
 	}
+	if s.state.Saved == nil {
+		s.state.Saved = map[string]GameBlob{}
+	}
 	for _, id := range roleOrder {
 		rs, ok := s.state.Roles[id]
 		if !ok {
@@ -259,12 +309,12 @@ func (s *Store) clamp() {
 		}
 		rs.Wins = clampNonNeg(rs.Wins)
 		rs.Losses = clampNonNeg(rs.Losses)
-		rs.Rank = clampRank(rs.Rank)
+		rs.Rank = clampRankFor(s.state.Game, rs.Rank)
 		s.state.Roles[id] = rs
 	}
 	s.state.Wins = clampNonNeg(s.state.Wins)
 	s.state.Losses = clampNonNeg(s.state.Losses)
-	s.state.Rank = clampRank(s.state.Rank)
+	s.state.Rank = clampRankFor(s.state.Game, s.state.Rank)
 
 	if s.settings.FontSize <= 0 {
 		s.settings.FontSize = 16
@@ -311,7 +361,16 @@ func (s *Store) clamp() {
 }
 
 func (st State) View() View {
-	v := View{Mode: st.Mode, Role: st.Role}
+	game := st.Game
+	if !isValidGame(game) {
+		game = GameOverwatch
+	}
+	v := View{Mode: st.Mode, Role: st.Role, Game: game}
+	if game == GameApex {
+		v.Wins, v.Losses, v.Rank = st.Wins, st.Losses, st.Rank
+		v.Mode = ModeClassic
+		return v
+	}
 	switch st.Mode {
 	case ModeRolesShared, ModeRolesRotate:
 		rs := st.Roles[st.Role]
@@ -324,6 +383,96 @@ func (st State) View() View {
 		v.Mode = ModeClassic
 	}
 	return v
+}
+
+func cloneRoles(in map[string]RoleStats) map[string]RoleStats {
+	out := defaultRoles()
+	if in == nil {
+		return out
+	}
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func (s *Store) captureBlob() GameBlob {
+	return GameBlob{
+		Mode:      s.state.Mode,
+		Role:      s.state.Role,
+		RoleCycle: append([]string(nil), s.state.RoleCycle...),
+		Wins:      s.state.Wins,
+		Losses:    s.state.Losses,
+		Rank:      s.state.Rank,
+		Roles:     cloneRoles(s.state.Roles),
+	}
+}
+
+func (s *Store) applyBlob(blob GameBlob) {
+	s.state.Mode = blob.Mode
+	s.state.Role = blob.Role
+	s.state.RoleCycle = append([]string(nil), blob.RoleCycle...)
+	s.state.Wins = blob.Wins
+	s.state.Losses = blob.Losses
+	s.state.Rank = blob.Rank
+	s.state.Roles = cloneRoles(blob.Roles)
+}
+
+func (s *Store) SetGame(game string) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !isValidGame(game) {
+		return Snapshot{}, fmt.Errorf("invalid game %q", game)
+	}
+	cur := s.state.Game
+	if !isValidGame(cur) {
+		cur = GameOverwatch
+	}
+	if game == cur {
+		return s.snapLocked(), nil
+	}
+	if s.state.Saved == nil {
+		s.state.Saved = map[string]GameBlob{}
+	}
+	s.state.Saved[cur] = s.captureBlob()
+	if next, ok := s.state.Saved[game]; ok {
+		s.applyBlob(next)
+	} else {
+		def := DefaultState()
+		def.Game = game
+		if game == GameApex {
+			def.Mode = ModeClassic
+		}
+		s.applyBlob(GameBlob{
+			Mode:      def.Mode,
+			Role:      def.Role,
+			RoleCycle: def.RoleCycle,
+			Wins:      0,
+			Losses:    0,
+			Rank:      0,
+			Roles:     defaultRoles(),
+		})
+	}
+	s.state.Game = game
+	s.clamp()
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+func (s *Store) CycleGame() (Snapshot, error) {
+	s.mu.RLock()
+	idx := 0
+	for i, g := range gameOrder {
+		if g == s.state.Game {
+			idx = i
+			break
+		}
+	}
+	next := gameOrder[(idx+1)%len(gameOrder)]
+	s.mu.RUnlock()
+	return s.SetGame(next)
 }
 
 func (s *Store) snapLocked() Snapshot {
@@ -380,7 +529,7 @@ func (s *Store) setRole(id string, rs RoleStats) {
 	}
 	rs.Wins = clampNonNeg(rs.Wins)
 	rs.Losses = clampNonNeg(rs.Losses)
-	rs.Rank = clampRank(rs.Rank)
+	rs.Rank = clampRankFor(s.state.Game, rs.Rank)
 	s.state.Roles[id] = rs
 }
 
@@ -421,15 +570,16 @@ func (s *Store) AddLoss() (Snapshot, error) {
 func (s *Store) RankUp() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	max := maxRankFor(s.state.Game) - 1
 	switch s.state.Mode {
 	case ModeRolesShared, ModeRolesSplit, ModeRolesRotate:
 		rs := s.getRole(s.state.Role)
-		if rs.Rank < MaxRankIndex-1 {
+		if rs.Rank < max {
 			rs.Rank++
 		}
 		s.setRole(s.state.Role, rs)
 	default:
-		if s.state.Rank < MaxRankIndex-1 {
+		if s.state.Rank < max {
 			s.state.Rank++
 		}
 	}
@@ -468,7 +618,7 @@ func (s *Store) RankUpRole(role string) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("invalid role %q", role)
 	}
 	rs := s.getRole(role)
-	if rs.Rank < MaxRankIndex-1 {
+	if rs.Rank < maxRankFor(s.state.Game)-1 {
 		rs.Rank++
 	}
 	s.setRole(role, rs)
@@ -518,7 +668,7 @@ func (s *Store) Reset() (Snapshot, error) {
 func (s *Store) SetRank(rank int) (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rank = clampRank(rank)
+	rank = clampRankFor(s.state.Game, rank)
 	switch s.state.Mode {
 	case ModeRolesShared, ModeRolesSplit, ModeRolesRotate:
 		rs := s.getRole(s.state.Role)
@@ -536,6 +686,9 @@ func (s *Store) SetRank(rank int) (Snapshot, error) {
 func (s *Store) CycleMode() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.state.Game == GameApex {
+		return s.snapLocked(), nil
+	}
 	idx := 0
 	for i, m := range modeOrder {
 		if m == s.state.Mode {
@@ -554,6 +707,9 @@ func (s *Store) CycleMode() (Snapshot, error) {
 func (s *Store) CycleRole() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.state.Game == GameApex {
+		return s.snapLocked(), nil
+	}
 	order := roleOrder
 	if s.state.Mode == ModeRolesRotate {
 		order = s.state.RoleCycle
@@ -578,7 +734,11 @@ func (s *Store) CycleRole() (Snapshot, error) {
 func (s *Store) SetMode(mode string) (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.state.Mode = mode
+	if s.state.Game == GameApex {
+		s.state.Mode = ModeClassic
+	} else {
+		s.state.Mode = mode
+	}
 	s.clamp()
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err

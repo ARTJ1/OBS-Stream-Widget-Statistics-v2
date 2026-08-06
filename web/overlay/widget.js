@@ -1,4 +1,4 @@
-const RANKS = [
+const OW_RANKS = [
   ...generateRanks('Bronze', 5, 'assets/uploads/Bronze.png'),
   ...generateRanks('Silver', 5, 'assets/uploads/Silver.png'),
   ...generateRanks('Gold', 5, 'assets/uploads/Gold.png'),
@@ -14,12 +14,40 @@ const RANKS = [
   })),
 ];
 
+const APEX_ROMAN = { 4: 'IV', 3: 'III', 2: 'II', 1: 'I' };
+const APEX_RANKS = [
+  ...generateApexTier('Rookie'),
+  ...generateApexTier('Bronze'),
+  ...generateApexTier('Silver'),
+  ...generateApexTier('Gold'),
+  ...generateApexTier('Platinum'),
+  ...generateApexTier('Diamond'),
+  ...generateApexTier('Master'),
+  ...Array.from({ length: 750 }, (_, i) => ({
+    type: 'Predator',
+    level: 750 - i,
+    img: 'assets/apex/Predator.webp',
+  })),
+];
+
 function generateRanks(type, levels, img) {
   return Array.from({ length: levels }, (_, i) => ({
     type,
     level: levels - i,
     img,
   }));
+}
+
+function generateApexTier(type) {
+  return Array.from({ length: 4 }, (_, i) => {
+    const level = 4 - i;
+    return {
+      type,
+      level,
+      roman: APEX_ROMAN[level],
+      img: `assets/apex/${type}.webp`,
+    };
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -88,19 +116,28 @@ document.addEventListener('DOMContentLoaded', () => {
   let waveRaf = 0;
   let waveTime = 0;
 
-  let currentState = { wins: 0, losses: 0, rank: 0, mode: 'classic', role: 'tank' };
+  let currentState = { wins: 0, losses: 0, rank: 0, mode: 'classic', role: 'tank', game: 'overwatch' };
   let previousState = { ...currentState };
   let settings = null;
 
   const sepEl = document.getElementById('statSep');
 
+  function activeRanks() {
+    return currentState.game === 'apex' ? APEX_RANKS : OW_RANKS;
+  }
+
   function getRankInfo(absoluteRankIndex) {
-    if (absoluteRankIndex < 0 || absoluteRankIndex >= RANKS.length || !RANKS[absoluteRankIndex]) {
-      return { type: 'Unranked', level: 0, img: 'assets/uploads/Bronze.png', display: 'Unranked' };
+    const ranks = activeRanks();
+    if (absoluteRankIndex < 0 || absoluteRankIndex >= ranks.length || !ranks[absoluteRankIndex]) {
+      const fallback = currentState.game === 'apex' ? 'assets/apex/Rookie.webp' : 'assets/uploads/Bronze.png';
+      return { type: 'Unranked', level: 0, img: fallback, display: 'Unranked' };
     }
-    const rank = RANKS[absoluteRankIndex];
-    if (rank.type === 'Top') {
+    const rank = ranks[absoluteRankIndex];
+    if (rank.type === 'Top' || rank.type === 'Predator') {
       return { ...rank, display: `#${rank.level}` };
+    }
+    if (rank.roman) {
+      return { ...rank, display: `${rank.type} ${rank.roman}` };
     }
     return { ...rank, display: `${rank.type} ${rank.level}` };
   }
@@ -202,29 +239,36 @@ document.addEventListener('DOMContentLoaded', () => {
         rank: snap.view.rank || 0,
         mode: snap.view.mode || snap.state?.mode || 'classic',
         role: snap.view.role || snap.state?.role || 'tank',
+        game: snap.view.game || snap.state?.game || 'overwatch',
       };
     }
     const st = snap?.state || {};
+    const game = st.game || 'overwatch';
     const mode = st.mode || 'classic';
     const role = st.role || 'tank';
+    if (game === 'apex') {
+      return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role, game };
+    }
     if (mode === 'roles_shared' || mode === 'roles_rotate') {
       const r = (st.roles && st.roles[role]) || {};
-      return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role };
+      return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role, game };
     }
     if (mode === 'roles_split') {
       const r = (st.roles && st.roles[role]) || {};
-      return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role };
+      return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role, game };
     }
-    return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role };
+    return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role, game };
   }
 
   function updateRoleBadge(view) {
     const mode = view?.mode || 'classic';
     const role = view?.role || 'tank';
-    document.body.classList.remove('mode-classic', 'mode-roles_shared', 'mode-roles_split', 'mode-roles_rotate');
+    const game = view?.game || 'overwatch';
+    document.body.classList.remove('mode-classic', 'mode-roles_shared', 'mode-roles_split', 'mode-roles_rotate', 'game-overwatch', 'game-apex');
     document.body.classList.add(`mode-${mode}`);
+    document.body.classList.add(`game-${game}`);
     if (!dom.roleBadge || !dom.roleIcon) return;
-    if (mode === 'classic') {
+    if (game === 'apex' || mode === 'classic') {
       dom.roleBadge.hidden = true;
       return;
     }
@@ -1319,15 +1363,19 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runRankShowcase(token) {
     const alive = () => token === previewDemoToken;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const home = { wins: currentState.wins, losses: currentState.losses, rank: currentState.rank };
+    const home = { ...currentState };
 
     abortRankTransition(home.rank);
     // Park near mid ladder so both up/down division FX work
-    let divBase = Math.floor(Math.max(5, Math.min(500, home.rank)) / 5) * 5;
-    if (divBase + 5 > 530) divBase = 520;
-    const mid = divBase + 2;
-    const lastInDiv = divBase + 4;
-    const nextDiv = divBase + 5;
+    const step = currentState.game === 'apex' ? 4 : 5;
+    const maxIdx = Math.max(step * 2, activeRanks().length - 1);
+    let divBase = Math.floor(Math.max(step, Math.min(maxIdx - step * 2, home.rank)) / step) * step;
+    if (divBase + step > maxIdx - step) {
+      divBase = Math.max(0, Math.floor((maxIdx - step * 3) / step) * step);
+    }
+    const mid = divBase + Math.floor(step / 2);
+    const lastInDiv = divBase + step - 1;
+    const nextDiv = divBase + step;
 
     currentState = { ...home, rank: mid };
     previousState = { ...currentState };
@@ -1552,12 +1600,13 @@ document.addEventListener('DOMContentLoaded', () => {
     currentState = viewFromSnap(snap);
     updateRoleBadge(currentState);
 
+    const gameChanged = previousState.game !== currentState.game;
     const visible = dom.widget.classList.contains('visible');
     if (!visible) {
-      showWidget(animate);
+      showWidget(animate && !gameChanged);
       return;
     }
-    if (animate) {
+    if (animate && !gameChanged) {
       updateContentAnimations();
       scheduleHide();
     } else {
@@ -1568,6 +1617,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const info = getRankInfo(currentState.rank);
       setRankImages(info.img);
       dom.rankValue.textContent = info.display;
+      setRankIdle(true);
+      if (visible) scheduleHide();
     }
   }
 

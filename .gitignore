@@ -28,6 +28,9 @@ data/*
 !data/.gitignore
 data/uploads/
 
+# Source icon dumps (clean copies live under web/overlay/assets/)
+Apex icon/
+
 # OS / editor
 .DS_Store
 Thumbs.db

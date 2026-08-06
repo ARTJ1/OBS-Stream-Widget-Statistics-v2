@@ -67,7 +67,13 @@
       <section class="panel">
         <h2 data-i18n="main.stats">Статистика</h2>
         <div class="form-grid mode-role-grid" style="margin-bottom:14px">
-          <label><span data-i18n="main.mode">Режим</span>
+          <label><span data-i18n="main.game">Игра</span>
+            <select id="gameSelect">
+              <option value="overwatch" data-i18n="game.overwatch">Overwatch</option>
+              <option value="apex" data-i18n="game.apex">Apex Legends</option>
+            </select>
+          </label>
+          <label id="gameModeField"><span data-i18n="main.mode">Режим</span>
             <select id="gameModeSelect">
               <option value="classic" data-i18n="mode.classic">Обычный</option>
               <option value="roles_shared" data-i18n="mode.rolesShared">Роли: общий W/L</option>
@@ -92,6 +98,7 @@
           </div>
         </div>
         <p class="setup-note" id="modeRoleHint" data-i18n="main.modeHint">В обычном режиме роль скрыта. В ролевых режимах правка идёт для выбранной роли.</p>
+        <p class="setup-note" id="apexHint" hidden data-i18n="main.apexHint">Apex: ранги Rookie–Master (IV–I) и Apex Predator #1–#750. Роли Overwatch недоступны.</p>
         <div class="stats-row">
           <div class="stat-card">
             <span class="label">Wins</span>

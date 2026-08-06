@@ -70,6 +70,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/reset", s.methodAction(s.Store.Reset, "reset"))
 	s.mux.HandleFunc("/api/mode/next", s.methodAction(s.Store.CycleMode, "mode"))
 	s.mux.HandleFunc("/api/role/next", s.methodAction(s.Store.CycleRole, "role"))
+	s.mux.HandleFunc("/api/game/next", s.methodAction(s.Store.CycleGame, "game"))
+	s.mux.HandleFunc("/api/game", s.gameHandler)
 	s.mux.HandleFunc("/api/mode", s.modeHandler)
 	s.mux.HandleFunc("/api/role", s.roleHandler)
 	s.mux.HandleFunc("/api/role-cycle", s.roleCycleHandler)
@@ -167,6 +169,9 @@ func (s *Server) ApplyHotkey(name string) {
 	case name == "role_next" || name == "role":
 		snap, err = s.Store.CycleRole()
 		msgType = "role"
+	case name == "game_next" || name == "game":
+		snap, err = s.Store.CycleGame()
+		msgType = "game"
 	default:
 		return
 	}
@@ -216,6 +221,33 @@ func (s *Server) rankDownHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Hub.Broadcast("rank", snap)
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Server) gameHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	game := r.URL.Query().Get("set")
+	if game == "" && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+		var req struct {
+			Game string `json:"game"`
+		}
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		_ = json.Unmarshal(body, &req)
+		game = req.Game
+	}
+	if game == "" {
+		http.Error(w, "game required", http.StatusBadRequest)
+		return
+	}
+	snap, err := s.Store.SetGame(game)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.Hub.Broadcast("game", snap)
 	writeJSON(w, http.StatusOK, snap)
 }
 
