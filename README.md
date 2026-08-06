@@ -1,97 +1,79 @@
 # OBS Stream Widget Statistics v2
 
-Локальный сервер + оверлей для OBS: победы / поражения / ранг **без перезагрузки** Browser Source.
+Виджет статистики для стрима: победы, поражения и ранг. Работает локально, без облака. Browser Source в OBS не мигает при каждом изменении — обновления идут по WebSocket.
 
-## Что внутри
+[English README](README.en.md)
 
-- `widget-stats.exe` — Go-сервер с system tray (Open Admin / Quit)
-- `http://127.0.0.1:19123/overlay/` — оверлей для OBS Browser Source
-- `http://127.0.0.1:19123/admin/` — админка (статы + внешний вид)
-- `obs/widget_control.lua` — автостарт exe, тихие хоткеи (без вспышек консоли), стоп при закрытии OBS
-- REST API с **POST и GET** (удобно для Stream Deck / Companion)
+## Что это
 
-## Быстрый старт для стримера
+Обычный Windows-exe в трее + админка в браузере + Lua-скрипт для OBS (по желанию).
 
-1. Запусти `widget-stats.exe` (или добавь `obs/widget_control.lua` — он только автостартует сервер и хоткеи)
-2. В OBS включи **Tools → WebSocket Server Settings** (порт `4455`, пароль по желанию)
-3. Открой админку → **Подключить OBS** → выбери **сцену** → **Поставить виджет на сцену**
+- Запуск: `widget-stats.exe`
+- Оверлей: `http://127.0.0.1:19123/overlay/`
+- Админка: `http://127.0.0.1:19123/admin/`
+- Хоткеи / автостарт: `obs/widget_control.lua`
 
-Виджет создаётся **только на выбранной сцене** и только если его там ещё нет. Повторный клик не плодит дубликаты — максимум обновит URL.
+В админке можно выбрать язык: русский или English.
 
-В админке справа есть **живое превью** внешнего вида. Язык интерфейса: **Русский / English** (переключатель в шапке).
+## Как поставить за 2 минуты
 
-### Антивирус / SmartScreen
+1. Скачай `widget-stats.exe` и (по желанию) `widget_control.lua` из [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
+2. Запусти exe. В трее появится иконка → Open Admin.
+3. В OBS включи **Tools → WebSocket Server Settings** (порт `4455`, пароль если хочешь).
+4. В админке: **Подключить OBS** → выбери сцену → **Поставить виджет на сцену**.
 
-`widget-stats.exe` **не подписан** кодовым сертификатом (code signing). Windows Defender, SmartScreen и другие антивирусы могут ругаться, писать «неизвестный издатель» или даже временно блокировать файл — это типично для небольших open-source утилит без платного сертификата.
+Если Lua лежит рядом с exe и добавлен в Scripts, сервер сам поднимется при старте OBS и погаснет при закрытии. Хоткеи в OBS не мигают чёрным окном cmd.
 
-Это **ложное срабатывание**: исходники открыты в репозитории, exe собирается локально из Go. Если Windows спросит — «Подробнее» → «Выполнить в любом случае», либо добавь папку/файл в исключения антивируса. При сомнениях собери exe сам: `.\scripts\build.ps1`.
+## Антивирус
 
-### Сборка (разработчику)
+Exe **без цифровой подписи**. Windows / Defender / SmartScreen часто орёт «неизвестный издатель» — это нормально для небольших программ без платного сертификата, а не признак вируса.
+
+Исходники открыты в этом репозитории. Можно:
+- нажать «Подробнее» → «Выполнить в любом случае»;
+- добавить файл в исключения;
+- или собрать сам: `.\scripts\build.ps1`.
+
+## Stream Deck и аналоги
+
+Любая штука, которая умеет дернуть HTTP, подойдёт:
+
+```
+http://127.0.0.1:19123/api/win
+http://127.0.0.1:19123/api/loss
+http://127.0.0.1:19123/api/rank/up
+http://127.0.0.1:19123/api/rank/down
+http://127.0.0.1:19123/api/reset
+```
+
+GET или POST — оба ок. Порт смотри в админке, если 19123 занят.
+
+Дека без HTTP — просто повесь те же хоткеи, что в OBS.
+
+## Сборка
 
 Нужен [Go](https://go.dev/dl/) 1.22+.
 
 ```powershell
-cd OBS-Stream-Widget-Statistics-v2
 .\scripts\build.ps1
 ```
 
-Или:
+Рядом появится `widget-stats.exe`. Папка `data/` создаётся при первом запуске.
 
-```powershell
-go build -o widget-stats.exe ./cmd/widget-stats
-```
+## API коротко
 
-Рядом с exe появится папка `data/` при первом запуске (`state.json`, `settings.json`, `runtime.json`).
+| | |
+|---|---|
+| `/api/win` `/api/loss` | +1 |
+| `/api/rank/up` `/api/rank/down` | ранг |
+| `/api/reset` | сброс W/L |
+| `/api/state` `/api/settings` | чтение / запись |
+| `/api/runtime` | текущие URL |
+| `/ws` | live |
+| `/health` | жив ли сервер |
 
-### Ручной запуск без Lua
+## Отличие от v1
 
-Дважды кликни `widget-stats.exe` → трей → **Open Admin**.  
-В OBS Browser Source укажи URL из админки (кнопка «Скопировать URL оверлея»).
-
-## API
-
-Базовый URL смотри в админке или в `data/runtime.json` (порт может сдвинуться, если 19123 занят).
-
-| Метод | Путь | Действие |
-|-------|------|----------|
-| GET/POST | `/api/win` | +1 победа |
-| GET/POST | `/api/loss` | +1 поражение |
-| GET/POST | `/api/rank/up` | ранг вверх |
-| GET/POST | `/api/rank/down` | ранг вниз |
-| GET/POST | `/api/reset` | сброс W/L |
-| GET | `/api/state` | состояние |
-| GET/PUT | `/api/settings` | настройки |
-| GET | `/api/runtime` | порт и URL |
-| GET | `/api/snapshot` | state + settings |
-| WS | `/ws` | live push |
-| GET | `/health` | healthcheck |
-
-## Stream Deck / Companion
-
-Создай кнопку **Website** / **HTTP request**:
-
-- URL: `http://127.0.0.1:19123/api/win`
-- Method: GET или POST
-
-Аналогично `/api/loss`, `/api/rank/up`, `/api/rank/down`, `/api/reset`.
-
-Готовые ссылки также копируются из админки.
-
-## Структура
-
-```
-cmd/widget-stats/     entrypoint
-internal/             store, server, hub, tray, runtime
-web/overlay/          оверлей
-web/admin/            админка
-obs/widget_control.lua
-data/                 runtime state (не коммитится)
-```
-
-## Отличия от v1
-
-v1 менял URL Browser Source → страница мигала.  
-v2 держит оверлей на `http://127.0.0.1` и пушит обновления по WebSocket.
+В первой версии дергали URL Browser Source — картинка мигала. Здесь оверлей висит на localhost и просто получает пуши.
 
 ## Лицензия
 

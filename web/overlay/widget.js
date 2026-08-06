@@ -213,7 +213,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const LIQUID_H = 512;
   const liquidY = new WeakMap();
-  const liquidRaf = new WeakMap();
+  const liquidAnim = new WeakMap(); // { raf, resolve }
+  const vesselGen = new WeakMap();
 
   function readLiquidY(liquidEl) {
     if (liquidY.has(liquidEl)) return liquidY.get(liquidEl);
@@ -228,9 +229,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function cancelLiquidAnim(liquidEl) {
-    const id = liquidRaf.get(liquidEl);
-    if (id) cancelAnimationFrame(id);
-    liquidRaf.delete(liquidEl);
+    const st = liquidAnim.get(liquidEl);
+    if (!st) return;
+    if (st.raf) cancelAnimationFrame(st.raf);
+    liquidAnim.delete(liquidEl);
+    // Always resolve so awaiters (pour/empty) never hang forever.
+    if (typeof st.resolve === 'function') st.resolve();
+  }
+
+  function bumpVesselGen(iconContainer) {
+    if (!iconContainer) return 0;
+    const n = (vesselGen.get(iconContainer) || 0) + 1;
+    vesselGen.set(iconContainer, n);
+    return n;
+  }
+
+  function vesselAlive(iconContainer, gen) {
+    return !!iconContainer && vesselGen.get(iconContainer) === gen;
+  }
+
+  const VESSEL_FX_CLASSES = [
+    'is-emptying', 'pouring', 'wave-active',
+    'vessel-drain-active', 'vessel-splash-active', 'vessel-burst-active',
+    'vessel-pour-active', 'vessel-fade-active',
+  ];
+
+  function resetVesselVisual(iconContainer, liquidEl) {
+    bumpVesselGen(iconContainer);
+    if (iconContainer) {
+      if (iconContainer._pourBlobTimer) {
+        clearTimeout(iconContainer._pourBlobTimer);
+        iconContainer._pourBlobTimer = 0;
+      }
+      iconContainer.classList.remove(...VESSEL_FX_CLASSES);
+      const stream = iconContainer.querySelector('.pour-stream');
+      if (stream) stream.classList.remove('active');
+    }
+    if (liquidEl) {
+      cancelLiquidAnim(liquidEl);
+      liquidEl.classList.remove('is-filling');
+      liquidEl.style.transition = '';
+      liquidEl.style.opacity = '';
+      const meniscus = liquidEl.querySelector('.liquid-meniscus');
+      const foam = liquidEl.querySelector('.liquid-foam');
+      if (meniscus) { meniscus.style.opacity = ''; meniscus.style.display = ''; }
+      if (foam) { foam.style.opacity = ''; foam.style.display = ''; }
+    }
   }
 
   function easeOutCubic(t) {
@@ -251,17 +295,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const start = performance.now();
     return new Promise((resolve) => {
+      const st = { raf: 0, resolve };
       function frame(now) {
+        // Cancelled — resolve already called from cancelLiquidAnim.
+        if (liquidAnim.get(liquidEl) !== st) return;
         const t = Math.min(1, (now - start) / durationMs);
         writeLiquidY(liquidEl, from + (to - from) * easeFn(t));
         if (t < 1) {
-          liquidRaf.set(liquidEl, requestAnimationFrame(frame));
+          st.raf = requestAnimationFrame(frame);
         } else {
-          liquidRaf.delete(liquidEl);
+          liquidAnim.delete(liquidEl);
           resolve();
         }
       }
-      liquidRaf.set(liquidEl, requestAnimationFrame(frame));
+      st.raf = requestAnimationFrame(frame);
+      liquidAnim.set(liquidEl, st);
     });
   }
 
@@ -471,28 +519,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function pourOut(liquidEl, iconContainer) {
+  async function pourOut(liquidEl, iconContainer, gen) {
     const stream = iconContainer.querySelector('.pour-stream');
     iconContainer.classList.add('pouring', 'is-emptying');
     flattenLiquidSurface(liquidEl);
     const color = getComputedStyle(iconContainer).getPropertyValue('--pour-color').trim() || '#39ff14';
-    let blobTimer = 0;
+    if (iconContainer._pourBlobTimer) clearTimeout(iconContainer._pourBlobTimer);
     if (stream) {
       stream.style.setProperty('--pour-color', color);
       stream.classList.remove('active');
       void stream.offsetWidth;
       stream.classList.add('active');
       const pulse = () => {
-        if (!iconContainer.classList.contains('pouring')) return;
+        if (!vesselAlive(iconContainer, gen) || !iconContainer.classList.contains('pouring')) return;
         spawnPourBlobBurst(stream, color, 7 + Math.floor(Math.random() * 5));
-        blobTimer = setTimeout(pulse, 110 + Math.random() * 90);
+        iconContainer._pourBlobTimer = setTimeout(pulse, 110 + Math.random() * 90);
       };
       pulse();
     }
     spawnPourDroplets(iconContainer);
     await new Promise((r) => setTimeout(r, Math.min(180, emptyDurationMs * 0.1)));
+    if (!vesselAlive(iconContainer, gen)) return;
     await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs * 0.9, easeInOutCubic);
-    clearTimeout(blobTimer);
+    if (iconContainer._pourBlobTimer) {
+      clearTimeout(iconContainer._pourBlobTimer);
+      iconContainer._pourBlobTimer = 0;
+    }
     if (stream) stream.classList.remove('active');
     iconContainer.classList.remove('pouring');
   }
@@ -516,13 +568,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function animateFill(liquidEl, iconContainer, from, to) {
-    if (!liquidEl) return;
+    if (!liquidEl || !iconContainer) return;
+    const gen = bumpVesselGen(iconContainer);
     if (from === to) {
       await setLiquidLevel(liquidEl, to, { instant: true });
       return;
     }
 
     await setLiquidLevel(liquidEl, from, { instant: true });
+    if (!vesselAlive(iconContainer, gen)) return;
     const rising = to > from;
     iconContainer.classList.toggle('wave-active', vesselWave && rising && fillStyle !== 'solid');
     liquidEl.classList.add('is-filling');
@@ -531,33 +585,42 @@ document.addEventListener('DOMContentLoaded', () => {
     const crossedThreshold = rising && to > 0 && to % fillLimit === 0;
     if (!crossedThreshold) {
       const anim = setLiquidLevel(liquidEl, to, { instant: false, duration: fillDurationMs });
-      // Keep spawning surface bubbles while rising.
       const bubbleTimer = rising && fillStyle === 'bubble'
-        ? setInterval(() => spawnBubbles(iconContainer, liquidEl), 280)
+        ? setInterval(() => {
+          if (!vesselAlive(iconContainer, gen)) { clearInterval(bubbleTimer); return; }
+          spawnBubbles(iconContainer, liquidEl);
+        }, 280)
         : null;
       await anim;
       if (bubbleTimer) clearInterval(bubbleTimer);
+      if (!vesselAlive(iconContainer, gen)) return;
       liquidEl.classList.remove('is-filling');
-      setTimeout(() => iconContainer.classList.remove('wave-active'), 180);
+      setTimeout(() => {
+        if (vesselAlive(iconContainer, gen)) iconContainer.classList.remove('wave-active');
+      }, 180);
       return;
     }
 
     await setLiquidLevel(liquidEl, fillLimit, { instant: false, full: true, duration: fillDurationMs });
+    if (!vesselAlive(iconContainer, gen)) return;
     const cls = emptyEffectClass();
     iconContainer.classList.add(cls, 'is-emptying');
     iconContainer.classList.remove('wave-active');
     flattenLiquidSurface(liquidEl);
     await new Promise((r) => setTimeout(r, Math.max(240, Math.floor(fillDurationMs * 0.35))));
+    if (!vesselAlive(iconContainer, gen)) return;
 
     if (emptyEffect === 'fade') {
       liquidEl.style.opacity = '1';
       liquidEl.style.transition = `opacity ${emptyDurationMs}ms ease`;
       liquidEl.style.opacity = '0';
       await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs, easeInOutCubic);
-      liquidEl.style.transition = '';
-      liquidEl.style.opacity = '1';
+      if (vesselAlive(iconContainer, gen)) {
+        liquidEl.style.transition = '';
+        liquidEl.style.opacity = '1';
+      }
     } else if (emptyEffect === 'pour') {
-      await pourOut(liquidEl, iconContainer);
+      await pourOut(liquidEl, iconContainer, gen);
     } else if (emptyEffect === 'splash') {
       spawnSplashDroplets(iconContainer);
       await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs, easeInOutCubic);
@@ -568,6 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs, easeInOutCubic);
     }
 
+    if (!vesselAlive(iconContainer, gen)) return;
     iconContainer.classList.remove(cls, 'wave-active', 'is-emptying', 'pouring');
     liquidEl.classList.remove('is-filling');
     const meniscus = liquidEl.querySelector('.liquid-meniscus');
@@ -1193,6 +1257,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function restorePreviewHome(home) {
     abortRankTransition(home.rank);
+    resetVesselVisual(dom.winsIconContainer, dom.winsLiquid);
+    resetVesselVisual(dom.lossesIconContainer, dom.lossesLiquid);
     currentState = { ...home };
     previousState = { ...home };
     dom.wins.textContent = String(home.wins);
@@ -1273,13 +1339,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (action === 'win') {
       previousState = { ...currentState };
       currentState = { ...currentState, wins: currentState.wins + 1 };
-      updateContentAnimations();
+      await updateContentAnimations();
       return;
     }
     if (action === 'loss') {
       previousState = { ...currentState };
       currentState = { ...currentState, losses: currentState.losses + 1 };
-      updateContentAnimations();
+      await updateContentAnimations();
       return;
     }
     if (action === 'rankUp' || action === 'rankUpEpic' || action === 'rankDown' || action === 'rankDownEpic' || action === 'rankShowcase') {
@@ -1288,6 +1354,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (action === 'fillCycle') {
       abortRankTransition(home.rank);
+      resetVesselVisual(dom.winsIconContainer, dom.winsLiquid);
+      resetVesselVisual(dom.lossesIconContainer, dom.lossesLiquid);
       const target = Math.max(0, fillLimit - 1);
       currentState = { ...home, wins: target };
       previousState = { ...currentState };
@@ -1297,15 +1365,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!alive()) return;
       previousState = { ...currentState };
       currentState = { ...currentState, wins: currentState.wins + 1 };
-      updateContentAnimations();
-      // After empty settles, restore wins count visually to home (preview-only)
-      await sleep(Math.max(emptyDurationMs, fillDurationMs) + 400);
+      await updateContentAnimations();
       if (!alive()) return;
       await restorePreviewHome(home);
       return;
     }
     if (action === 'fullCycle') {
       abortRankTransition(home.rank);
+      resetVesselVisual(dom.winsIconContainer, dom.winsLiquid);
+      resetVesselVisual(dom.lossesIconContainer, dom.lossesLiquid);
       currentState = { wins: 0, losses: 0, rank: home.rank };
       previousState = { ...currentState };
       dom.wins.textContent = '0';
@@ -1319,20 +1387,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
       previousState = { ...currentState };
       currentState = { ...currentState, wins: 3 };
-      updateContentAnimations();
-      await sleep(800);
+      await updateContentAnimations();
+      await sleep(400);
       if (!alive()) return;
 
       previousState = { ...currentState };
       currentState = { ...currentState, losses: 2 };
-      updateContentAnimations();
-      await sleep(800);
+      await updateContentAnimations();
+      await sleep(400);
       if (!alive()) return;
 
       await runRankShowcase(token);
       if (!alive()) return;
 
       // Fill-to-empty cycle then restore everything
+      resetVesselVisual(dom.winsIconContainer, dom.winsLiquid);
       const target = Math.max(0, fillLimit - 1);
       currentState = { ...currentState, wins: target, losses: 2, rank: home.rank };
       previousState = { ...currentState };
@@ -1342,8 +1411,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!alive()) return;
       previousState = { ...currentState };
       currentState = { ...currentState, wins: target + 1 };
-      updateContentAnimations();
-      await sleep(Math.max(emptyDurationMs, fillDurationMs) + 500);
+      await updateContentAnimations();
       if (!alive()) return;
       await restorePreviewHome(home);
     }
@@ -1397,7 +1465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     scheduleHide();
   }
 
-  function updateContentAnimations() {
+  async function updateContentAnimations() {
     const shouldAnimateRank = previousState.rank !== currentState.rank;
     if (shouldAnimateRank) {
       animateRankTransition(previousState.rank, currentState.rank);
@@ -1409,8 +1477,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     animateNumber(dom.wins, previousState.wins, currentState.wins);
     animateNumber(dom.losses, previousState.losses, currentState.losses);
-    animateFill(dom.winsLiquid, dom.winsIconContainer, previousState.wins, currentState.wins);
-    animateFill(dom.lossesLiquid, dom.lossesIconContainer, previousState.losses, currentState.losses);
+    await Promise.all([
+      animateFill(dom.winsLiquid, dom.winsIconContainer, previousState.wins, currentState.wins),
+      animateFill(dom.lossesLiquid, dom.lossesIconContainer, previousState.losses, currentState.losses),
+    ]);
   }
 
   function applySnapshot(snap, opts = {}) {

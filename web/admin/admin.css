@@ -412,6 +412,12 @@ input, select {
   position: sticky;
   top: 16px;
 }
+.preview-actions {
+  margin-top: 12px;
+}
+.preview-actions button {
+  flex: 1 1 auto;
+}
 .preview-header {
   display: flex;
   justify-content: space-between;
