@@ -23,8 +23,6 @@ local hotkey_rank_down_damage = obs.OBS_INVALID_HOTKEY_ID
 
 local hotkey_seq = 0
 local started_once = false
-local update_announced = nil
-local update_latest = nil
 
 local function script_path()
   local info = debug.getinfo(1, "S")
@@ -132,7 +130,6 @@ local function ensure_server()
   end
   start_exe_hidden(exe)
   started_once = true
-  obs.script_log(obs.LOG_INFO, "Started widget-stats: " .. exe)
   local rt = read_runtime()
   if rt.base then config.base_url = rt.base end
   return true
@@ -185,67 +182,12 @@ local function write_lua_path()
   f:close()
 end
 
-local function read_update_json()
-  local exe = resolve_exe()
-  local data = data_dir_for_exe(exe)
-  if not data then return nil end
-  local f = io.open(data .. "\\update.json", "r")
-  if not f then return nil end
-  local content = f:read("*a")
-  f:close()
-  if not content or content == "" then return nil end
-  local available = content:match('"available"%s*:%s*true') ~= nil
-  local latest = content:match('"latest"%s*:%s*"(.-)"')
-  local current = content:match('"current"%s*:%s*"(.-)"')
-  return {
-    available = available,
-    latest = latest,
-    current = current,
-  }
-end
-
-local function open_update_admin()
-  ensure_server()
-  local rt = read_runtime()
-  local admin = rt.admin or (config.base_url .. "/admin/")
-  if not admin:find("%?update=1") then
-    if admin:sub(-1) == "/" then
-      admin = admin .. "?update=1"
-    else
-      admin = admin .. "/?update=1"
-    end
-  end
-  open_url_hidden(admin)
-end
-
-local function poll_update_status()
-  local info = read_update_json()
-  if not info or not info.available or not info.latest then
-    return
-  end
-  update_latest = info.latest
-  if update_announced == info.latest then
-    return
-  end
-  update_announced = info.latest
-  local msg = string.format(
-    "Widget Stats: доступно обновление %s (сейчас %s). Tools → Scripts → кнопка «Открыть обновление», либо админка.",
-    info.latest,
-    info.current or "?"
-  )
-  obs.script_log(obs.LOG_WARNING, msg)
-end
-
 function script_description()
-  local extra = ""
-  if update_latest then
-    extra = "\n\n⚠ Доступно обновление " .. update_latest .. " — открой админку и нажми «Обновить»."
-  end
   return [[OBS Stream Widget Statistics v2
 
 Автозапуск без долгого ожидания.
 Хоткеи и выключение — через файл data/hk_*.wreq (без окон консоли).
-Сцену настраивай в админке.]] .. extra
+Сцену настраивай в админке.]]
 end
 
 function script_properties()
@@ -256,10 +198,6 @@ function script_properties()
   obs.obs_properties_add_text(props, "base_url", "Base URL (fallback)", obs.OBS_TEXT_DEFAULT)
   obs.obs_properties_add_button(props, "open_admin", "Открыть админку", function()
     open_admin()
-    return true
-  end)
-  obs.obs_properties_add_button(props, "open_update", "Открыть обновление", function()
-    open_update_admin()
     return true
   end)
   obs.obs_properties_add_button(props, "start_server", "Запустить сервер", function()
@@ -333,7 +271,6 @@ function script_load(settings)
     ensure_server()
   end
   write_lua_path()
-  obs.timer_add(poll_update_status, 10000)
 end
 
 function script_save(settings)

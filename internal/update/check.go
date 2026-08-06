@@ -19,23 +19,26 @@ const (
 )
 
 type Asset struct {
-	Name string `json:"name"`
-	URL  string `json:"browser_download_url"`
+	Name               string `json:"name"`
+	URL                string `json:"url"`
+	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
 type Info struct {
-	Current     string  `json:"current"`
-	Latest      string  `json:"latest"`
-	Available   bool    `json:"available"`
-	Name        string  `json:"name,omitempty"`
-	Body        string  `json:"body,omitempty"`
-	HTMLURL     string  `json:"htmlUrl,omitempty"`
-	CheckedAt   string  `json:"checkedAt"`
-	ExeURL      string  `json:"exeUrl,omitempty"`
-	LuaURL      string  `json:"luaUrl,omitempty"`
-	Error       string  `json:"error,omitempty"`
-	Skipped     bool    `json:"skipped,omitempty"`
-	SkipReason  string  `json:"skipReason,omitempty"`
+	Current    string `json:"current"`
+	Latest     string `json:"latest"`
+	Available  bool   `json:"available"`
+	Name       string `json:"name,omitempty"`
+	Body       string `json:"body,omitempty"`
+	HTMLURL    string `json:"htmlUrl,omitempty"`
+	CheckedAt  string `json:"checkedAt"`
+	ExeURL     string `json:"exeUrl,omitempty"`
+	ExeAPIURL  string `json:"exeApiUrl,omitempty"`
+	LuaURL     string `json:"luaUrl,omitempty"`
+	LuaAPIURL  string `json:"luaApiUrl,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Skipped    bool   `json:"skipped,omitempty"`
+	SkipReason string `json:"skipReason,omitempty"`
 }
 
 type Checker struct {
@@ -137,9 +140,11 @@ func (c *Checker) Check(force bool) Info {
 		name := strings.ToLower(a.Name)
 		switch {
 		case name == "widget-stats.exe" || strings.HasSuffix(name, "widget-stats.exe"):
-			info.ExeURL = a.URL
+			info.ExeURL = a.BrowserDownloadURL
+			info.ExeAPIURL = a.URL
 		case name == "widget_control.lua" || strings.HasSuffix(name, "widget_control.lua"):
-			info.LuaURL = a.URL
+			info.LuaURL = a.BrowserDownloadURL
+			info.LuaAPIURL = a.URL
 		}
 	}
 	c.cached, c.have = info, true
