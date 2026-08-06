@@ -229,8 +229,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     dom.roleBadge.hidden = false;
-    dom.roleIcon.src = ROLE_ICONS[role] || ROLE_ICONS.tank;
-    dom.roleIcon.alt = role;
+    const url = ROLE_ICONS[role] || ROLE_ICONS.tank;
+    dom.roleIcon.style.setProperty('--role-icon-url', `url("${url}")`);
+    dom.roleIcon.setAttribute('aria-label', role);
   }
 
   function applyRemoteStateOnly(snap) {

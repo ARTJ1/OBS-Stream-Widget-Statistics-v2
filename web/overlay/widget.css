@@ -89,7 +89,19 @@ html.preview-mode .widget {
 .role-icon {
   width: 1.95em;
   height: 1.95em;
-  object-fit: contain;
+  flex-shrink: 0;
+  display: inline-block;
+  background-color: var(--icon-color, #ffffff);
+  -webkit-mask-image: var(--role-icon-url);
+  mask-image: var(--role-icon-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-mode: luminance;
+  mask-mode: luminance;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45));
 }
 body.mode-roles_shared .role-badge,
