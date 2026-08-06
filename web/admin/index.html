@@ -61,15 +61,24 @@
               <option value="classic" data-i18n="mode.classic">Обычный</option>
               <option value="roles_shared" data-i18n="mode.rolesShared">Роли: общий W/L</option>
               <option value="roles_split" data-i18n="mode.rolesSplit">Роли: раздельный W/L</option>
+              <option value="roles_rotate" data-i18n="mode.rolesRotate">Роли: цикл показов</option>
             </select>
           </label>
-          <label><span data-i18n="main.role">Роль</span>
+          <label id="gameRoleField" hidden><span data-i18n="main.role">Роль</span>
             <select id="gameRoleSelect">
               <option value="tank" data-i18n="role.tank">Tank</option>
               <option value="support" data-i18n="role.support">Support</option>
               <option value="damage" data-i18n="role.damage">Damage</option>
             </select>
           </label>
+        </div>
+        <div class="role-cycle-row" id="roleCycleRow" hidden>
+          <span class="label" data-i18n="main.roleCycle">Роли в цикле</span>
+          <div class="role-cycle-checks">
+            <label class="check-inline"><input type="checkbox" name="roleCycle" value="tank" checked> <span data-i18n="role.tank">Tank</span></label>
+            <label class="check-inline"><input type="checkbox" name="roleCycle" value="support" checked> <span data-i18n="role.support">Support</span></label>
+            <label class="check-inline"><input type="checkbox" name="roleCycle" value="damage" checked> <span data-i18n="role.damage">Damage</span></label>
+          </div>
         </div>
         <p class="setup-note" id="modeRoleHint" data-i18n="main.modeHint">В обычном режиме роль скрыта. В ролевых режимах правка идёт для выбранной роли.</p>
         <div class="stats-row">

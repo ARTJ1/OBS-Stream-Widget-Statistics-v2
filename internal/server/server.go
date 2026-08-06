@@ -68,6 +68,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/role/next", s.methodAction(s.Store.CycleRole, "role"))
 	s.mux.HandleFunc("/api/mode", s.modeHandler)
 	s.mux.HandleFunc("/api/role", s.roleHandler)
+	s.mux.HandleFunc("/api/role-cycle", s.roleCycleHandler)
 	s.mux.HandleFunc("/api/state", s.stateHandler)
 	s.mux.HandleFunc("/api/settings", s.settings)
 	s.mux.HandleFunc("/api/runtime", s.getRuntime)
@@ -205,6 +206,46 @@ func (s *Server) roleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Hub.Broadcast("role", snap)
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *Server) roleCycleHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	roles := []string{}
+	if set := r.URL.Query().Get("set"); set != "" {
+		for _, part := range strings.Split(set, ",") {
+			part = strings.TrimSpace(strings.ToLower(part))
+			if part != "" {
+				roles = append(roles, part)
+			}
+		}
+	}
+	if len(roles) == 0 && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+		var req struct {
+			RoleCycle []string `json:"roleCycle"`
+			Roles     []string `json:"roles"`
+		}
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		_ = json.Unmarshal(body, &req)
+		if len(req.RoleCycle) > 0 {
+			roles = req.RoleCycle
+		} else {
+			roles = req.Roles
+		}
+	}
+	if len(roles) == 0 {
+		http.Error(w, "roleCycle required", http.StatusBadRequest)
+		return
+	}
+	snap, err := s.Store.SetRoleCycle(roles)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.Hub.Broadcast("role_cycle", snap)
 	writeJSON(w, http.StatusOK, snap)
 }
 
@@ -530,6 +571,14 @@ func (s *Server) showOverlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := s.Store.Snapshot()
+	if snap.State.Mode == store.ModeRolesRotate {
+		next, err := s.Store.CycleRole()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		snap = next
+	}
 	s.Hub.BroadcastShow(snap)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snap})
 }

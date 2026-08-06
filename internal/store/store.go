@@ -13,13 +13,14 @@ const (
 	ModeClassic     = "classic"
 	ModeRolesShared = "roles_shared" // shared W/L, per-role rank
 	ModeRolesSplit  = "roles_split"  // per-role W/L and rank
+	ModeRolesRotate = "roles_rotate" // shared W/L, per-role rank, rotate on appear
 
 	RoleTank    = "tank"
 	RoleSupport = "support"
 	RoleDamage  = "damage"
 )
 
-var modeOrder = []string{ModeClassic, ModeRolesShared, ModeRolesSplit}
+var modeOrder = []string{ModeClassic, ModeRolesShared, ModeRolesSplit, ModeRolesRotate}
 var roleOrder = []string{RoleTank, RoleSupport, RoleDamage}
 
 type RoleStats struct {
@@ -29,12 +30,13 @@ type RoleStats struct {
 }
 
 type State struct {
-	Mode   string               `json:"mode"`
-	Role   string               `json:"role"`
-	Wins   int                  `json:"wins"`
-	Losses int                  `json:"losses"`
-	Rank   int                  `json:"rank"`
-	Roles  map[string]RoleStats `json:"roles"`
+	Mode      string               `json:"mode"`
+	Role      string               `json:"role"`
+	RoleCycle []string             `json:"roleCycle"`
+	Wins      int                  `json:"wins"`
+	Losses    int                  `json:"losses"`
+	Rank      int                  `json:"rank"`
+	Roles     map[string]RoleStats `json:"roles"`
 }
 
 // View is the currently displayed W/L/rank for overlay clients.
@@ -144,9 +146,10 @@ func defaultRoles() map[string]RoleStats {
 
 func DefaultState() State {
 	return State{
-		Mode:  ModeClassic,
-		Role:  RoleTank,
-		Roles: defaultRoles(),
+		Mode:      ModeClassic,
+		Role:      RoleTank,
+		RoleCycle: append([]string(nil), roleOrder...),
+		Roles:     defaultRoles(),
 	}
 }
 
@@ -198,12 +201,51 @@ func clampNonNeg(n int) int {
 	return n
 }
 
+func isValidRole(id string) bool {
+	return id == RoleTank || id == RoleSupport || id == RoleDamage
+}
+
+func isValidMode(mode string) bool {
+	return mode == ModeClassic || mode == ModeRolesShared || mode == ModeRolesSplit || mode == ModeRolesRotate
+}
+
+func normalizeRoleCycle(in []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(roleOrder))
+	for _, id := range roleOrder {
+		for _, cand := range in {
+			if cand == id && !seen[id] {
+				seen[id] = true
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	if len(out) == 0 {
+		return append([]string(nil), roleOrder...)
+	}
+	return out
+}
+
 func (s *Store) clamp() {
-	if s.state.Mode != ModeClassic && s.state.Mode != ModeRolesShared && s.state.Mode != ModeRolesSplit {
+	if !isValidMode(s.state.Mode) {
 		s.state.Mode = ModeClassic
 	}
-	if s.state.Role != RoleTank && s.state.Role != RoleSupport && s.state.Role != RoleDamage {
+	if !isValidRole(s.state.Role) {
 		s.state.Role = RoleTank
+	}
+	s.state.RoleCycle = normalizeRoleCycle(s.state.RoleCycle)
+	if s.state.Mode == ModeRolesRotate {
+		inCycle := false
+		for _, id := range s.state.RoleCycle {
+			if id == s.state.Role {
+				inCycle = true
+				break
+			}
+		}
+		if !inCycle {
+			s.state.Role = s.state.RoleCycle[0]
+		}
 	}
 	if s.state.Roles == nil {
 		s.state.Roles = defaultRoles()
@@ -270,7 +312,7 @@ func (s *Store) clamp() {
 func (st State) View() View {
 	v := View{Mode: st.Mode, Role: st.Role}
 	switch st.Mode {
-	case ModeRolesShared:
+	case ModeRolesShared, ModeRolesRotate:
 		rs := st.Roles[st.Role]
 		v.Wins, v.Losses, v.Rank = st.Wins, st.Losses, rs.Rank
 	case ModeRolesSplit:
@@ -379,7 +421,7 @@ func (s *Store) RankUp() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch s.state.Mode {
-	case ModeRolesShared, ModeRolesSplit:
+	case ModeRolesShared, ModeRolesSplit, ModeRolesRotate:
 		rs := s.getRole(s.state.Role)
 		if rs.Rank < MaxRankIndex-1 {
 			rs.Rank++
@@ -400,7 +442,7 @@ func (s *Store) RankDown() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch s.state.Mode {
-	case ModeRolesShared, ModeRolesSplit:
+	case ModeRolesShared, ModeRolesSplit, ModeRolesRotate:
 		rs := s.getRole(s.state.Role)
 		if rs.Rank > 0 {
 			rs.Rank--
@@ -441,7 +483,7 @@ func (s *Store) SetRank(rank int) (Snapshot, error) {
 	defer s.mu.Unlock()
 	rank = clampRank(rank)
 	switch s.state.Mode {
-	case ModeRolesShared, ModeRolesSplit:
+	case ModeRolesShared, ModeRolesSplit, ModeRolesRotate:
 		rs := s.getRole(s.state.Role)
 		rs.Rank = rank
 		s.setRole(s.state.Role, rs)
@@ -465,6 +507,7 @@ func (s *Store) CycleMode() (Snapshot, error) {
 		}
 	}
 	s.state.Mode = modeOrder[(idx+1)%len(modeOrder)]
+	s.clamp()
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -474,14 +517,21 @@ func (s *Store) CycleMode() (Snapshot, error) {
 func (s *Store) CycleRole() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	order := roleOrder
+	if s.state.Mode == ModeRolesRotate {
+		order = s.state.RoleCycle
+		if len(order) == 0 {
+			order = roleOrder
+		}
+	}
 	idx := 0
-	for i, r := range roleOrder {
+	for i, r := range order {
 		if r == s.state.Role {
 			idx = i
 			break
 		}
 	}
-	s.state.Role = roleOrder[(idx+1)%len(roleOrder)]
+	s.state.Role = order[(idx+1)%len(order)]
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -503,6 +553,17 @@ func (s *Store) SetRole(role string) (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.Role = role
+	s.clamp()
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+func (s *Store) SetRoleCycle(roles []string) (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.RoleCycle = roles
 	s.clamp()
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err

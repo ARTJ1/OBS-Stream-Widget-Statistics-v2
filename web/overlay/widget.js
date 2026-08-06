@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const st = snap?.state || {};
     const mode = st.mode || 'classic';
     const role = st.role || 'tank';
-    if (mode === 'roles_shared') {
+    if (mode === 'roles_shared' || mode === 'roles_rotate') {
       const r = (st.roles && st.roles[role]) || {};
       return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role };
     }
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateRoleBadge(view) {
     const mode = view?.mode || 'classic';
     const role = view?.role || 'tank';
-    document.body.classList.remove('mode-classic', 'mode-roles_shared', 'mode-roles_split');
+    document.body.classList.remove('mode-classic', 'mode-roles_shared', 'mode-roles_split', 'mode-roles_rotate');
     document.body.classList.add(`mode-${mode}`);
     if (!dom.roleBadge || !dom.roleIcon) return;
     if (mode === 'classic') {
@@ -1474,7 +1474,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dom.rankSection) dom.rankSection.classList.remove('rank-idle-pulse');
       stopIdleSparks();
       if (reappearDelayMs > 0) {
-        reappearTimeout = setTimeout(() => {
+        reappearTimeout = setTimeout(async () => {
+          if (currentState.mode === 'roles_rotate') {
+            try {
+              const res = await fetch('/api/role/next', { method: 'POST' });
+              if (res.ok) {
+                const snap = await res.json();
+                applyRemoteStateOnly(snap);
+              }
+            } catch {
+              /* keep previous role if offline */
+            }
+          }
           showWidget(false);
         }, animDurationOut * 1000 + reappearDelayMs);
       }

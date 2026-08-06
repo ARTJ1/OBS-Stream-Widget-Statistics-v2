@@ -120,6 +120,34 @@ h2 { font-size: 18px; margin-bottom: 16px; }
   color: var(--muted);
   font-size: 14px;
 }
+.role-cycle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0 0 12px;
+}
+.role-cycle-row[hidden],
+#gameRoleField[hidden],
+[hidden] {
+  display: none !important;
+}
+.role-cycle-row .label {
+  color: var(--muted);
+  font-size: 13px;
+}
+.role-cycle-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+.check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
 .obs-grid {
   margin-bottom: 8px;
 }

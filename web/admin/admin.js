@@ -314,30 +314,49 @@ function viewFromSnap(snap) {
       rank: snap.view.rank || 0,
       mode: snap.view.mode || snap.state?.mode || 'classic',
       role: snap.view.role || snap.state?.role || 'tank',
+      roleCycle: snap.state?.roleCycle || ['tank', 'support', 'damage'],
     };
   }
   const st = snap?.state || snap || {};
   const mode = st.mode || 'classic';
   const role = st.role || 'tank';
-  if (mode === 'roles_shared') {
+  const roleCycle = st.roleCycle || ['tank', 'support', 'damage'];
+  if (mode === 'roles_shared' || mode === 'roles_rotate') {
     const r = (st.roles && st.roles[role]) || {};
-    return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role };
+    return { wins: st.wins || 0, losses: st.losses || 0, rank: r.rank || 0, mode, role, roleCycle };
   }
   if (mode === 'roles_split') {
     const r = (st.roles && st.roles[role]) || {};
-    return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role };
+    return { wins: r.wins || 0, losses: r.losses || 0, rank: r.rank || 0, mode, role, roleCycle };
   }
-  return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role };
+  return { wins: st.wins || 0, losses: st.losses || 0, rank: st.rank || 0, mode: 'classic', role, roleCycle };
+}
+
+function renderRoleCycle(snapOrView) {
+  const row = document.getElementById('roleCycleRow');
+  const mode = snapOrView?.mode || snapOrView?.view?.mode || snapOrView?.state?.mode || 'classic';
+  const cycle = snapOrView?.roleCycle
+    || snapOrView?.state?.roleCycle
+    || ['tank', 'support', 'damage'];
+  if (row) row.hidden = mode !== 'roles_rotate';
+  const set = new Set(cycle);
+  document.querySelectorAll('input[name="roleCycle"]').forEach((el) => {
+    el.checked = set.has(el.value);
+  });
 }
 
 function renderModeRole(view) {
+  const mode = view.mode || 'classic';
   const modeEl = document.getElementById('gameModeSelect');
   const roleEl = document.getElementById('gameRoleSelect');
-  if (modeEl && modeEl.value !== view.mode) modeEl.value = view.mode || 'classic';
+  const roleField = document.getElementById('gameRoleField');
+  if (modeEl && modeEl.value !== mode) modeEl.value = mode;
+  if (roleField) roleField.hidden = mode === 'classic';
   if (roleEl) {
     if (roleEl.value !== view.role) roleEl.value = view.role || 'tank';
-    roleEl.disabled = (view.mode || 'classic') === 'classic';
+    roleEl.disabled = mode === 'classic';
   }
+  renderRoleCycle(view);
 }
 
 function renderState(snapOrState) {
@@ -349,6 +368,7 @@ function renderState(snapOrState) {
         rank: snapOrState?.rank || 0,
         mode: snapOrState?.mode || 'classic',
         role: snapOrState?.role || 'tank',
+        roleCycle: snapOrState?.roleCycle || ['tank', 'support', 'damage'],
       };
   document.getElementById('winsValue').textContent = view.wins;
   document.getElementById('lossesValue').textContent = view.losses;
@@ -981,6 +1001,29 @@ document.getElementById('gameRoleSelect')?.addEventListener('change', async (e) 
   } catch (err) {
     setStatus(String(err.message || err));
   }
+});
+
+async function saveRoleCycleFromUI() {
+  const roles = [...document.querySelectorAll('input[name="roleCycle"]:checked')].map((el) => el.value);
+  if (!roles.length) {
+    setStatus(t('main.roleCycle') + ': 1+');
+    document.querySelector('input[name="roleCycle"][value="tank"]').checked = true;
+    return;
+  }
+  try {
+    const snap = await api('/api/role-cycle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleCycle: roles }),
+    });
+    renderState(snap);
+    setStatus(t('msg.updated'), true);
+  } catch (err) {
+    setStatus(String(err.message || err));
+  }
+}
+document.getElementById('roleCycleRow')?.addEventListener('change', (e) => {
+  if (e.target?.name === 'roleCycle') saveRoleCycleFromUI();
 });
 
 document.getElementById('uiLangSelect')?.addEventListener('change', (e) => {
