@@ -67,6 +67,11 @@ If port `19123` is unavailable, the current base URL is shown in the admin panel
 
 Devices without HTTP support can use the same hotkeys configured in OBS.
 
+### AJAZZ / Stream Dock
+
+- Silent HTTP request plugin: [streamdock-http-request](https://github.com/ARTJ1/streamdock-http-request)
+- Button icons for every widget skin: [streamdock-icons release](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0) (generator in `extras/streamdock-icons/`)
+
 ## Build
 
 Requires [Go](https://go.dev/dl/) 1.22 or newer.

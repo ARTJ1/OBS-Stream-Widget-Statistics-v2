@@ -67,6 +67,11 @@ http://127.0.0.1:19123/api/reset
 
 Устройства без HTTP могут использовать те же горячие клавиши, что назначены в OBS.
 
+### AJAZZ / Stream Dock
+
+- Плагин тихих HTTP-запросов (без вкладок браузера): [streamdock-http-request](https://github.com/ARTJ1/streamdock-http-request)
+- Готовые иконки кнопок под все скины виджета: релиз [streamdock-icons](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0) (исходник генератора — `extras/streamdock-icons/`)
+
 ## Сборка из исходников
 
 Требуется [Go](https://go.dev/dl/) версии 1.22 или новее.

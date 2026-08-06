@@ -1,0 +1,4 @@
+node_modules/
+preview/
+_zip_staging/
+*.zip
