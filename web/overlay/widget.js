@@ -1349,8 +1349,16 @@ document.addEventListener('DOMContentLoaded', () => {
     abortRankTransition(home.rank);
     resetVesselVisual(dom.winsIconContainer, dom.winsLiquid);
     resetVesselVisual(dom.lossesIconContainer, dom.lossesLiquid);
-    currentState = { ...home };
-    previousState = { ...home };
+    currentState = {
+      wins: home.wins || 0,
+      losses: home.losses || 0,
+      rank: home.rank || 0,
+      mode: home.mode || 'classic',
+      role: home.role || 'tank',
+      game: home.game || currentState.game || 'overwatch',
+    };
+    previousState = { ...currentState };
+    updateRoleBadge(currentState);
     dom.wins.textContent = String(home.wins);
     dom.losses.textContent = String(home.losses);
     setLiquidLevel(dom.winsLiquid, home.wins, { instant: true });
@@ -1428,7 +1436,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = ++previewDemoToken;
     const alive = () => token === previewDemoToken;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const home = { wins: currentState.wins, losses: currentState.losses, rank: currentState.rank };
+    const home = { ...currentState };
 
     if (action === 'win') {
       previousState = { ...currentState };
@@ -1468,8 +1476,10 @@ document.addEventListener('DOMContentLoaded', () => {
       abortRankTransition(home.rank);
       resetVesselVisual(dom.winsIconContainer, dom.winsLiquid);
       resetVesselVisual(dom.lossesIconContainer, dom.lossesLiquid);
-      currentState = { wins: 0, losses: 0, rank: home.rank };
+      // Keep game/mode/role — dropping them makes Apex demos fall back to Overwatch ranks.
+      currentState = { ...home, wins: 0, losses: 0 };
       previousState = { ...currentState };
+      updateRoleBadge(currentState);
       dom.wins.textContent = '0';
       dom.losses.textContent = '0';
       setLiquidLevel(dom.winsLiquid, 0, { instant: true });

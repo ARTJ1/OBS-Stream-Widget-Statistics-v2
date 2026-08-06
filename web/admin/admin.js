@@ -506,6 +506,7 @@ function pushPreviewState(snapOrState) {
 
 function sendPreviewDemo(action, extra = {}) {
   pushPreviewSettings();
+  pushPreviewState(lastSnap);
   document.querySelectorAll('iframe.widget-preview').forEach((frame) => {
     try {
       frame.contentWindow?.postMessage({ type: 'widget-preview-demo', action, ...extra }, '*');
@@ -730,6 +731,7 @@ async function loadCustomSkins() {
 function applySkinSettings(settings, skinId) {
   selectedSkinId = skinId || settings.skinId || selectedSkinId;
   fillAppearance({ ...readAllSettings(), ...settings, skinId: selectedSkinId });
+  pushPreviewState(lastSnap);
   schedulePreviewPush();
   setTimeout(() => {
     sendPreviewDemo('fullCycle');
