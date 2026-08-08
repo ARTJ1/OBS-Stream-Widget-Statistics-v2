@@ -32,14 +32,25 @@ body {
   overflow: hidden; /* Prevents scrollbars during animations */
 }
 
+html.preview-mode,
 html.preview-mode body {
+  width: 100%;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
   background: transparent;
 }
-
+html.preview-mode body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 html.preview-mode .widget {
-  top: 16px;
-  left: 16px;
+  position: relative;
+  top: auto;
+  left: auto;
+  /* zoom scales layout without fighting appear/rank transforms */
+  zoom: var(--preview-zoom, 1);
 }
 
 .widget {

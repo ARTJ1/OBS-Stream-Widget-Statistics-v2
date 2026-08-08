@@ -41,6 +41,7 @@
       <button type="button" class="tab" data-tab="look" data-i18n="tab.look">Внешний вид</button>
       <button type="button" class="tab" data-tab="motion" data-i18n="tab.motion">Анимации</button>
       <button type="button" class="tab" data-tab="skins" data-i18n="tab.skins">Скины</button>
+      <button type="button" class="tab" data-tab="faq" data-i18n="tab.faq">Справка</button>
     </nav>
 
     <section class="tab-panel active" data-panel="main">
@@ -148,6 +149,9 @@
           <a id="overlayLink" href="/overlay/" target="_blank" rel="noopener" data-i18n="main.openOverlay">Открыть overlay</a>
         </div>
         <div class="copy-list" id="copyList"></div>
+        <p class="setup-note" style="margin-top:12px">
+          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0" target="_blank" rel="noopener" data-i18n="main.streamDeckIcons">Иконки для Stream Deck</a>
+        </p>
       </section>
     </section>
 
@@ -193,6 +197,23 @@
                   <input name="iconColor" type="color" value="#ffffff">
                   <span class="swatch-text" id="iconSwatch">icon</span>
                 </div>
+              </label>
+              <label class="full"><span data-i18n="look.vesselStyle">Стиль иконок (пара)</span>
+                <select name="vesselStyle" id="vesselStyleSelect">
+                  <option value="classic">Classic — trophy / skull</option>
+                  <option value="royal">Royal — crown / ghost</option>
+                  <option value="rage">Rage — fist / heart-crack</option>
+                  <option value="inferno">Inferno — flame / bomb</option>
+                  <option value="toxic">Toxic — medal / biohazard</option>
+                  <option value="nova">Nova — star / radiation</option>
+                  <option value="fang">Fang — cup / skull</option>
+                  <option value="hard">Hard — block cup / detail skull</option>
+                  <option value="grim">Grim — wing cup / death skull</option>
+                  <option value="solid">Solid — fill cup / solid skull</option>
+                  <option value="sharp">Sharp — sharp cup / simple skull</option>
+                  <option value="award">Award — award cup / tech skull</option>
+                  <option value="medal">Medal — medal / skull2</option>
+                </select>
               </label>
               <label class="color-field">
                 <span data-i18n="look.sepColor">Цвет разделителя</span>
@@ -392,10 +413,37 @@
         </div>
       </section>
     </section>
+
+    <section class="tab-panel" data-panel="faq">
+      <section class="panel appearance-panel">
+        <div class="appearance-grid">
+          <div>
+            <h2 data-i18n="faq.title">Справка / FAQ</h2>
+            <p class="setup-note" data-i18n="faq.note">Коротко: что где настроить и как это выглядит. Открой пункт — справа превью; кнопки «Показать» крутят только превью, счёт в OBS не меняется.</p>
+            <div class="faq-list" id="faqList"></div>
+          </div>
+          <aside class="preview-pane">
+            <div class="preview-header">
+              <h2 data-i18n="faq.previewTitle">Превью</h2>
+              <span class="preview-hint" id="faqDemoHint" data-i18n="faq.preview.hint">Demo</span>
+            </div>
+            <div class="preview-stage tall">
+              <iframe class="widget-preview" id="previewFrameFaq" title="FAQ preview" src="/overlay/?preview=1"></iframe>
+            </div>
+            <div class="actions preview-actions">
+              <button type="button" id="faqReplayDemoBtn" class="ghost" data-i18n="faq.demo.full">Полный прогон</button>
+              <button type="button" class="show-overlay-btn" data-show-overlay data-i18n="main.showWidget">Показать виджет</button>
+            </div>
+            <p class="setup-note" style="margin-top:10px" data-i18n="faq.previewNote">Превью использует текущие настройки внешнего вида и анимаций. Сохрани их на вкладках, если хочешь увидеть ровно то, что в OBS.</p>
+          </aside>
+        </div>
+      </section>
+    </section>
   </main>
   <script src="i18n.js"></script>
   <script src="fonts.js"></script>
   <script src="skins.js"></script>
+  <script src="faq.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

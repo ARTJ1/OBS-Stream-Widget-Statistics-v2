@@ -30,6 +30,9 @@ let customSkins = [];
 let uiLang = 'ru';
 let currentGame = 'overwatch';
 let lastSnap = null;
+let statusI18n = null; // { key, vars, ok }
+let obsStatusI18n = null; // { key, vars, ok }
+let latestUpdateInfo = null;
 
 const OW_DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
 const APEX_DIVISIONS = ['Rookie', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master'];
@@ -54,8 +57,66 @@ function applyUiLang(lang, { persist = false } = {}) {
 }
 
 function setStatus(text, ok = false) {
+  statusI18n = null;
   statusEl.textContent = text;
   statusEl.classList.toggle('ok', ok);
+}
+
+function setStatusKey(key, ok = false, vars) {
+  statusI18n = { key, vars: vars || null, ok: !!ok };
+  statusEl.textContent = t(key, vars);
+  statusEl.classList.toggle('ok', !!ok);
+}
+
+function setObsStatus(text, ok = false) {
+  obsStatusI18n = null;
+  obsStatusText.textContent = text;
+  obsStatusText.style.color = ok ? '#7ddea0' : '';
+}
+
+function setObsStatusKey(key, ok = false, vars) {
+  obsStatusI18n = { key, vars: vars || null, ok: !!ok };
+  obsStatusText.textContent = t(key, vars);
+  obsStatusText.style.color = ok ? '#7ddea0' : '';
+}
+
+function refreshLocalizedDynamicUI() {
+  const bannerText = document.getElementById('updateBannerText');
+  if (bannerText && latestUpdateInfo?.available && latestUpdateInfo?.latest) {
+    bannerText.textContent = t('update.text', {
+      current: latestUpdateInfo.current || '?',
+      latest: latestUpdateInfo.latest,
+    });
+  }
+  if (statusI18n?.key) {
+    statusEl.textContent = t(statusI18n.key, statusI18n.vars || undefined);
+    statusEl.classList.toggle('ok', !!statusI18n.ok);
+  } else if (/^Connecting|^Подключ/i.test(String(statusEl.textContent || '').trim())) {
+    setStatusKey('status.connecting');
+  }
+  if (obsStatusI18n?.key) {
+    obsStatusText.textContent = t(obsStatusI18n.key, obsStatusI18n.vars || undefined);
+    obsStatusText.style.color = obsStatusI18n.ok ? '#7ddea0' : '';
+  } else if (!obsStatusText.textContent || /не подключено|not connected/i.test(obsStatusText.textContent)) {
+    setObsStatusKey('main.obsOffline');
+  }
+  const faqHint = document.getElementById('faqDemoHint');
+  if (faqHint) faqHint.textContent = t('faq.preview.hint');
+  // Re-label scene dropdown chrome (placeholder / live suffix) without a network round-trip.
+  const first = obsSceneSelect?.options?.[0];
+  if (first && !first.value) {
+    const hasScenes = (obsSceneSelect.options.length > 1);
+    first.textContent = hasScenes ? t('main.obsPickScene') : t('main.obsNoScenes');
+  }
+  if (obsSceneSelect) {
+    const live = t('main.obsLive');
+    for (const opt of obsSceneSelect.options) {
+      if (!opt.value) continue;
+      const base = opt.value;
+      const onAir = opt.textContent.includes('(сейчас в эфире)') || opt.textContent.includes('(program)') || opt.textContent.endsWith(` ${live}`);
+      opt.textContent = onAir ? `${base} ${live}` : base;
+    }
+  }
 }
 
 function clamp(n, min, max) {
@@ -289,6 +350,7 @@ function fillAppearance(settings) {
   if (settings.lossesColor?.startsWith('#')) form.lossesColor.value = settings.lossesColor;
   if (settings.rankTextColor?.startsWith('#')) form.rankTextColor.value = settings.rankTextColor;
   if (form.iconColor && settings.iconColor?.startsWith('#')) form.iconColor.value = settings.iconColor;
+  if (form.vesselStyle) form.vesselStyle.value = settings.vesselStyle || 'classic';
   fillSeparatorColor(settings.separatorColor || 'rgba(255,255,255,0.55)');
   if (form.appearEffect) form.appearEffect.value = settings.appearEffect || 'slide';
   if (settings.font) {
@@ -352,6 +414,7 @@ function readAppearance() {
     lossesColor: form.lossesColor.value,
     rankTextColor: form.rankTextColor.value,
     iconColor: form.iconColor?.value || '#ffffff',
+    vesselStyle: form.vesselStyle?.value || 'classic',
     separatorColor: buildSeparatorColor(),
     appearEffect: form.appearEffect?.value || 'slide',
     animDirection: form.animDirection.value,
@@ -743,7 +806,7 @@ function applySkinSettings(settings, skinId) {
 function replaySkinDemo() {
   schedulePreviewPush();
   setTimeout(() => sendPreviewDemo('fullCycle'), 100);
-  setStatus(t('msg.demoSkin'), true);
+  setStatusKey('msg.demoSkin', true);
 }
 
 async function api(path, options) {
@@ -768,21 +831,16 @@ async function uploadBgFile(file) {
   body.append('file', file);
   const data = await api('/api/upload/bg', { method: 'POST', body });
   fillAppearance({ ...readAllSettings(), ...data.settings });
-  setStatus(t('msg.bgUp'), true);
+  setStatusKey('msg.bgUp', true);
 }
 
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
-    setStatus(t('msg.copied'), true);
+    setStatusKey('msg.copied', true);
   } catch {
-    setStatus(t('msg.copyFail'));
+    setStatusKey('msg.copyFail');
   }
-}
-
-function setObsStatus(text, ok = false) {
-  obsStatusText.textContent = text;
-  obsStatusText.style.color = ok ? '#7ddea0' : '';
 }
 
 async function refreshScenes() {
@@ -804,7 +862,7 @@ async function refreshScenes() {
     ensureSceneOption(prefer);
     obsSceneSelect.value = prefer;
   }
-  setObsStatus(t('main.obsConnected', { n: (data.scenes || []).length }), true);
+  setObsStatusKey('main.obsConnected', true, { n: (data.scenes || []).length });
 }
 
 document.getElementById('tabs').addEventListener('click', (e) => {
@@ -812,6 +870,10 @@ document.getElementById('tabs').addEventListener('click', (e) => {
   if (!btn) return;
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === btn));
   document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.dataset.panel === btn.dataset.tab));
+  if (btn.dataset.tab === 'faq' || btn.dataset.tab === 'look' || btn.dataset.tab === 'motion' || btn.dataset.tab === 'skins') {
+    pushPreviewSettings();
+    pushPreviewState(lastSnap);
+  }
 });
 
 document.querySelectorAll('[data-action]').forEach((btn) => {
@@ -819,7 +881,7 @@ document.querySelectorAll('[data-action]').forEach((btn) => {
     try {
       const snap = await api(btn.dataset.action, { method: 'POST' });
       renderState(snap);
-      setStatus(t('msg.updated'), true);
+      setStatusKey('msg.updated', true);
     } catch (err) {
       setStatus(String(err.message || err));
     }
@@ -836,7 +898,7 @@ document.getElementById('rankApplyBtn').addEventListener('click', async () => {
       body: JSON.stringify({ rank }),
     });
     renderState(snap);
-    setStatus(t('msg.rankUpdated'), true);
+    setStatusKey('msg.rankUpdated', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -862,7 +924,7 @@ form.addEventListener('submit', async (e) => {
     fillAppearance(snap.settings);
     fillObs(snap.settings);
     renderState(snap);
-    setStatus(t('msg.saved'), true);
+    setStatusKey('msg.saved', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -872,30 +934,30 @@ document.getElementById('motionSaveBtn').addEventListener('click', async () => {
   try {
     const snap = await saveAllSettings();
     fillAppearance(snap.settings);
-    setStatus(t('msg.animSaved'), true);
+    setStatusKey('msg.animSaved', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
 });
 document.getElementById('motionTestWin').addEventListener('click', () => {
   sendPreviewDemo('win');
-  setStatus(t('msg.previewWin'), true);
+  setStatusKey('msg.previewWin', true);
 });
 document.getElementById('motionTestLoss').addEventListener('click', () => {
   sendPreviewDemo('loss');
-  setStatus(t('msg.previewLoss'), true);
+  setStatusKey('msg.previewLoss', true);
 });
 document.getElementById('motionTestRankUp')?.addEventListener('click', () => {
   sendPreviewDemo('rankShowcase');
-  setStatus(t('msg.previewRank'), true);
+  setStatusKey('msg.previewRank', true);
 });
 document.getElementById('motionTestRankDown')?.addEventListener('click', () => {
   sendPreviewDemo('rankShowcase');
-  setStatus(t('msg.previewRank'), true);
+  setStatusKey('msg.previewRank', true);
 });
 document.getElementById('motionTestFillCycle')?.addEventListener('click', () => {
   sendPreviewDemo('fillCycle');
-  setStatus(t('msg.previewFill'), true);
+  setStatusKey('msg.previewFill', true);
 });
 
 motionForm.rankFx?.addEventListener('change', () => {
@@ -909,7 +971,7 @@ document.querySelectorAll('[data-show-overlay]').forEach((btn) => {
       // Push current unsaved look to overlay first when possible.
       try { await saveAllSettings(); } catch { /* preview still works via show */ }
       await api('/api/show', { method: 'POST' });
-      setStatus(t('msg.widgetShown'), true);
+      setStatusKey('msg.widgetShown', true);
     } catch (err) {
       setStatus(String(err.message || err));
     }
@@ -944,7 +1006,7 @@ document.getElementById('bgClearBtn').addEventListener('click', async (e) => {
   try {
     const snap = await saveAllSettings();
     fillAppearance(snap.settings);
-    setStatus(t('msg.bgClear'), true);
+    setStatusKey('msg.bgClear', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -957,7 +1019,7 @@ skinsGrid.addEventListener('click', (e) => {
   if (!skin) return;
   applySkinSettings(skin.settings, skin.id);
   renderSkins();
-  setStatus(t('msg.skinPicked', { name: skin.name, fx: skinFxLabel(skinFxId(skin)) }), true);
+  setStatusKey('msg.skinPicked', true, { name: skin.name, fx: skinFxLabel(skinFxId(skin)) });
 });
 
 document.getElementById('skinsFxFilter')?.addEventListener('change', (e) => {
@@ -984,7 +1046,7 @@ customSkinsGrid?.addEventListener('click', async (e) => {
       if (selectedSkinId === id) selectedSkinId = 'default';
       await loadCustomSkins();
       renderSkins();
-      setStatus(t('msg.skinDeleted'), true);
+      setStatusKey('msg.skinDeleted', true);
     } catch (err) {
       setStatus(String(err.message || err));
     }
@@ -997,7 +1059,7 @@ customSkinsGrid?.addEventListener('click', async (e) => {
   if (!skin) return;
   applySkinSettings(skin.settings, skin.id);
   renderSkins();
-  setStatus(t('msg.customPicked', { name: skin.name }), true);
+  setStatusKey('msg.customPicked', true, { name: skin.name });
 });
 
 document.getElementById('customSkinSaveBtn')?.addEventListener('click', async () => {
@@ -1012,7 +1074,7 @@ document.getElementById('customSkinSaveBtn')?.addEventListener('click', async ()
     if (customSkinName) customSkinName.value = '';
     await loadCustomSkins();
     renderSkins();
-    setStatus(t('msg.customSaved', { name: skin.name }), true);
+    setStatusKey('msg.customSaved', true, { name: skin.name });
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -1022,7 +1084,7 @@ document.getElementById('skinApplySaveBtn').addEventListener('click', async () =
   try {
     const snap = await saveAllSettings();
     fillAppearance(snap.settings);
-    setStatus(t('msg.skinSavedObs'), true);
+    setStatusKey('msg.skinSavedObs', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -1037,7 +1099,7 @@ document.getElementById('obsConnectBtn').addEventListener('click', async () => {
     await saveAllSettings();
     await api('/api/obs/connect', { method: 'POST' });
     await refreshScenes();
-    setStatus(t('msg.obsConnected'), true);
+    setStatusKey('msg.obsConnected', true);
   } catch (err) {
     setObsStatus(`OBS: ${err.message}`);
     setStatus(String(err.message || err));
@@ -1061,8 +1123,16 @@ document.getElementById('obsEnsureBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scene: obsSceneSelect.value }),
     });
-    setObsStatus(res.result?.message || t('msg.done'), true);
-    setStatus(res.result?.action || 'ok', true);
+    {
+      const action = res.result?.action || '';
+      const obsKey = ({
+        exists: 'obs.msg.exists',
+        added_existing: 'obs.msg.added',
+        created: 'obs.msg.created',
+      })[action] || 'msg.done';
+      setObsStatusKey(obsKey, true);
+      setStatusKey(obsKey, true);
+    }
   } catch (err) {
     setObsStatus(`OBS: ${err.message}`);
     setStatus(String(err.message || err));
@@ -1087,7 +1157,7 @@ function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.addEventListener('open', () => {
-    setStatus(t('status.live'), true);
+    setStatusKey('status.live', true);
     if (awaitingServerRestart || knownAppVersion) {
       maybeReloadAfterUpdate();
     }
@@ -1097,7 +1167,7 @@ function connectWS() {
     if (msg.state || msg.view) renderState(msg);
   });
   ws.addEventListener('close', () => {
-    setStatus(t('status.reconnect'));
+    setStatusKey('status.reconnect');
     setTimeout(connectWS, 1500);
   });
 }
@@ -1117,14 +1187,13 @@ async function boot() {
     await api('/api/obs/connect', { method: 'POST' });
     await refreshScenes();
   } catch {
-    setObsStatus(t('main.obsOfflineHint'));
+    setObsStatusKey('main.obsOfflineHint');
   }
 }
 
 let knownAppVersion = '';
 let awaitingServerRestart = false;
 let updateWaitTimer = 0;
-let latestUpdateInfo = null;
 
 async function fetchAppVersion() {
   try {
@@ -1151,7 +1220,7 @@ async function maybeReloadAfterUpdate() {
   if (awaitingServerRestart) {
     const target = latestUpdateInfo?.latest || '';
     if ((target && ver === target) || (knownAppVersion && ver !== knownAppVersion)) {
-      setStatus(t('update.reloading'), true);
+      setStatusKey('update.reloading', true);
       reloadAdminFresh(ver);
     }
     return;
@@ -1165,13 +1234,16 @@ function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {})
   awaitingServerRestart = true;
   if (previousVersion) knownAppVersion = previousVersion;
   clearInterval(updateWaitTimer);
-  setStatus(t('update.waiting'), true);
+  setStatusKey('update.waiting', true);
   const banner = document.getElementById('updateBanner');
   if (banner) banner.hidden = true;
   let tries = 0;
   updateWaitTimer = setInterval(async () => {
     tries += 1;
-    setStatus(`${t('update.waiting')} (${tries})`, true);
+    setStatusKey('update.waiting', true);
+    statusEl.textContent = `${t('update.waiting')} (${tries})`;
+    // Keep key so language switch still rewrites the base phrase
+    statusI18n = { key: 'update.waiting', vars: null, ok: true };
     const ver = await fetchAppVersion();
     if (!ver) return;
     const ready = (expectVersion && ver === expectVersion)
@@ -1179,7 +1251,7 @@ function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {})
     if (ready) {
       clearInterval(updateWaitTimer);
       awaitingServerRestart = false;
-      setStatus(t('update.reloading'), true);
+      setStatusKey('update.reloading', true);
       reloadAdminFresh(ver);
       return;
     }
@@ -1188,7 +1260,7 @@ function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {})
       awaitingServerRestart = false;
       const btn = document.getElementById('updateApplyBtn');
       if (btn) btn.disabled = false;
-      setStatus(t('update.waiting'));
+      setStatusKey('update.waiting');
     }
   }, 1000);
 }
@@ -1211,7 +1283,7 @@ async function checkForUpdates({ forceBanner = false } = {}) {
       if (forceBanner) banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
       banner.hidden = true;
-      if (forceBanner && !info.skipped) setStatus(t('update.none'), true);
+      if (forceBanner && !info.skipped) setStatusKey('update.none', true);
     }
   } catch {
     /* offline / no github */
@@ -1228,13 +1300,13 @@ document.getElementById('updateApplyBtn')?.addEventListener('click', async () =>
   const expect = latestUpdateInfo?.latest || '';
   try {
     if (btn) btn.disabled = true;
-    setStatus(t('update.applying'), true);
+    setStatusKey('update.applying', true);
     try {
       await api('/api/update/apply', { method: 'POST' });
     } catch {
       // Server often dies mid-response while restarting — expected.
     }
-    setStatus(t('update.done'), true);
+    setStatusKey('update.done', true);
     waitForServerRestart({ expectVersion: expect, previousVersion: prev });
   } catch (err) {
     setStatus(String(err.message || err));
@@ -1246,7 +1318,7 @@ document.getElementById('gameSelect')?.addEventListener('change', async (e) => {
   try {
     const snap = await api(`/api/game?set=${encodeURIComponent(e.target.value)}`, { method: 'POST' });
     renderState(snap);
-    setStatus(t('msg.updated'), true);
+    setStatusKey('msg.updated', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -1255,7 +1327,7 @@ document.getElementById('gameModeSelect')?.addEventListener('change', async (e) 
   try {
     const snap = await api(`/api/mode?set=${encodeURIComponent(e.target.value)}`, { method: 'POST' });
     renderState(snap);
-    setStatus(t('msg.updated'), true);
+    setStatusKey('msg.updated', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -1264,7 +1336,7 @@ document.getElementById('gameRoleSelect')?.addEventListener('change', async (e) 
   try {
     const snap = await api(`/api/role?set=${encodeURIComponent(e.target.value)}`, { method: 'POST' });
     renderState(snap);
-    setStatus(t('msg.updated'), true);
+    setStatusKey('msg.updated', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -1273,7 +1345,7 @@ document.getElementById('gameRoleSelect')?.addEventListener('change', async (e) 
 async function saveRoleCycleFromUI() {
   const roles = [...document.querySelectorAll('input[name="roleCycle"]:checked')].map((el) => el.value);
   if (!roles.length) {
-    setStatus(t('main.roleCycle') + ': 1+');
+    setStatus(`${t('main.roleCycle')}: 1+`);
     document.querySelector('input[name="roleCycle"][value="tank"]').checked = true;
     return;
   }
@@ -1284,7 +1356,7 @@ async function saveRoleCycleFromUI() {
       body: JSON.stringify({ roleCycle: roles }),
     });
     renderState(snap);
-    setStatus(t('msg.updated'), true);
+    setStatusKey('msg.updated', true);
   } catch (err) {
     setStatus(String(err.message || err));
   }
@@ -1295,6 +1367,25 @@ document.getElementById('roleCycleRow')?.addEventListener('change', (e) => {
 
 document.getElementById('uiLangSelect')?.addEventListener('change', (e) => {
   applyUiLang(e.target.value, { persist: true });
+});
+
+window.AdminFAQ?.init({
+  sendPreviewDemo,
+  onDemo: (action) => {
+    const map = {
+      win: 'msg.previewWin',
+      loss: 'msg.previewLoss',
+      rankShowcase: 'msg.previewRank',
+      fillCycle: 'msg.previewFill',
+      fullCycle: 'msg.previewFill',
+    };
+    const key = map[action];
+    if (key) setStatusKey(key, true);
+  },
+});
+window.addEventListener('admin-i18n', () => {
+  window.AdminFAQ?.refreshI18n?.();
+  refreshLocalizedDynamicUI();
 });
 
 boot().catch((err) => setStatus(String(err.message || err)));

@@ -488,7 +488,8 @@ input, select {
 }
 .preview-stage {
   position: relative;
-  height: 180px;
+  height: clamp(200px, 32vh, 340px);
+  min-height: 200px;
   border-radius: 14px;
   border: 1px solid var(--line);
   overflow: hidden;
@@ -508,7 +509,10 @@ input, select {
   border: 0;
   background: transparent;
 }
-.preview-stage.tall { height: 240px; }
+.preview-stage.tall {
+  height: clamp(260px, 42vh, 440px);
+  min-height: 260px;
+}
 button.ghost {
   background: #1a222c;
   color: #d7e0ea;
@@ -535,9 +539,76 @@ button.ghost:hover { background: #243041; }
   color: #c9d3dd;
   font-size: 12px;
 }
+/* FAQ */
+.faq-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.faq-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+.faq-item[open] {
+  border-color: rgba(61, 156, 240, 0.45);
+  background: rgba(61, 156, 240, 0.06);
+}
+.faq-item summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  font-weight: 600;
+  user-select: none;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after {
+  content: '+';
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 500;
+}
+.faq-item[open] summary::after { content: '−'; }
+.faq-num {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #243041;
+  color: #d7e0ea;
+  font-size: 13px;
+}
+.faq-title { font-size: 14px; }
+.faq-body {
+  padding: 0 14px 14px 54px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.faq-body p { margin: 0 0 10px; }
+.faq-body p:last-child { margin-bottom: 0; }
+.faq-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.faq-actions .faq-demo-btn {
+  font-size: 12px;
+  padding: 7px 10px;
+}
+
 @media (max-width: 900px) {
   .appearance-grid { grid-template-columns: 1fr; }
   .preview-pane { position: static; }
+  .faq-body { padding-left: 14px; }
 }
 @media (max-width: 720px) {
   .stats-row, .form-grid { grid-template-columns: 1fr; }

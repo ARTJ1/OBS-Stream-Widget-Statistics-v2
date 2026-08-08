@@ -105,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let appearEffect = 'slide';
   let fillStyle = 'liquid';
   let rankFx = 'classic';
+  let vesselStyleId = 'classic';
   let isRankTransitionAnimating = false;
   let hideWidgetTimeout;
   let reappearTimeout;
@@ -159,6 +160,86 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add(`fill-${fillStyle || 'liquid'}`);
   }
 
+  function applyVesselIcon(kind, styleId) {
+    const shapes = window.VesselShapes;
+    if (!shapes) return;
+    const shape = shapes.getSide ? shapes.getSide(styleId || 'classic', kind === 'wins' ? 'wins' : 'losses') : null;
+    if (!shape || !shape.d) return;
+    const isWins = kind === 'wins';
+    const container = isWins ? dom.winsIconContainer : dom.lossesIconContainer;
+    if (!container) return;
+    const svg = container.querySelector('svg.stat-icon');
+    const pathId = isWins ? 'trophyPath' : 'skullPath';
+    const clipId = isWins ? 'winsShapeClip' : 'lossesShapeClip';
+    const pathEl = document.getElementById(pathId);
+    const clipPath = document.querySelector(`#${clipId} path`);
+    if (!svg || !pathEl || !clipPath) return;
+    const viewBox = shape.viewBox || '0 0 512 512';
+    svg.setAttribute('viewBox', viewBox);
+    pathEl.setAttribute('d', shape.d);
+    clipPath.setAttribute('d', shape.d);
+    const rule = shape.fillRule || 'nonzero';
+    pathEl.setAttribute('fill-rule', rule);
+    pathEl.setAttribute('clip-rule', rule);
+    clipPath.setAttribute('clip-rule', rule);
+    clipPath.setAttribute('fill-rule', rule);
+    container.querySelectorAll('.vessel-outline').forEach((el) => {
+      el.setAttribute('stroke-width', String(shape.stroke || 16));
+    });
+    container.querySelectorAll('.vessel-shell').forEach((el) => {
+      el.setAttribute('fill-rule', rule);
+    });
+    const parts = String(viewBox).trim().split(/\s+/).map(Number);
+    const vbX = parts[0] || 0;
+    const vbY = parts[1] || 0;
+    const vbW = parts[2] || 512;
+    const vbH = parts[3] || 512;
+    const liquid = isWins ? dom.winsLiquid : dom.lossesLiquid;
+    if (liquid) {
+      const prev = liquidY.has(liquid) ? fillRatioFromY(liquid, readLiquidY(liquid)) : 0;
+      setLiquidGeom(liquid, vbX, vbY, vbW, vbH);
+      const body = liquid.querySelector('.liquid-body');
+      if (body) {
+        body.setAttribute('x', String(vbX - Math.round(vbW * 0.12)));
+        body.setAttribute('width', String(Math.round(vbW * 1.28)));
+        body.setAttribute('height', String(Math.round(vbH * 1.2)));
+      }
+      // Keep current fill ratio after viewBox change.
+      writeLiquidY(liquid, ratioToY(prev, liquid));
+      // Scale wave paths to current viewBox width.
+      updateWaveSurface(liquid, Math.round(vbW * 1.28), isWins ? 0 : 1.3);
+    }
+  }
+
+  function fillRatioFromY(liquidEl, y) {
+    const g = getLiquidGeom(liquidEl);
+    if (!g.h) return 0;
+    return Math.max(0, Math.min(1, 1 - (y - g.minY) / g.h));
+  }
+
+  function applyVesselIcons() {
+    applyVesselIcon('wins', vesselStyleId);
+    applyVesselIcon('losses', vesselStyleId);
+    fixSvgClipRefs();
+  }
+
+  let previewFitRaf = 0;
+  function fitPreviewWidget() {
+    if (!isPreview || !dom.widget) return;
+    cancelAnimationFrame(previewFitRaf);
+    previewFitRaf = requestAnimationFrame(() => {
+      document.documentElement.style.setProperty('--preview-zoom', '1');
+      // Natural size after zoom reset
+      const w = Math.max(1, dom.widget.offsetWidth);
+      const h = Math.max(1, dom.widget.offsetHeight);
+      const pad = 24;
+      const zx = (window.innerWidth - pad) / w;
+      const zy = (window.innerHeight - pad) / h;
+      const zoom = Math.min(1, zx, zy);
+      document.documentElement.style.setProperty('--preview-zoom', String(Number.isFinite(zoom) ? zoom : 1));
+    });
+  }
+
   function applySettings(next) {
     if (!next || typeof next !== 'object') return;
     const prev = settings && typeof settings === 'object' ? settings : {};
@@ -187,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     appearEffect = merged.appearEffect || 'slide';
     fillStyle = merged.fillStyle || 'liquid';
     rankFx = merged.rankFx || prev.rankFx || 'classic';
+    vesselStyleId = merged.vesselStyle || 'classic';
 
     if (typeof window.loadGoogleFont === 'function') {
       window.loadGoogleFont(merged.font || 'Arial, sans-serif');
@@ -216,6 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dom.rankAnimationWrapper) dom.rankAnimationWrapper.dataset.rankFx = rankFx;
     applyAppearEffect();
     applyFillStyleClass();
+    applyVesselIcons();
     setLiquidPaint(dom.winsLiquid, winsColor);
     setLiquidPaint(dom.lossesLiquid, lossesColor);
     if (dom.winsIconContainer) dom.winsIconContainer.style.setProperty('--pour-color', winsColor);
@@ -225,6 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `url('${merged.bgImage}') center/cover no-repeat`
       : (merged.bgColor || 'rgba(0,0,0,0.7)');
     ensureWaveLoop();
+    fitPreviewWidget();
   }
 
   function preferPreviewLocalSettings() {
@@ -303,17 +387,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const LIQUID_H = 512;
   const liquidY = new WeakMap();
+  const liquidGeom = new WeakMap(); // { minY, h } from current vessel viewBox
   const liquidAnim = new WeakMap(); // { raf, resolve }
   const vesselGen = new WeakMap();
 
+  function getLiquidGeom(liquidEl) {
+    return liquidGeom.get(liquidEl) || { minY: 0, h: LIQUID_H };
+  }
+
+  function emptyLiquidY(liquidEl) {
+    const g = getLiquidGeom(liquidEl);
+    return g.minY + g.h;
+  }
+
+  function setLiquidGeom(liquidEl, vbX, vbY, vbW, vbH) {
+    if (!liquidEl) return;
+    liquidGeom.set(liquidEl, {
+      minY: vbY || 0,
+      h: vbH > 0 ? vbH : LIQUID_H,
+      minX: vbX || 0,
+      w: vbW > 0 ? vbW : LIQUID_H,
+    });
+  }
+
   function readLiquidY(liquidEl) {
     if (liquidY.has(liquidEl)) return liquidY.get(liquidEl);
+    const g = getLiquidGeom(liquidEl);
     const m = /translate\(\s*[^,\s)]+[,\s]+([^)]+)\)/.exec(liquidEl.getAttribute('transform') || '');
-    return m ? parseFloat(m[1]) : LIQUID_H;
+    return m ? parseFloat(m[1]) : (g.minY + g.h);
   }
 
   function writeLiquidY(liquidEl, y) {
-    const clamped = Math.max(0, Math.min(LIQUID_H, y));
+    const g = getLiquidGeom(liquidEl);
+    const fullY = g.minY;
+    const emptyY = g.minY + g.h;
+    const clamped = Math.max(fullY, Math.min(emptyY, y));
     liquidY.set(liquidEl, clamped);
     liquidEl.setAttribute('transform', `translate(0, ${clamped})`);
   }
@@ -377,8 +485,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function animateLiquidY(liquidEl, targetY, durationMs, easeFn = easeOutCubic) {
     cancelLiquidAnim(liquidEl);
+    const g = getLiquidGeom(liquidEl);
     const from = readLiquidY(liquidEl);
-    const to = Math.max(0, Math.min(LIQUID_H, targetY));
+    const to = Math.max(g.minY, Math.min(g.minY + g.h, targetY));
     if (durationMs <= 0 || Math.abs(from - to) < 0.2) {
       writeLiquidY(liquidEl, to);
       return Promise.resolve();
@@ -403,15 +512,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function ratioToY(ratio) {
-    return LIQUID_H * (1 - Math.max(0, Math.min(1, ratio)));
+  function ratioToY(ratio, liquidEl) {
+    const g = getLiquidGeom(liquidEl);
+    return g.minY + g.h * (1 - Math.max(0, Math.min(1, ratio)));
   }
 
   function setLiquidLevel(liquidEl, value, opts = {}) {
     if (!liquidEl) return Promise.resolve();
     const { instant = false, full = false, duration = fillDurationMs } = opts;
     const ratio = full ? 1 : fillRatio(value);
-    const y = ratioToY(ratio);
+    const y = ratioToY(ratio, liquidEl);
     liquidEl.classList.toggle('is-filling', !instant && ratio > 0);
     if (instant) {
       cancelLiquidAnim(liquidEl);
@@ -533,12 +643,14 @@ document.addEventListener('DOMContentLoaded', () => {
       waveTime += 0.055;
       const winsActive = dom.winsLiquid?.classList.contains('is-filling')
         || dom.winsIconContainer?.classList.contains('wave-active')
-        || readLiquidY(dom.winsLiquid) < LIQUID_H - 1;
+        || readLiquidY(dom.winsLiquid) < emptyLiquidY(dom.winsLiquid) - 0.5;
       const lossesActive = dom.lossesLiquid?.classList.contains('is-filling')
         || dom.lossesIconContainer?.classList.contains('wave-active')
-        || readLiquidY(dom.lossesLiquid) < LIQUID_H - 1;
-      if (winsActive) updateWaveSurface(dom.winsLiquid, 740, 0);
-      if (lossesActive) updateWaveSurface(dom.lossesLiquid, 680, 1.3);
+        || readLiquidY(dom.lossesLiquid) < emptyLiquidY(dom.lossesLiquid) - 0.5;
+      const winsW = getLiquidGeom(dom.winsLiquid).w || 740;
+      const lossesW = getLiquidGeom(dom.lossesLiquid).w || 680;
+      if (winsActive) updateWaveSurface(dom.winsLiquid, Math.round(winsW * 1.28), 0);
+      if (lossesActive) updateWaveSurface(dom.lossesLiquid, Math.round(lossesW * 1.28), 1.3);
       waveRaf = requestAnimationFrame(tick);
     };
     waveRaf = requestAnimationFrame(tick);
@@ -548,8 +660,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fillStyle !== 'bubble' || !iconContainer) return;
     const fx = iconContainer.querySelector('.vessel-fx');
     if (!fx) return;
-    const y = liquidEl ? readLiquidY(liquidEl) : LIQUID_H;
-    const fill = Math.max(0.05, Math.min(1, 1 - y / LIQUID_H));
+    const y = liquidEl ? readLiquidY(liquidEl) : emptyLiquidY(liquidEl);
+    const fill = Math.max(0.05, Math.min(1, fillRatioFromY(liquidEl, y) || 0.05));
     const surfaceBottom = Math.max(14, Math.min(78, fill * 100 - 3));
     const count = fill < 0.15 ? 1 : 2;
     for (let i = 0; i < count; i++) {
@@ -630,7 +742,7 @@ document.addEventListener('DOMContentLoaded', () => {
     spawnPourDroplets(iconContainer);
     await new Promise((r) => setTimeout(r, Math.min(180, emptyDurationMs * 0.1)));
     if (!vesselAlive(iconContainer, gen)) return;
-    await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs * 0.9, easeInOutCubic);
+    await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs * 0.9, easeInOutCubic);
     if (iconContainer._pourBlobTimer) {
       clearTimeout(iconContainer._pourBlobTimer);
       iconContainer._pourBlobTimer = 0;
@@ -704,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
       liquidEl.style.opacity = '1';
       liquidEl.style.transition = `opacity ${emptyDurationMs}ms ease`;
       liquidEl.style.opacity = '0';
-      await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs, easeInOutCubic);
+      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs, easeInOutCubic);
       if (vesselAlive(iconContainer, gen)) {
         liquidEl.style.transition = '';
         liquidEl.style.opacity = '1';
@@ -713,12 +825,12 @@ document.addEventListener('DOMContentLoaded', () => {
       await pourOut(liquidEl, iconContainer, gen);
     } else if (emptyEffect === 'splash') {
       spawnSplashDroplets(iconContainer);
-      await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs, easeInOutCubic);
+      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs, easeInOutCubic);
     } else if (emptyEffect === 'burst') {
       spawnSplashDroplets(iconContainer);
-      await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs * 0.85, easeOutCubic);
+      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs * 0.85, easeOutCubic);
     } else {
-      await animateLiquidY(liquidEl, LIQUID_H, emptyDurationMs, easeInOutCubic);
+      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs, easeInOutCubic);
     }
 
     if (!vesselAlive(iconContainer, gen)) return;
@@ -728,7 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const foam = liquidEl.querySelector('.liquid-foam');
     if (meniscus) { meniscus.style.opacity = ''; meniscus.style.display = ''; }
     if (foam) { foam.style.opacity = ''; foam.style.display = ''; }
-    writeLiquidY(liquidEl, LIQUID_H);
+    writeLiquidY(liquidEl, emptyLiquidY(liquidEl));
   }
 
   function clearWidgetFx() {
@@ -1578,6 +1690,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setRankIdle(true);
     }
     scheduleHide();
+    fitPreviewWidget();
   }
 
   async function updateContentAnimations() {
@@ -1630,6 +1743,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setRankIdle(true);
       if (visible) scheduleHide();
     }
+    fitPreviewWidget();
   }
 
   async function loadInitial() {
@@ -1647,6 +1761,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setRankImages(info.img);
     dom.rankValue.textContent = info.display;
     showWidget(false);
+    fitPreviewWidget();
   }
 
   function connectWS() {
@@ -1725,6 +1840,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   ensureWaveLoop();
+  if (isPreview) {
+    window.addEventListener('resize', fitPreviewWidget);
+    if (typeof ResizeObserver !== 'undefined' && dom.widget) {
+      const ro = new ResizeObserver(() => fitPreviewWidget());
+      ro.observe(dom.widget);
+    }
+  }
   loadInitial()
     .then(connectWS)
     .catch((err) => {

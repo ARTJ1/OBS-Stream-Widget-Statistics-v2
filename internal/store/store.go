@@ -87,6 +87,7 @@ type Settings struct {
 	HiddenTime      int    `json:"hiddenTime"`
 
 	IconColor      string `json:"iconColor"`
+	VesselStyle    string `json:"vesselStyle"` // classic|royal|rage|inferno|toxic|nova|fang|hard|grim|solid|sharp|award|medal
 	SeparatorColor string `json:"separatorColor"`
 	AppearEffect   string `json:"appearEffect"` // slide | fade | bounce | zoom
 	FillStyle      string `json:"fillStyle"`    // liquid | solid | glow | bubble
@@ -133,6 +134,7 @@ func DefaultSettings() Settings {
 		LossesColor:     "#ff0000",
 		RankTextColor:   "#ffffff",
 		IconColor:       "#ffffff",
+		VesselStyle:     "classic",
 		SeparatorColor:  "rgba(255,255,255,0.55)",
 		AppearEffect:    "slide",
 		FillStyle:       "liquid",
@@ -336,6 +338,23 @@ func (s *Store) clamp() {
 	}
 	if s.settings.FillStyle == "" {
 		s.settings.FillStyle = "liquid"
+	}
+	if s.settings.VesselStyle == "" {
+		s.settings.VesselStyle = "classic"
+	}
+	switch s.settings.VesselStyle {
+	case "classic", "royal", "rage", "inferno", "toxic", "nova",
+		"fang", "hard", "grim", "solid", "sharp", "award", "medal":
+		// ok
+	case "brutal", "emoji":
+		s.settings.VesselStyle = "fang"
+	case "spike", "simple":
+		s.settings.VesselStyle = "hard"
+	case "shard", "tech", "free", "cross":
+		s.settings.VesselStyle = "grim"
+	default:
+		// Dropped pairs (bones/combat) and unknown values fall back.
+		s.settings.VesselStyle = "classic"
 	}
 	if s.settings.AppearEffect == "" {
 		s.settings.AppearEffect = "slide"
