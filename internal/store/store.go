@@ -101,7 +101,8 @@ type Settings struct {
 	VesselWave      bool   `json:"vesselWave"`
 	IdlePulse       bool   `json:"idlePulse"`
 	SkinID          string `json:"skinId"`
-	UiLang          string `json:"uiLang"` // ru | en
+	UiLang          string `json:"uiLang"`  // ru | en
+	UiTheme         string `json:"uiTheme"` // dark | light
 
 	ObsHost       string `json:"obsHost"`
 	ObsPort       int    `json:"obsPort"`
@@ -153,6 +154,7 @@ func DefaultSettings() Settings {
 		IdlePulse:       true,
 		SkinID:          "default",
 		UiLang:          "ru",
+		UiTheme:         "dark",
 		ObsHost:         "127.0.0.1",
 		ObsPort:         4455,
 		ObsPassword:     "",
@@ -361,6 +363,9 @@ func (s *Store) clamp() {
 	}
 	if s.settings.UiLang != "en" && s.settings.UiLang != "ru" {
 		s.settings.UiLang = "ru"
+	}
+	if s.settings.UiTheme != "light" && s.settings.UiTheme != "dark" {
+		s.settings.UiTheme = "dark"
 	}
 	if s.settings.FillLimit <= 0 {
 		s.settings.FillLimit = 10

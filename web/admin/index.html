@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,18 +9,35 @@
 <body>
   <main class="page">
     <header class="header">
-      <div>
-        <p class="eyebrow">OBS Stream Widget Statistics v2 <span id="appVersion" class="ver-tag"></span></p>
-        <h1>Admin</h1>
+      <div class="brand">
+        <h1>Widget Stats</h1>
+        <p class="brand-meta">Admin <span class="dot" aria-hidden="true">·</span> <span id="appVersion" class="ver-tag">—</span></p>
       </div>
       <div class="header-right">
-        <label class="lang-switch">
-          <span data-i18n="lang.label">Язык</span>
-          <select id="uiLangSelect" aria-label="Language">
+        <div class="toolbar-group" role="group" aria-label="Language">
+          <span class="toolbar-label" data-i18n="lang.label">Язык</span>
+          <div class="seg" id="langSeg">
+            <button type="button" class="seg-btn active" data-lang="ru" title="Русский"><span class="flag" aria-hidden="true">🇷🇺</span> RU</button>
+            <button type="button" class="seg-btn" data-lang="en" title="English"><span class="flag" aria-hidden="true">🇬🇧</span> EN</button>
+          </div>
+          <select id="uiLangSelect" class="sr-only" aria-hidden="true" tabindex="-1">
             <option value="ru">Русский</option>
             <option value="en">English</option>
           </select>
-        </label>
+        </div>
+        <div class="toolbar-group" role="group" aria-label="Theme">
+          <span class="toolbar-label" data-i18n="theme.label">Тема</span>
+          <div class="seg" id="themeSeg">
+            <button type="button" class="seg-btn active" data-theme-set="dark" title="Dark" data-i18n-title="theme.dark">
+              <svg class="seg-ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.1 2a9.9 9.9 0 0 0 0 19.8A10 10 0 0 0 21 13.2 7.8 7.8 0 0 1 12.1 2z"/></svg>
+              <span data-i18n="theme.darkShort">Тёмная</span>
+            </button>
+            <button type="button" class="seg-btn" data-theme-set="light" title="Light" data-i18n-title="theme.light">
+              <svg class="seg-ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h1v3h-1V2zm0 17h1v3h-1v-3zM2 11h3v1H2v-1zm17 0h3v1h-3v-1zM5.6 4.2l2.1 2.1-.7.7-2.1-2.1.7-.7zm11.4 11.4 2.1 2.1-.7.7-2.1-2.1.7-.7zM4.9 18.4l.7.7 2.1-2.1-.7-.7-2.1 2.1zm11.4-11.4.7.7 2.1-2.1-.7-.7-2.1 2.1z"/></svg>
+              <span data-i18n="theme.lightShort">Светлая</span>
+            </button>
+          </div>
+        </div>
         <div class="status" id="status">Connecting…</div>
       </div>
     </header>

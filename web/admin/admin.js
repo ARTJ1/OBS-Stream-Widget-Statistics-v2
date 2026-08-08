@@ -28,6 +28,7 @@ let previewTimer = null;
 let selectedSkinId = 'default';
 let customSkins = [];
 let uiLang = 'ru';
+let uiTheme = 'dark';
 let currentGame = 'overwatch';
 let lastSnap = null;
 let statusI18n = null; // { key, vars, ok }
@@ -43,9 +44,33 @@ function t(key, vars) {
   return window.AdminI18n?.t?.(key, vars) ?? key;
 }
 
+function syncLangSeg() {
+  document.querySelectorAll('#langSeg [data-lang]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.lang === uiLang);
+  });
+  const sel = document.getElementById('uiLangSelect');
+  if (sel) sel.value = uiLang;
+}
+
+function syncThemeSeg() {
+  document.querySelectorAll('#themeSeg [data-theme-set]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.themeSet === uiTheme);
+  });
+}
+
+function applyUiTheme(theme, { persist = false } = {}) {
+  uiTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', uiTheme);
+  syncThemeSeg();
+  if (persist) {
+    saveAllSettings().catch(() => {});
+  }
+}
+
 function applyUiLang(lang, { persist = false } = {}) {
   uiLang = lang === 'en' ? 'en' : 'ru';
   window.AdminI18n?.applyI18n?.(uiLang);
+  syncLangSeg();
   // Dynamic status texts should not be wiped by static i18n pass
   if (bgDropHint && !form?.bgImage?.value) bgDropHint.textContent = t('look.bgFormats');
   renderCopyLinks({ baseUrl: (overlayUrl || '').replace(/\/overlay\/?$/, '') || location.origin });
@@ -374,6 +399,10 @@ function fillAppearance(settings) {
   if (settings.uiLang === 'en' || settings.uiLang === 'ru') {
     uiLang = settings.uiLang;
     window.AdminI18n?.applyI18n?.(uiLang);
+    syncLangSeg();
+  }
+  if (settings.uiTheme === 'light' || settings.uiTheme === 'dark') {
+    applyUiTheme(settings.uiTheme);
   }
   syncColorSwatches();
   fillMotion(settings);
@@ -424,6 +453,7 @@ function readAppearance() {
     hiddenTime: Number(form.hiddenTime.value) || 0,
     skinId: selectedSkinId,
     uiLang,
+    uiTheme,
     ...readMotion(),
   };
 }
@@ -1179,6 +1209,7 @@ async function boot() {
   fillAppearance(snap.settings);
   fillObs(snap.settings);
   applyUiLang(snap.settings?.uiLang || uiLang);
+  applyUiTheme(snap.settings?.uiTheme || uiTheme);
   renderCopyLinks(runtime);
   await loadCustomSkins();
   connectWS();
@@ -1368,6 +1399,16 @@ document.getElementById('roleCycleRow')?.addEventListener('change', (e) => {
 
 document.getElementById('uiLangSelect')?.addEventListener('change', (e) => {
   applyUiLang(e.target.value, { persist: true });
+});
+document.getElementById('langSeg')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-lang]');
+  if (!btn) return;
+  applyUiLang(btn.dataset.lang, { persist: true });
+});
+document.getElementById('themeSeg')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-theme-set]');
+  if (!btn) return;
+  applyUiTheme(btn.dataset.themeSet, { persist: true });
 });
 
 window.AdminFAQ?.init({
