@@ -42,19 +42,19 @@ type Info struct {
 }
 
 type Checker struct {
-	mu       sync.RWMutex
-	current  string
-	dataDir  string
-	cached   Info
-	have     bool
-	client   *http.Client
+	mu      sync.RWMutex
+	current string
+	dataDir string
+	cached  Info
+	have    bool
+	client  *http.Client
 }
 
 func NewChecker(current, dataDir string) *Checker {
 	return &Checker{
 		current: current,
 		dataDir: dataDir,
-		client:  &http.Client{Timeout: 12 * time.Second},
+		client:  &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -90,66 +90,158 @@ func (c *Checker) Check(force bool) Info {
 		return info
 	}
 
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", GitHubOwner, GitHubRepo)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		info.Error = err.Error()
-		c.cached, c.have = info, true
-		_ = c.writeStatus(info)
-		return info
-	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	res, err := c.client.Do(req)
-	if err != nil {
-		info.Error = err.Error()
-		c.cached, c.have = info, true
-		_ = c.writeStatus(info)
-		return info
-	}
-	defer res.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if res.StatusCode != http.StatusOK {
-		info.Error = fmt.Sprintf("github %s: %s", res.Status, strings.TrimSpace(string(body)))
-		c.cached, c.have = info, true
-		_ = c.writeStatus(info)
-		return info
-	}
-
-	var rel struct {
-		TagName string  `json:"tag_name"`
-		Name    string  `json:"name"`
-		Body    string  `json:"body"`
-		HTMLURL string  `json:"html_url"`
-		Assets  []Asset `json:"assets"`
-	}
-	if err := json.Unmarshal(body, &rel); err != nil {
-		info.Error = err.Error()
-		c.cached, c.have = info, true
-		_ = c.writeStatus(info)
-		return info
-	}
-
-	info.Latest = rel.TagName
-	info.Name = rel.Name
-	info.Body = rel.Body
-	info.HTMLURL = rel.HTMLURL
-	info.Available = Newer(rel.TagName, c.current)
-	for _, a := range rel.Assets {
-		name := strings.ToLower(a.Name)
-		switch {
-		case name == "widget-stats.exe" || strings.HasSuffix(name, "widget-stats.exe"):
-			info.ExeURL = a.BrowserDownloadURL
-			info.ExeAPIURL = a.URL
-		case name == "widget_control.lua" || strings.HasSuffix(name, "widget_control.lua"):
-			info.LuaURL = a.BrowserDownloadURL
-			info.LuaAPIURL = a.URL
+	// Prefer the public HTML "latest" redirect — no api.github.com rate limit.
+	tag, htmlURL, err := c.latestTagViaRedirect()
+	if err != nil || !isReleaseSemver(tag) {
+		// Fallback: GitHub API list, pick newest semver that ships widget-stats.exe.
+		tag2, html2, apiErr := c.latestTagViaAPI()
+		if apiErr != nil {
+			if err != nil {
+				info.Error = err.Error()
+			} else {
+				info.Error = apiErr.Error()
+			}
+			c.cached, c.have = info, true
+			_ = c.writeStatus(info)
+			return info
 		}
+		tag, htmlURL = tag2, html2
 	}
+
+	info.Latest = tag
+	info.HTMLURL = htmlURL
+	info.Name = tag
+	info.fillDownloadURLs(tag)
+	info.Available = Newer(tag, c.current) && info.ExeURL != ""
 	c.cached, c.have = info, true
 	_ = c.writeStatus(info)
 	return info
+}
+
+func (info *Info) fillDownloadURLs(tag string) {
+	base := fmt.Sprintf("https://github.com/%s/%s/releases/download/%s", GitHubOwner, GitHubRepo, tag)
+	info.ExeURL = base + "/widget-stats.exe"
+	info.LuaURL = base + "/widget_control.lua"
+	if info.HTMLURL == "" {
+		info.HTMLURL = fmt.Sprintf("https://github.com/%s/%s/releases/tag/%s", GitHubOwner, GitHubRepo, tag)
+	}
+}
+
+// latestTagViaRedirect follows github.com/.../releases/latest (302 → /tag/vX.Y.Z).
+func (c *Checker) latestTagViaRedirect() (tag, htmlURL string, err error) {
+	url := fmt.Sprintf("https://github.com/%s/%s/releases/latest", GitHubOwner, GitHubRepo)
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	res, err := client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer res.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4096))
+
+	loc := res.Header.Get("Location")
+	if loc == "" {
+		return "", "", fmt.Errorf("github latest: no redirect (status %s)", res.Status)
+	}
+	tag = tagFromReleaseURL(loc)
+	if tag == "" {
+		return "", "", fmt.Errorf("github latest: cannot parse tag from %s", loc)
+	}
+	if strings.HasPrefix(loc, "http") {
+		htmlURL = loc
+	} else {
+		htmlURL = "https://github.com" + loc
+	}
+	return tag, htmlURL, nil
+}
+
+func tagFromReleaseURL(u string) string {
+	// .../releases/tag/v2.2.0  or  /ARTJ1/.../releases/tag/v2.2.0
+	const marker = "/releases/tag/"
+	i := strings.Index(u, marker)
+	if i < 0 {
+		return ""
+	}
+	tag := u[i+len(marker):]
+	if j := strings.IndexAny(tag, "?#"); j >= 0 {
+		tag = tag[:j]
+	}
+	return strings.Trim(tag, "/")
+}
+
+func isReleaseSemver(tag string) bool {
+	return parseSemver(normalizeTag(tag)) != nil
+}
+
+// latestTagViaAPI lists releases and picks the newest semver with widget-stats.exe.
+// Ignores bonus packs like streamdock-icons-v1.0.0.
+func (c *Checker) latestTagViaAPI() (tag, htmlURL string, err error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=30", GitHubOwner, GitHubRepo)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	if tok := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
+
+	res, err := c.client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(res.Body, 2<<20))
+	if res.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("github %s: %s", res.Status, strings.TrimSpace(string(body)))
+	}
+
+	var rels []struct {
+		TagName    string  `json:"tag_name"`
+		HTMLURL    string  `json:"html_url"`
+		Draft      bool    `json:"draft"`
+		Prerelease bool    `json:"prerelease"`
+		Assets     []Asset `json:"assets"`
+	}
+	if err := json.Unmarshal(body, &rels); err != nil {
+		return "", "", err
+	}
+
+	var bestTag, bestHTML string
+	for _, rel := range rels {
+		if rel.Draft || rel.Prerelease || !isReleaseSemver(rel.TagName) {
+			continue
+		}
+		hasExe := false
+		for _, a := range rel.Assets {
+			name := strings.ToLower(a.Name)
+			if name == "widget-stats.exe" || strings.HasSuffix(name, "widget-stats.exe") {
+				hasExe = true
+				break
+			}
+		}
+		if !hasExe {
+			continue
+		}
+		if bestTag == "" || Newer(rel.TagName, bestTag) {
+			bestTag = rel.TagName
+			bestHTML = rel.HTMLURL
+		}
+	}
+	if bestTag == "" {
+		return "", "", fmt.Errorf("no semver release with widget-stats.exe")
+	}
+	return bestTag, bestHTML, nil
 }
 
 func (c *Checker) writeStatus(info Info) error {

@@ -1267,7 +1267,7 @@ function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {})
 
 async function checkForUpdates({ forceBanner = false } = {}) {
   try {
-    const info = await api('/api/update/check');
+    const info = await api('/api/update/check?force=1');
     const verEl = document.getElementById('appVersion');
     if (verEl && info.current) verEl.textContent = info.current;
     if (info.current) knownAppVersion = info.current;
@@ -1283,7 +1283,8 @@ async function checkForUpdates({ forceBanner = false } = {}) {
       if (forceBanner) banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
       banner.hidden = true;
-      if (forceBanner && !info.skipped) setStatusKey('update.none', true);
+      if (info.error) setStatus(String(info.error));
+      else if (forceBanner && !info.skipped) setStatusKey('update.none', true);
     }
   } catch {
     /* offline / no github */

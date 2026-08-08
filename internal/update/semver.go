@@ -15,12 +15,12 @@ func normalizeTag(tag string) string {
 }
 
 // Newer reports whether latest is a higher semver than current.
-// Non-semver / empty / equal → false.
+// Non-semver / empty / equal → false (bonus tags like streamdock-icons-* are ignored).
 func Newer(latest, current string) bool {
 	l := parseSemver(normalizeTag(latest))
 	c := parseSemver(normalizeTag(current))
 	if l == nil || c == nil {
-		return normalizeTag(latest) != "" && normalizeTag(latest) != normalizeTag(current) && normalizeTag(current) != "dev"
+		return false
 	}
 	for i := 0; i < 3; i++ {
 		if l[i] > c[i] {
