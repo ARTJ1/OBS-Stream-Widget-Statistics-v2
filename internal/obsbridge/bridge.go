@@ -272,10 +272,11 @@ func (b *Bridge) EnsureOnScene(sceneName, overlayURL string) (*EnsureResult, err
 }
 
 func browserSettings(overlayURL string) map[string]any {
+	// Wide enough for long rank labels / role modes (Predator #NNN, Grandmaster + role).
 	return map[string]any{
 		"url":                 overlayURL,
-		"width":               470,
-		"height":              120,
+		"width":               960,
+		"height":              180,
 		"css":                 "",
 		"shutdown":            false,
 		"restart_when_active": true,
