@@ -104,4 +104,7 @@ Version 1 updated statistics by changing the Browser Source URL, which caused vi
 
 ## License
 
-MIT
+Source-Available (not open-source).  
+You may use the widget for free and review the source for security.  
+You may not copy the code, make clones, or sell/redistribute it without the author's permission.  
+See `LICENSE` for details.
