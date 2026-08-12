@@ -3,6 +3,7 @@ const OW_RANKS = [
   ...generateRanks('Silver', 5, 'assets/uploads/Silver.png'),
   ...generateRanks('Gold', 5, 'assets/uploads/Gold.png'),
   ...generateRanks('Platinum', 5, 'assets/uploads/Platinum.png'),
+  ...generateRanks('Emerald', 5, 'assets/uploads/Emerald.png'),
   ...generateRanks('Diamond', 5, 'assets/uploads/Diamond.png'),
   ...generateRanks('Master', 5, 'assets/uploads/Master.png'),
   ...generateRanks('Grandmaster', 5, 'assets/uploads/Grandmaster.png'),

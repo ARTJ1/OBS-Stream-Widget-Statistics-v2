@@ -35,8 +35,10 @@ let statusI18n = null; // { key, vars, ok }
 let obsStatusI18n = null; // { key, vars, ok }
 let latestUpdateInfo = null;
 
-const OW_DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
+const OW_DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
 const APEX_DIVISIONS = ['Rookie', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master'];
+const OW_TIER_SLOTS = OW_DIVISIONS.length * 5; // 45
+const OW_RANK_MAX = OW_TIER_SLOTS + 500 - 1; // 544
 const APEX_ROMAN = { 4: 'IV', 3: 'III', 2: 'II', 1: 'I' };
 const obsFields = ['obsHost', 'obsPort', 'obsPassword', 'obsSourceName', 'obsScene'];
 
@@ -226,7 +228,7 @@ function rankIndexFromParts(division, level, top) {
     const lvl = clamp(Number(level) || 4, 1, 4);
     return di < 0 ? 0 : di * 4 + (4 - lvl);
   }
-  if (division === 'Top') return 40 + (500 - clamp(Number(top) || 500, 1, 500));
+  if (division === 'Top') return OW_TIER_SLOTS + (500 - clamp(Number(top) || 500, 1, 500));
   const di = OW_DIVISIONS.indexOf(division);
   const lvl = clamp(Number(level) || 5, 1, 5);
   return di < 0 ? 0 : di * 5 + (5 - lvl);
@@ -238,8 +240,8 @@ function partsFromRankIndex(index) {
     if (i >= 28) return { division: 'Predator', level: 4, top: 750 - (i - 28) };
     return { division: APEX_DIVISIONS[Math.floor(i / 4)] || 'Rookie', level: 4 - (i % 4), top: 750 };
   }
-  const i = clamp(Number(index) || 0, 0, 539);
-  if (i >= 40) return { division: 'Top', level: 5, top: 500 - (i - 40) };
+  const i = clamp(Number(index) || 0, 0, OW_RANK_MAX);
+  if (i >= OW_TIER_SLOTS) return { division: 'Top', level: 5, top: 500 - (i - OW_TIER_SLOTS) };
   return { division: OW_DIVISIONS[Math.floor(i / 5)] || 'Bronze', level: 5 - (i % 5), top: 500 };
 }
 

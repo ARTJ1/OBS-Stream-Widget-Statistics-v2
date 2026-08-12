@@ -8,8 +8,14 @@ import (
 	"sync"
 )
 
-const MaxRankOverwatch = 40 + 500 // Bronze..Champion (40) + Top 500 = 540
+const MaxRankOverwatch = 45 + 500 // Bronze..Champion incl. Emerald (45) + Top 500 = 545
 const MaxRankApex = 7*4 + 750     // Rookie..Master (28) + Predator 750 = 778
+
+// owEmeraldInsertAt is the first index of the old Diamond tier (and everything above),
+// which shifts +5 when Emerald is inserted between Platinum and Diamond.
+const owEmeraldInsertAt = 20
+const owEmeraldShift = 5
+const owLadderEmerald = 1
 
 // Deprecated alias — prefer maxRankFor(game).
 const MaxRankIndex = MaxRankOverwatch
@@ -59,6 +65,7 @@ type State struct {
 	Rank      int                  `json:"rank"`
 	Roles     map[string]RoleStats `json:"roles"`
 	Saved     map[string]GameBlob  `json:"saved,omitempty"`
+	OwLadder  int                  `json:"owLadder,omitempty"` // 1 = Emerald between Platinum/Diamond
 }
 
 // View is the currently displayed W/L/rank for overlay clients.
@@ -179,6 +186,7 @@ func DefaultState() State {
 		RoleCycle: append([]string(nil), roleOrder...),
 		Roles:     defaultRoles(),
 		Saved:     map[string]GameBlob{},
+		OwLadder:  owLadderEmerald,
 	}
 }
 
@@ -193,8 +201,51 @@ func New(dataDir string) (*Store, error) {
 	}
 	_ = s.loadJSON("state.json", &s.state)
 	_ = s.loadJSON("settings.json", &s.settings)
+	if s.migrateOwEmeraldLadder() {
+		_ = s.persistState()
+	}
 	s.clamp()
 	return s, nil
+}
+
+func shiftOwRankForEmerald(rank int) int {
+	if rank >= owEmeraldInsertAt {
+		return rank + owEmeraldShift
+	}
+	return rank
+}
+
+func shiftOwRolesForEmerald(roles map[string]RoleStats) map[string]RoleStats {
+	if roles == nil {
+		return roles
+	}
+	out := make(map[string]RoleStats, len(roles))
+	for k, rs := range roles {
+		rs.Rank = shiftOwRankForEmerald(rs.Rank)
+		out[k] = rs
+	}
+	return out
+}
+
+// migrateOwEmeraldLadder shifts Overwatch ranks that sat at Diamond+ before Emerald existed.
+// Returns true if state was changed and should be saved.
+func (s *Store) migrateOwEmeraldLadder() bool {
+	if s.state.OwLadder >= owLadderEmerald {
+		return false
+	}
+	if s.state.Game == GameOverwatch {
+		s.state.Rank = shiftOwRankForEmerald(s.state.Rank)
+		s.state.Roles = shiftOwRolesForEmerald(s.state.Roles)
+	}
+	if s.state.Saved != nil {
+		if blob, ok := s.state.Saved[GameOverwatch]; ok {
+			blob.Rank = shiftOwRankForEmerald(blob.Rank)
+			blob.Roles = shiftOwRolesForEmerald(blob.Roles)
+			s.state.Saved[GameOverwatch] = blob
+		}
+	}
+	s.state.OwLadder = owLadderEmerald
+	return true
 }
 
 func (s *Store) loadJSON(name string, dest any) error {
