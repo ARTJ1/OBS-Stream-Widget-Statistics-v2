@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const DefaultPort = 19123
@@ -16,6 +18,7 @@ type Info struct {
 	BaseURL    string `json:"baseUrl"`
 	OverlayURL string `json:"overlayUrl"`
 	AdminURL   string `json:"adminUrl"`
+	Version    string `json:"version,omitempty"`
 	PID        int    `json:"pid"`
 }
 
@@ -29,14 +32,25 @@ func FindPort(start int) (int, net.Listener, error) {
 	return 0, nil, fmt.Errorf("no free port near %d", start)
 }
 
-func Build(host string, port int) Info {
+// OverlayURLFor builds a cache-busted overlay URL so OBS Browser Source reloads after updates.
+func OverlayURLFor(base, ver string) string {
+	base = strings.TrimRight(base, "/")
+	ver = strings.TrimSpace(ver)
+	if ver == "" {
+		ver = "dev"
+	}
+	return fmt.Sprintf("%s/overlay/?v=%s", base, url.QueryEscape(ver))
+}
+
+func Build(host string, port int, ver string) Info {
 	base := fmt.Sprintf("http://%s:%d", host, port)
 	return Info{
 		Host:       host,
 		Port:       port,
 		BaseURL:    base,
-		OverlayURL: base + "/overlay/",
+		OverlayURL: OverlayURLFor(base, ver),
 		AdminURL:   base + "/admin/",
+		Version:    ver,
 		PID:        os.Getpid(),
 	}
 }

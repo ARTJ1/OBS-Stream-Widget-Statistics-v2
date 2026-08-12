@@ -53,6 +53,23 @@ func (s *Server) syncOBSFromSettings() {
 	})
 }
 
+// RefreshOBSOverlay pushes the current versioned overlay URL into OBS and reloads the Browser Source.
+// Safe to call on startup after an auto-update so streamers pick up new ranks/assets without manual clicks.
+func (s *Server) RefreshOBSOverlay() {
+	if s.OBS == nil {
+		return
+	}
+	s.syncOBSFromSettings()
+	cfg := s.Store.Settings()
+	if cfg.ObsScene == "" {
+		return
+	}
+	if err := s.OBS.Connect(); err != nil {
+		return
+	}
+	_, _ = s.OBS.EnsureOnScene(cfg.ObsScene, s.Runtime.OverlayURL)
+}
+
 func (s *Server) Handler() http.Handler {
 	return s.cors(s.mux)
 }
@@ -819,7 +836,8 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/overlay/") || strings.HasPrefix(r.URL.Path, "/admin/") {
-			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
 		}
 		next.ServeHTTP(w, r)
 	})

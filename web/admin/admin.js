@@ -1204,21 +1204,40 @@ function connectWS() {
   });
 }
 
+function applyPreviewOverlayURL(runtime) {
+  const ver = runtime?.version || knownAppVersion || '';
+  const q = ver ? `preview=1&v=${encodeURIComponent(ver)}` : 'preview=1';
+  const src = `/overlay/?${q}`;
+  document.querySelectorAll('iframe.widget-preview').forEach((frame) => {
+    if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
+  });
+}
+
 async function boot() {
   populateFonts();
   const [snap, runtime] = await Promise.all([api('/api/snapshot'), api('/api/runtime')]);
+  if (runtime?.version) knownAppVersion = runtime.version;
   renderState(snap);
   fillAppearance(snap.settings);
   fillObs(snap.settings);
   applyUiLang(snap.settings?.uiLang || uiLang);
   applyUiTheme(snap.settings?.uiTheme || uiTheme);
   renderCopyLinks(runtime);
+  applyPreviewOverlayURL(runtime);
   await loadCustomSkins();
   connectWS();
   checkForUpdates({ forceBanner: new URLSearchParams(location.search).has('update') });
   try {
     await api('/api/obs/connect', { method: 'POST' });
     await refreshScenes();
+    // After updates, push cache-busted overlay URL into OBS and refresh Browser Source.
+    if (obsSceneSelect?.value) {
+      await api('/api/obs/ensure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scene: obsSceneSelect.value }),
+      });
+    }
   } catch {
     setObsStatusKey('main.obsOfflineHint');
   }

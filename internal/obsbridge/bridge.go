@@ -204,15 +204,16 @@ func (b *Bridge) EnsureOnScene(sceneName, overlayURL string) (*EnsureResult, err
 	}
 	for _, item := range items.SceneItems {
 		if item.SourceName == sourceName {
-			// Already on scene — update URL only, never duplicate.
-			_, _ = client.Inputs.SetInputSettings(inputs.NewSetInputSettingsParams().
-				WithInputName(sourceName).
-				WithInputSettings(browserSettings(overlayURL)))
+			// Already on scene — update URL/size and force a no-cache refresh.
+			if err := b.applyBrowserSettings(client, sourceName, overlayURL); err != nil {
+				b.lastErr = err.Error()
+				return nil, err
+			}
 			return &EnsureResult{
 				Action:     "exists",
 				Scene:      sceneName,
 				SourceName: sourceName,
-				Message:    "Виджет уже есть на сцене — URL обновлён, дубликат не создан",
+				Message:    "Виджет уже есть на сцене — URL обновлён и страница перезагружена без кэша",
 			}, nil
 		}
 	}
@@ -239,9 +240,10 @@ func (b *Bridge) EnsureOnScene(sceneName, overlayURL string) (*EnsureResult, err
 			b.lastErr = err.Error()
 			return nil, err
 		}
-		_, _ = client.Inputs.SetInputSettings(inputs.NewSetInputSettingsParams().
-			WithInputName(sourceName).
-			WithInputSettings(browserSettings(overlayURL)))
+		if err := b.applyBrowserSettings(client, sourceName, overlayURL); err != nil {
+			b.lastErr = err.Error()
+			return nil, err
+		}
 		return &EnsureResult{
 			Action:     "added_existing",
 			Scene:      sceneName,
@@ -261,6 +263,7 @@ func (b *Bridge) EnsureOnScene(sceneName, overlayURL string) (*EnsureResult, err
 		b.lastErr = err.Error()
 		return nil, err
 	}
+	_ = b.refreshBrowserNoCache(client, sourceName)
 	// Keep selected scene in memory.
 	b.cfg.Scene = sceneName
 	return &EnsureResult{
@@ -269,6 +272,24 @@ func (b *Bridge) EnsureOnScene(sceneName, overlayURL string) (*EnsureResult, err
 		SourceName: sourceName,
 		Message:    "Browser Source создан на выбранной сцене",
 	}, nil
+}
+
+func (b *Bridge) applyBrowserSettings(client *goobs.Client, sourceName, overlayURL string) error {
+	_, err := client.Inputs.SetInputSettings(inputs.NewSetInputSettingsParams().
+		WithInputName(sourceName).
+		WithOverlay(true).
+		WithInputSettings(browserSettings(overlayURL)))
+	if err != nil {
+		return err
+	}
+	return b.refreshBrowserNoCache(client, sourceName)
+}
+
+func (b *Bridge) refreshBrowserNoCache(client *goobs.Client, sourceName string) error {
+	_, err := client.Inputs.PressInputPropertiesButton(inputs.NewPressInputPropertiesButtonParams().
+		WithInputName(sourceName).
+		WithPropertyName("refreshnocache"))
+	return err
 }
 
 func browserSettings(overlayURL string) map[string]any {

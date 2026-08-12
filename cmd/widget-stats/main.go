@@ -43,7 +43,7 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 
-	info := runtimeinfo.Build("127.0.0.1", port)
+	info := runtimeinfo.Build("127.0.0.1", port, version.Display())
 	if err := runtimeinfo.Save(dataDir, info); err != nil {
 		log.Fatalf("runtime: %v", err)
 	}
@@ -96,6 +96,11 @@ func main() {
 		<-ctx.Done()
 		shutdown(httpServer)
 		systray.Quit()
+	}()
+
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		srv.RefreshOBSOverlay()
 	}()
 
 	go func() {
