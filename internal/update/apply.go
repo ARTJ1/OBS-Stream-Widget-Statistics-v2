@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -97,8 +98,8 @@ func CleanupJunk(exeDir string) {
 	}
 }
 
-// Apply downloads the new exe (and optionally updates an existing lua script in place).
-// Does not create obs/ or extra lua copies. Restarts only widget-stats.exe.
+// Apply downloads the new exe and widget_control.lua from the release.
+// Lua is written next to the exe (and obs/ if used), plus any path saved in data/lua_path.txt.
 func Apply(info Info, dataDir string) error {
 	if !info.Available {
 		return fmt.Errorf("no update available")
@@ -132,21 +133,15 @@ func Apply(info Info, dataDir string) error {
 		return fmt.Errorf("download exe: %w", err)
 	}
 
-	// Lua: only patch paths that already exist; skip if identical.
+	// Lua ships with every release — always fetch and apply when the asset exists.
 	if luaURLs := info.LuaURLs(); len(luaURLs) > 0 {
-		if targets := existingLuaTargets(exeDir, dataDir); len(targets) > 0 {
-			tmpLua := filepath.Join(staging, "widget_control.lua")
-			if err := downloadWithRetry(client, luaURLs, tmpLua); err != nil {
-				// Lua is optional for most releases — don't fail the whole update.
-			} else if b, err := os.ReadFile(tmpLua); err == nil {
-				for _, dest := range targets {
-					old, _ := os.ReadFile(dest)
-					if bytes.Equal(old, b) {
-						continue
-					}
-					_ = os.WriteFile(dest, b, 0o644)
-				}
-			}
+		tmpLua := filepath.Join(staging, "widget_control.lua")
+		if err := downloadWithRetry(client, luaURLs, tmpLua); err != nil {
+			log.Printf("update: widget_control.lua download failed: %v", err)
+		} else if n, err := applyLuaFile(tmpLua, luaUpdateTargets(exeDir, dataDir)); err != nil {
+			log.Printf("update: widget_control.lua apply failed: %v", err)
+		} else if n > 0 {
+			log.Printf("update: widget_control.lua updated (%d path(s))", n)
 		}
 	}
 
@@ -207,29 +202,59 @@ func uniqURLs(urls ...string) []string {
 	return out
 }
 
-// existingLuaTargets returns only lua files that already exist — never creates folders/copies.
-func existingLuaTargets(exeDir, dataDir string) []string {
+// luaUpdateTargets lists every widget_control.lua path the updater should refresh.
+func luaUpdateTargets(exeDir, dataDir string) []string {
 	seen := map[string]bool{}
 	var out []string
-	addIfExists := func(p string) {
+	add := func(p string) {
 		p = filepath.Clean(strings.TrimSpace(p))
 		if p == "" || seen[p] {
-			return
-		}
-		fi, err := os.Stat(p)
-		if err != nil || fi.IsDir() {
 			return
 		}
 		seen[p] = true
 		out = append(out, p)
 	}
-	addIfExists(filepath.Join(exeDir, "widget_control.lua"))
+	// Standard install layout from Releases (exe + lua in the same folder).
+	add(filepath.Join(exeDir, "widget_control.lua"))
+	// Repo-style layout: obs/widget_control.lua next to the exe.
+	add(filepath.Join(exeDir, "obs", "widget_control.lua"))
 	if dataDir != "" {
-		if b, err := os.ReadFile(filepath.Join(dataDir, "lua_path.txt")); err == nil {
-			addIfExists(string(b))
-		}
+		add(readLuaPathFile(filepath.Join(dataDir, "lua_path.txt")))
 	}
 	return out
+}
+
+func readLuaPathFile(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func applyLuaFile(src string, targets []string) (int, error) {
+	b, err := os.ReadFile(src)
+	if err != nil {
+		return 0, err
+	}
+	if len(b) < 256 {
+		return 0, fmt.Errorf("widget_control.lua too small (%d bytes)", len(b))
+	}
+	updated := 0
+	for _, dest := range targets {
+		old, _ := os.ReadFile(dest)
+		if bytes.Equal(old, b) {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return updated, err
+		}
+		if err := os.WriteFile(dest, b, 0o644); err != nil {
+			return updated, err
+		}
+		updated++
+	}
+	return updated, nil
 }
 
 func downloadWithRetry(client *http.Client, urls []string, dest string) error {
