@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Widget Stats — попробуй до установки</title>
-  <meta name="description" content="Живое демо виджета статистики для OBS: скины, анимации и установка.">
+  <title>Widget Stats — для OBS Studio</title>
+  <meta name="description" content="Виджет статистики для OBS: победы, поражения, ранг, скины и установка.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
         <span class="mark">WS</span>
         <div>
           <strong>Widget Stats</strong>
-          <span data-i18n="bar.sub">Живое демо · без установки</span>
+          <span data-i18n="bar.sub">Статистика для OBS Studio</span>
         </div>
       </div>
       <div class="bar-right">
@@ -33,15 +33,15 @@
       <div class="hero-copy">
         <p class="kicker" data-i18n="hero.kicker">Для OBS Studio</p>
         <h1 data-i18n="hero.title">Widget Stats</h1>
-        <p class="lead" data-i18n="hero.lead">Победы, поражения и ранг на стриме — без мерцания. Жми сколько угодно, потом поставь по гайду ниже.</p>
+        <p class="lead" data-i18n="hero.lead">Победы, поражения и ранг на стриме — красиво и удобно. Посмотрите, как это будет выглядеть у вас.</p>
         <div class="actions">
           <button type="button" class="btn primary" data-action="win">+ Win</button>
           <button type="button" class="btn danger" data-action="loss">+ Loss</button>
           <button type="button" class="btn" data-action="rankStepUp" data-i18n="hero.rankUp">Ранг +</button>
           <button type="button" class="btn" data-action="rankStepDown" data-i18n="hero.rankDown">Ранг −</button>
-          <button type="button" class="btn ghost" data-action="resetStats" data-i18n="hero.reset">Сброс W/L</button>
+          <button type="button" class="btn ghost" data-action="resetStats" data-i18n="hero.reset">Сброс</button>
         </div>
-        <p class="hint" data-i18n="hero.hint">Настоящий оверлей, не видео. Счётчик не сбрасывается сам.</p>
+        <p class="hint" data-i18n="hero.hint">Попробуйте кнопки — так же работает на стриме в OBS.</p>
       </div>
       <div class="stage">
         <div class="stage-glow" aria-hidden="true"></div>
@@ -59,7 +59,7 @@
       <div class="section-head">
         <p class="kicker" data-i18n="look.kicker">Внешний вид</p>
         <h2 data-i18n="look.title">Скины и режимы</h2>
-        <p class="lead" data-i18n="look.lead">Пресет меняет живой виджет выше. Счёт W/L при смене скина не трогаем.</p>
+        <p class="lead" data-i18n="look.lead">Готовые пресеты, свои цвета и анимации. Overwatch с ролями и Apex Legends — выберите игру под стрим.</p>
       </div>
       <div class="skin-row" id="skinRow" aria-label="Skins"></div>
       <div class="mode-row">
@@ -69,91 +69,196 @@
       </div>
     </section>
 
-    <section class="panel" id="install">
-      <div class="section-head">
-        <p class="kicker" data-i18n="install.kicker">Установка</p>
-        <h2 data-i18n="install.title">Поставить самому</h2>
-        <p class="lead" data-i18n="install.lead">Где нужен экран — скрин или короткое видео. Lua — сразу после скачивания, он сам поднимет сервер.</p>
-      </div>
+    <nav class="section-tabs" role="tablist" aria-label="Sections">
+      <button type="button" class="section-tab active" role="tab" aria-selected="true" data-tab="install" data-i18n="nav.install">Установка</button>
+      <button type="button" class="section-tab" role="tab" aria-selected="false" data-tab="features" data-i18n="nav.features">Что умеет</button>
+    </nav>
 
-      <div class="guide" id="installGuide">
-        <article class="guide-step" data-media="none">
-          <div class="guide-num">1</div>
-          <div class="guide-body">
-            <h3 data-i18n="i1.t">Скачай релиз</h3>
-            <p data-i18n="i1.d">Скачай widget-stats.exe и widget_control.lua из Releases — оба файла, в одну папку.</p>
-            <a class="link" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases" target="_blank" rel="noopener" data-i18n="i1.a">Открыть Releases →</a>
-          </div>
-        </article>
+    <!-- TAB: Install -->
+    <div class="tab-panel active" id="tab-install" role="tabpanel">
+      <section class="panel" id="install">
+        <div class="section-head">
+          <p class="kicker" data-i18n="install.kicker">Установка</p>
+          <h2 data-i18n="install.title">Установка за несколько минут</h2>
+          <p class="lead" data-i18n="install.lead">Сначала установка — потом настройка. Видео запускаются сами.</p>
+        </div>
 
-        <article class="guide-step guide-step-important" data-media-files="install-lua.webm,install-lua.png,install-lua.webp">
-          <div class="guide-num">2</div>
-          <div class="guide-body">
-            <h3 data-i18n="i6.t">Сразу добавь Lua-скрипт</h3>
-            <p data-i18n="i6.d">Первым делом: OBS → Tools → Scripts → «+» → widget_control.lua (рядом с exe). Скрипт сам запустит сервер при старте OBS и остановит при закрытии.</p>
-            <div class="guide-media" aria-label="Lua script"></div>
-          </div>
-        </article>
+        <div class="guide" id="installGuide">
+          <article class="guide-step guide-step-important" data-media-files="install-defender-exclusion.webm,adding the sv folder is an exception.webm">
+            <div class="guide-num">1</div>
+            <div class="guide-body">
+              <h3 data-i18n="i1.t">Создайте папку для виджета</h3>
+              <p data-i18n="i1.d">Создайте отдельную папку — туда скачаете widget-stats.exe и widget_control.lua. Если при скачивании Windows Defender ругается, добавьте эту папку в исключения: у виджета нет сертификата Microsoft.</p>
+              <div class="guide-media guide-media-video" aria-label="Defender exclusion"></div>
+            </div>
+          </article>
 
-        <article class="guide-step" data-media-files="install-smartscreen.webm,install-smartscreen.png,install-smartscreen.webp,install-smartscreen.jpg">
-          <div class="guide-num">3</div>
-          <div class="guide-body">
-            <h3 data-i18n="i2.t">SmartScreen — это нормально</h3>
-            <p data-i18n="i2.d">При первом запуске exe Windows может предупредить. Подробнее → Выполнить в любом случае. Код открыт в репозитории.</p>
-            <div class="guide-media" aria-label="SmartScreen"></div>
-          </div>
-        </article>
+          <article class="guide-step" data-media-files="install-download.webm,install-download.mp4" data-media-optional>
+            <div class="guide-num">2</div>
+            <div class="guide-body">
+              <h3 data-i18n="i2.t">Скачайте с GitHub</h3>
+              <p data-i18n="i2.d">Откройте Releases и скачайте оба файла в созданную папку.</p>
+              <a class="link" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases" target="_blank" rel="noopener" data-i18n="i2.a">Страница Releases →</a>
+              <div class="guide-media guide-media-video" aria-label="Download"></div>
+            </div>
+          </article>
 
-        <article class="guide-step" data-media-files="install-tray.png,install-tray.webp,install-tray.jpg,install-tray.webm">
-          <div class="guide-num">4</div>
-          <div class="guide-body">
-            <h3 data-i18n="i3.t">Открой админку</h3>
-            <p data-i18n="i3.d">Иконка в трее → Open Admin (или http://127.0.0.1:19123/admin/). Сервер уже должен быть запущен скриптом.</p>
-            <div class="guide-media" aria-label="Tray"></div>
-          </div>
-        </article>
+          <article class="guide-step guide-step-important" data-media-files="install-lua.webm,install-lua.mp4" data-media-optional>
+            <div class="guide-num">3</div>
+            <div class="guide-body">
+              <h3 data-i18n="i3.t">Подключите Lua-скрипт в OBS</h3>
+              <p data-i18n="i3.d">Tools → Scripts → «+» → выберите widget_control.lua из папки с exe. Сервер запустится вместе с OBS.</p>
+              <div class="guide-media guide-media-video" aria-label="Lua script"></div>
+            </div>
+          </article>
 
-        <article class="guide-step" data-media-files="install-obs-websocket.webm,install-obs-websocket.png,install-obs-websocket.webp">
-          <div class="guide-num">5</div>
-          <div class="guide-body">
-            <h3 data-i18n="i4.t">Включи WebSocket в OBS</h3>
-            <p data-i18n="i4.d">Tools → WebSocket Server Settings → Enable, порт 4455.</p>
-            <div class="guide-media" aria-label="WebSocket"></div>
-          </div>
-        </article>
+          <article class="guide-step" data-media-files="install-tray.webm,install-tray.mp4,install-tray.png" data-media-optional>
+            <div class="guide-num">4</div>
+            <div class="guide-body">
+              <h3 data-i18n="i4.t">Откройте админку</h3>
+              <p data-i18n="i4.d">Иконка в трее → Open Admin. Здесь настраивается вид и подключение к OBS.</p>
+              <div class="guide-media guide-media-video" aria-label="Tray"></div>
+            </div>
+          </article>
 
-        <article class="guide-step" data-media-files="install-place-scene.webm,install-place-scene.png,install-place-scene.webp">
-          <div class="guide-num">6</div>
-          <div class="guide-body">
-            <h3 data-i18n="i5.t">Поставь виджет на сцену</h3>
-            <p data-i18n="i5.d">В админке: Подключить OBS → сцена → Поставить виджет на сцену.</p>
-            <div class="guide-media" aria-label="Place on scene"></div>
-          </div>
-        </article>
-      </div>
-    </section>
+          <article class="guide-step" data-media-files="install-obs-websocket.webm,install-obs-websocket.mp4" data-media-optional>
+            <div class="guide-num">5</div>
+            <div class="guide-body">
+              <h3 data-i18n="i5.t">Включите WebSocket в OBS</h3>
+              <p data-i18n="i5.d">Tools → WebSocket Server Settings → Enable. Порт по умолчанию — 4455.</p>
+              <div class="guide-media guide-media-video" aria-label="WebSocket"></div>
+            </div>
+          </article>
+
+          <article class="guide-step" data-media-files="install-place-scene.webm,install-place-scene.mp4" data-media-optional>
+            <div class="guide-num">6</div>
+            <div class="guide-body">
+              <h3 data-i18n="i6.t">Поставьте виджет на сцену</h3>
+              <p data-i18n="i6.d">В админке: Подключить OBS → выберите сцену → Поставить виджет на сцену. Установка готова.</p>
+              <div class="guide-media guide-media-video" aria-label="Place on scene"></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel" id="setup">
+        <div class="section-head">
+          <p class="kicker" data-i18n="setup.kicker">Настройка</p>
+          <h2 data-i18n="setup.title">Под себя</h2>
+          <p class="lead" data-i18n="setup.lead">Горячие клавиши, внешний вид и скины — после установки.</p>
+        </div>
+
+        <div class="guide" id="setupGuide">
+          <article class="guide-step" data-media-files="setup-hotkeys.webm,07-stats-win-loss-rank.webm">
+            <div class="guide-num">1</div>
+            <div class="guide-body">
+              <h3 data-i18n="s1.t">Горячие клавиши в OBS</h3>
+              <p data-i18n="s1.d">На видео — настройка хоткеев прямо в OBS: File → Settings → Hotkeys. Назначьте Win, Loss и Rank — статистика обновляется одним нажатием на стриме.</p>
+              <div class="guide-media guide-media-video" aria-label="Hotkeys"></div>
+              <aside class="deck-block">
+                <strong data-i18n="s1.deckTitle">Stream Deck и аналоги</strong>
+                <p data-i18n="s1.deckLead">Те же действия Win / Loss / Rank можно повесить на кнопки деки. URL копируются из админки — блок ниже.</p>
+                <figure class="deck-shot">
+                  <img src="assets/URLstreamdeka%20admin.png" alt="URL для OBS / Stream Deck в админке" id="deckShotImg">
+                </figure>
+                <p data-i18n="s1.deckAjazz">Плагин нужен не всем. Если у вас Stream Dock от AJAZZ и в приложении нет HTTP-запросов — установите плагин ниже. К каждому скину виджета есть готовый набор иконок.</p>
+                <div class="deck-actions">
+                  <a class="link" href="https://github.com/ARTJ1/streamdock-http-request" target="_blank" rel="noopener" data-i18n="s1.plugin">Плагин HTTP для AJAZZ</a>
+                  <button type="button" class="link-btn" id="openIconGallery" data-i18n="s1.gallery">Иконки · подробнее</button>
+                  <a class="link" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0" target="_blank" rel="noopener" data-i18n="s1.icons">Скачать пак</a>
+                </div>
+              </aside>
+            </div>
+          </article>
+
+          <article class="guide-step" data-media-files="appearance.webm,setup-look.webm,08-look-customize.webm" data-media-optional>
+            <div class="guide-num">2</div>
+            <div class="guide-body">
+              <h3 data-i18n="s2.t">Внешний вид</h3>
+              <p data-i18n="s2.d">Цвета, шрифт, фон и анимации — вкладка «Внешний вид» в админке. Превью обновляется сразу.</p>
+              <div class="guide-media guide-media-video" aria-label="Look"></div>
+            </div>
+          </article>
+
+          <article class="guide-step" data-media-files="setup-skins.webm,10-skins-gallery.webm" data-media-optional>
+            <div class="guide-num">3</div>
+            <div class="guide-body">
+              <h3 data-i18n="s3.t">Скины</h3>
+              <p data-i18n="s3.d">Галерея готовых пресетов — один клик, и виджет меняет стиль под стрим.</p>
+              <div class="guide-media guide-media-video" aria-label="Skins"></div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB: Features -->
+    <div class="tab-panel" id="tab-features" role="tabpanel" hidden>
+      <section class="panel" id="features">
+        <div class="section-head">
+          <p class="kicker" data-i18n="feat.kicker">Возможности</p>
+          <h2 data-i18n="feat.title">Что умеет виджет</h2>
+        </div>
+        <div class="feat-grid">
+          <article class="feat-card">
+            <strong data-i18n="feat.f1t">Без мерцания</strong>
+            <span data-i18n="feat.f1d">Обновления по WebSocket — Browser Source не перезагружается.</span>
+          </article>
+          <article class="feat-card">
+            <strong data-i18n="feat.f2t">Веб-админка</strong>
+            <span data-i18n="feat.f2d">Настройка цветов, шрифтов, анимаций и скинов в браузере.</span>
+          </article>
+          <article class="feat-card">
+            <strong data-i18n="feat.f3t">Lua для OBS</strong>
+            <span data-i18n="feat.f3d">Автозапуск сервера с OBS, хоткеи без лишних окон.</span>
+          </article>
+          <article class="feat-card">
+            <strong data-i18n="feat.f4t">Stream Deck и API</strong>
+            <span data-i18n="feat.f4d">Кнопки Win/Loss/Rank через HTTP — Stream Deck, Companion и аналоги.</span>
+          </article>
+        </div>
+        <p class="links">
+          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0" target="_blank" rel="noopener" data-i18n="feat.icons">Иконки для Stream Deck</a>
+          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/blob/main/README.md" target="_blank" rel="noopener">README</a>
+        </p>
+      </section>
+    </div>
 
     <div class="lightbox" id="lightbox" hidden>
       <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close">×</button>
       <div class="lightbox-frame" id="lightboxFrame"></div>
     </div>
 
-    <section class="panel slim" id="more">
-      <div class="section-head">
-        <p class="kicker" data-i18n="more.kicker">Ещё</p>
-        <h2 data-i18n="more.title">Stream Deck и API</h2>
-        <p class="lead" data-i18n="more.lead">HTTP: /api/win · /api/loss · /api/rank/up · /api/rank/down · /api/reset.</p>
-        <p class="links">
-          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0" target="_blank" rel="noopener" data-i18n="more.icons">Иконки кнопок</a>
-          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/blob/main/README.md" target="_blank" rel="noopener">README</a>
-          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/issues" target="_blank" rel="noopener">Issues</a>
-        </p>
+    <div class="icon-gallery" id="iconGallery" hidden>
+      <header class="icon-gallery-head">
+        <div>
+          <p class="kicker" data-i18n="gallery.kicker">Stream Deck</p>
+          <h2 id="galleryName">Default</h2>
+        </div>
+        <p class="gallery-count"><span id="galleryIndex">1</span> / <span id="galleryTotal">0</span></p>
+        <button type="button" class="lightbox-close" id="iconGalleryClose" aria-label="Close">×</button>
+      </header>
+      <div class="icon-viewer">
+        <button type="button" class="gallery-nav" id="galleryPrev" aria-label="Previous">‹</button>
+        <img id="galleryImage" alt="Icon pack">
+        <button type="button" class="gallery-nav" id="galleryNext" aria-label="Next">›</button>
       </div>
-    </section>
+      <div class="icon-gallery-foot">
+        <p class="icon-gallery-lead" data-i18n="gallery.lead">Листайте паки стрелками. Внизу — живой виджет в том же стиле.</p>
+        <div class="gallery-widget-stage">
+          <iframe
+            id="galleryWidgetFrame"
+            class="gallery-widget"
+            title="Skin preview"
+            src="../../web/overlay/index.html?preview=1"
+          ></iframe>
+        </div>
+      </div>
+    </div>
 
     <footer class="foot">
-      <a class="btn primary" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases" target="_blank" rel="noopener" data-i18n="foot.cta">Скачать и поставить</a>
-      <span data-i18n="foot.note">Страницу открывай через локальный сервер из корня репо.</span>
+      <a class="btn primary" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases" target="_blank" rel="noopener" data-i18n="foot.cta">Скачать бесплатно</a>
+      <a class="link" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/issues" target="_blank" rel="noopener" data-i18n="foot.help">Вопросы и поддержка</a>
     </footer>
   </div>
 

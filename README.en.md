@@ -21,9 +21,9 @@ A local application for displaying stream statistics in OBS Studio: wins, losses
 | Admin | `http://127.0.0.1:19123/admin/` |
 | OBS script | `obs/widget_control.lua` |
 
-Release builds are published under [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
+**Try it in the browser** (live widget, skins, setup): [artj1.github.io/OBS-Stream-Widget-Statistics-v2/docs/presentation](https://artj1.github.io/OBS-Stream-Widget-Statistics-v2/docs/presentation/)
 
-**Live demo / walkthrough** (widget in the browser + setup): [docs/presentation](docs/presentation/index.html) · what to film: [RECORDING-SCENARIO.md](docs/presentation/RECORDING-SCENARIO.md)
+Release builds are published under [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
 
 ## Installation
 

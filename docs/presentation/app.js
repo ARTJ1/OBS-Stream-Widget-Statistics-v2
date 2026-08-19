@@ -1,86 +1,138 @@
 (() => {
   const I18N = {
     ru: {
-      "bar.sub": "Живое демо · без установки",
+      "bar.sub": "Статистика для OBS Studio",
       "bar.download": "Скачать",
+      "nav.features": "Что умеет",
+      "nav.install": "Установка",
       "hero.kicker": "Для OBS Studio",
       "hero.title": "Widget Stats",
-      "hero.lead": "Победы, поражения и ранг на стриме — без мерцания. Жми сколько угодно, потом поставь по гайду ниже.",
+      "hero.lead": "Победы, поражения и ранг на стриме — красиво и удобно. Посмотрите, как это будет выглядеть у вас.",
       "hero.rankUp": "Ранг +",
       "hero.rankDown": "Ранг −",
-      "hero.reset": "Сброс W/L",
-      "hero.hint": "Настоящий оверлей, не видео. Счётчик не сбрасывается сам.",
+      "hero.reset": "Сброс",
+      "hero.hint": "Попробуйте кнопки — так же работает на стриме в OBS.",
       "look.kicker": "Внешний вид",
       "look.title": "Скины и режимы",
-      "look.lead": "Пресет меняет живой виджет выше. Счёт W/L при смене скина не трогаем.",
+      "look.lead": "Готовые пресеты, свои цвета и анимации. Overwatch с ролями и Apex Legends — выберите игру под стрим.",
       "mode.ow": "Overwatch",
       "mode.owRoles": "OW · роли",
       "mode.apex": "Apex Legends",
+      "feat.kicker": "Возможности",
+      "feat.title": "Что умеет виджет",
+      "feat.f1t": "Без мерцания",
+      "feat.f1d": "Обновления по WebSocket — Browser Source не перезагружается.",
+      "feat.f2t": "Веб-админка",
+      "feat.f2d": "Настройка цветов, шрифтов, анимаций и скинов в браузере.",
+      "feat.f3t": "Lua для OBS",
+      "feat.f3d": "Автозапуск сервера с OBS, хоткеи без лишних окон.",
+      "feat.f4t": "Stream Deck и API",
+      "feat.f4d": "Кнопки Win/Loss/Rank через HTTP — Stream Deck, Companion и аналоги.",
+      "feat.icons": "Иконки для Stream Deck",
       "install.kicker": "Установка",
-      "install.title": "Поставить самому",
-      "install.lead": "Где нужен экран — скрин или короткое видео. Lua — сразу после скачивания, он сам поднимет сервер.",
-      "i1.t": "Скачай релиз",
-      "i1.d": "Скачай widget-stats.exe и widget_control.lua из Releases — оба файла, в одну папку.",
-      "i1.a": "Открыть Releases →",
-      "i2.t": "SmartScreen — это нормально",
-      "i2.d": "При первом запуске exe Windows может предупредить. Подробнее → Выполнить в любом случае. Код открыт в репозитории.",
-      "i3.t": "Открой админку",
-      "i3.d": "Иконка в трее → Open Admin (или http://127.0.0.1:19123/admin/). Сервер уже должен быть запущен скриптом.",
-      "i4.t": "Включи WebSocket в OBS",
-      "i4.d": "Tools → WebSocket Server Settings → Enable, порт 4455.",
-      "i5.t": "Поставь виджет на сцену",
-      "i5.d": "В админке: Подключить OBS → сцена → Поставить виджет на сцену.",
-      "i6.t": "Сразу добавь Lua-скрипт",
-      "i6.d": "Первым делом: OBS → Tools → Scripts → «+» → widget_control.lua (рядом с exe). Скрипт сам запустит сервер при старте OBS и остановит при закрытии.",
-      "clip.need": "Добавь файл в assets/",
-      "clip.expand": "Крупнее",
-      "more.kicker": "Ещё",
-      "more.title": "Stream Deck и API",
-      "more.lead": "HTTP: /api/win · /api/loss · /api/rank/up · /api/rank/down · /api/reset.",
-      "more.icons": "Иконки кнопок",
-      "foot.cta": "Скачать и поставить",
-      "foot.note": "Страницу открывай через локальный сервер из корня репо.",
+      "install.title": "Установка за несколько минут",
+      "install.lead": "Сначала установка, затем настройка. Видео запускаются сами.",
+      "i1.t": "Создайте папку для виджета",
+      "i1.d": "Создайте отдельную папку — туда скачаете widget-stats.exe и widget_control.lua. Если при скачивании Windows Defender ругается, добавьте эту папку в исключения: у виджета нет сертификата Microsoft.",
+      "i2.t": "Скачайте с GitHub",
+      "i2.d": "Откройте Releases и скачайте оба файла в созданную папку.",
+      "i2.a": "Страница Releases →",
+      "i3.t": "Подключите Lua-скрипт в OBS",
+      "i3.d": "Tools → Scripts → «+» → выберите widget_control.lua из папки с exe. Сервер запустится вместе с OBS.",
+      "i4.t": "Откройте админку",
+      "i4.d": "Иконка в трее → Open Admin. Здесь настраивается вид и подключение к OBS.",
+      "i5.t": "Включите WebSocket в OBS",
+      "i5.d": "Tools → WebSocket Server Settings → Enable. Порт по умолчанию — 4455.",
+      "i6.t": "Поставьте виджет на сцену",
+      "i6.d": "В админке: Подключить OBS → выберите сцену → Поставить виджет на сцену. Установка готова.",
+      "setup.kicker": "Настройка",
+      "setup.title": "Под себя",
+      "setup.lead": "Горячие клавиши, внешний вид и скины — после установки.",
+      "s1.t": "Горячие клавиши в OBS",
+      "s1.d": "На видео — настройка хоткеев прямо в OBS: File → Settings → Hotkeys. Назначьте Win, Loss и Rank — статистика обновляется одним нажатием на стриме.",
+      "s1.deckTitle": "Stream Deck и аналоги",
+      "s1.deckLead": "Те же действия Win / Loss / Rank можно повесить на кнопки деки. URL копируются из админки — блок ниже.",
+      "s1.deckAjazz": "Плагин нужен не всем. Если у вас Stream Dock от AJAZZ и в приложении нет HTTP-запросов — установите плагин ниже. К каждому скину виджета есть готовый набор иконок.",
+      "s1.plugin": "Плагин HTTP для AJAZZ",
+      "s1.gallery": "Иконки · подробнее",
+      "s1.icons": "Скачать пак",
+      "gallery.kicker": "Stream Deck",
+      "gallery.lead": "Листайте паки стрелками. Внизу — живой виджет в том же стиле.",
+      "s2.t": "Внешний вид",
+      "s2.d": "Цвета, шрифт, фон и анимации — вкладка «Внешний вид» в админке. Превью обновляется сразу.",
+      "s3.t": "Скины",
+      "s3.d": "Галерея готовых пресетов — один клик, и виджет меняет стиль под стрим.",
+      "clip.need": "Видео для этого шага скоро появится",
+      "clip.expand": "На весь экран",
+      "foot.cta": "Скачать бесплатно",
+      "foot.help": "Вопросы и поддержка",
     },
     en: {
-      "bar.sub": "Live demo · no install needed",
+      "bar.sub": "Stream stats for OBS Studio",
       "bar.download": "Download",
+      "nav.features": "Features",
+      "nav.install": "Setup",
       "hero.kicker": "For OBS Studio",
       "hero.title": "Widget Stats",
-      "hero.lead": "Wins, losses, and rank on stream — no flicker. Click as much as you want, then follow the setup guide.",
+      "hero.lead": "Wins, losses, and rank on stream — polished and easy. See how it looks on your overlay.",
       "hero.rankUp": "Rank +",
       "hero.rankDown": "Rank −",
-      "hero.reset": "Reset W/L",
-      "hero.hint": "Real overlay, not a video. The counter does not reset by itself.",
+      "hero.reset": "Reset",
+      "hero.hint": "Try the buttons — same behavior on your OBS stream.",
       "look.kicker": "Look",
       "look.title": "Skins & modes",
-      "look.lead": "A preset updates the live widget above. W/L is kept when you change skins.",
+      "look.lead": "Ready-made presets, custom colors and motion. Overwatch roles and Apex Legends — pick your game.",
       "mode.ow": "Overwatch",
       "mode.owRoles": "OW · roles",
       "mode.apex": "Apex Legends",
+      "feat.kicker": "More",
+      "feat.title": "What you get",
+      "feat.f1t": "No flicker",
+      "feat.f1d": "WebSocket updates — the Browser Source never reloads.",
+      "feat.f2t": "Web admin",
+      "feat.f2d": "Colors, fonts, motion, and skins in your browser.",
+      "feat.f3t": "OBS Lua script",
+      "feat.f3d": "Server starts with OBS; hotkeys without extra windows.",
+      "feat.f4t": "Stream Deck & API",
+      "feat.f4d": "Win/Loss/Rank buttons over HTTP — Stream Deck, Companion, and more.",
+      "feat.icons": "Stream Deck icons",
       "install.kicker": "Setup",
-      "install.title": "Install it yourself",
-      "install.lead": "Screenshot or short clip where the screen matters. Add Lua right after download — it starts the server for you.",
-      "i1.t": "Download the release",
-      "i1.d": "Download both widget-stats.exe and widget_control.lua from Releases into the same folder.",
-      "i1.a": "Open Releases →",
-      "i2.t": "SmartScreen is expected",
-      "i2.d": "Windows may warn on the first exe launch. More info → Run anyway. Source is in the repo.",
-      "i3.t": "Open the admin",
-      "i3.d": "Tray icon → Open Admin (or http://127.0.0.1:19123/admin/). The script should already have started the server.",
-      "i4.t": "Enable OBS WebSocket",
-      "i4.d": "Tools → WebSocket Server Settings → Enable, port 4455.",
-      "i5.t": "Place widget on a scene",
-      "i5.d": "In admin: Connect OBS → pick scene → Place widget on scene.",
-      "i6.t": "Add the Lua script first",
-      "i6.d": "Do this first: OBS → Tools → Scripts → “+” → widget_control.lua (next to the exe). It starts the server when OBS opens and stops it when OBS closes.",
-      "clip.need": "Add a file to assets/",
-      "clip.expand": "Larger",
-      "more.kicker": "More",
-      "more.title": "Stream Deck & API",
-      "more.lead": "HTTP: /api/win · /api/loss · /api/rank/up · /api/rank/down · /api/reset.",
-      "more.icons": "Button icons",
-      "foot.cta": "Download & install",
-      "foot.note": "Serve this page from the repo root.",
+      "install.title": "Install in a few minutes",
+      "install.lead": "Install first, then customize. Videos autoplay.",
+      "i1.t": "Create a folder for the widget",
+      "i1.d": "Make a dedicated folder for widget-stats.exe and widget_control.lua. If Windows Defender warns during download, add this folder to exclusions — the app has no Microsoft certificate.",
+      "i2.t": "Download from GitHub",
+      "i2.d": "Open Releases and download both files into that folder.",
+      "i2.a": "Releases page →",
+      "i3.t": "Add the Lua script in OBS",
+      "i3.d": "Tools → Scripts → “+” → pick widget_control.lua from the exe folder. The server starts with OBS.",
+      "i4.t": "Open the admin panel",
+      "i4.d": "Tray icon → Open Admin. Configure look and OBS connection here.",
+      "i5.t": "Enable OBS WebSocket",
+      "i5.d": "Tools → WebSocket Server Settings → Enable. Default port is 4455.",
+      "i6.t": "Place the widget on a scene",
+      "i6.d": "In admin: Connect OBS → pick a scene → Place widget on scene. Install is done.",
+      "setup.kicker": "Setup",
+      "setup.title": "Make it yours",
+      "setup.lead": "Hotkeys, look, and skins — after install.",
+      "s1.t": "OBS hotkeys",
+      "s1.d": "The clip shows OBS hotkeys: File → Settings → Hotkeys. Bind Win, Loss, and Rank — one key updates stats on stream.",
+      "s1.deckTitle": "Stream Deck and similar devices",
+      "s1.deckLead": "The same Win / Loss / Rank actions can sit on deck buttons. Copy the URLs from the admin panel — screenshot below.",
+      "s1.deckAjazz": "The plugin is optional. If you have an AJAZZ Stream Dock and the app has no HTTP requests, install the plugin below. Every widget skin has a matching icon pack.",
+      "s1.plugin": "HTTP plugin for AJAZZ",
+      "s1.gallery": "Icons · details",
+      "s1.icons": "Download pack",
+      "gallery.kicker": "Stream Deck",
+      "gallery.lead": "Browse packs with the arrows. The live widget below matches the style.",
+      "s2.t": "Look",
+      "s2.d": "Colors, font, background, and motion — Look tab in the admin. Preview updates live.",
+      "s3.t": "Skins",
+      "s3.d": "Ready-made presets — one click and the widget matches your stream style.",
+      "clip.need": "Video for this step coming soon",
+      "clip.expand": "Fullscreen",
+      "foot.cta": "Download free",
+      "foot.help": "Questions & support",
     },
   };
 
@@ -97,12 +149,100 @@
   const skinRow = document.getElementById("skinRow");
   const langBtns = [...document.querySelectorAll(".lang-btn")];
   const modeChips = [...document.querySelectorAll("[data-mode]")];
+  const mainTabs = [...document.querySelectorAll(".section-tab")];
+  const tabPanels = [...document.querySelectorAll(".tab-panel")];
+  const ICON_SHEETS = [
+    "default", "blood-moon", "solar-flare", "ocean-deep", "nordic-frost", "mono-ink",
+    "8bit-arena", "amber-library", "aqua-glass", "ash-veil", "bass-drop", "carbon-race",
+    "crystal-break", "cyan-project", "cyber-cyan", "data-breach", "deep-forest",
+    "ember-smoke", "forge-amber", "ghost-lantern", "glitch-district", "gold-rush",
+    "grid-runner", "holo-deck", "indigo-scroll", "ivory-court", "jungle-heat",
+    "liquid-steel", "magma-core", "mercury-run", "midnight-void", "neon-alley",
+    "obsidian-glass", "opal-shine", "paper-light", "petal-dawn", "pink-scanline",
+    "rainbow-cut", "retro-cabinet", "sakura-dusk", "spiral-teal", "storm-call",
+    "sumi-night", "tide-pool", "toxic-spill", "violet-haze", "voltage-night", "wraith-mist",
+  ];
+
+  const iconGallery = document.getElementById("iconGallery");
+  const iconGalleryClose = document.getElementById("iconGalleryClose");
+  const openIconGalleryBtn = document.getElementById("openIconGallery");
+  const deckShotImg = document.getElementById("deckShotImg");
+  const galleryImage = document.getElementById("galleryImage");
+  const galleryName = document.getElementById("galleryName");
+  const galleryIndexEl = document.getElementById("galleryIndex");
+  const galleryTotalEl = document.getElementById("galleryTotal");
+  const galleryPrev = document.getElementById("galleryPrev");
+  const galleryNext = document.getElementById("galleryNext");
+  const galleryWidgetFrame = document.getElementById("galleryWidgetFrame");
+
+  let galleryIndex = 0;
+
+  function sheetTitle(slug) {
+    return slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  function sheetSrc(slug) {
+    return `assets/Icon preview/_sheet_${slug}.png`;
+  }
+
+  function postTo(targetFrame, msg) {
+    try {
+      targetFrame?.contentWindow?.postMessage(msg, "*");
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function applyGallerySkin(slug) {
+    const skins = Array.isArray(window.WIDGET_SKINS) ? window.WIDGET_SKINS : [];
+    const skin = skins.find((s) => s.id === slug);
+    if (!skin?.settings) return;
+    if (skin.settings.font) window.loadGoogleFont?.(skin.settings.font);
+    postTo(galleryWidgetFrame, {
+      type: "widget-preview-settings",
+      settings: { ...skin.settings, fontSize: Math.max(20, skin.settings.fontSize || 18) },
+    });
+    postTo(galleryWidgetFrame, {
+      type: "widget-preview-state",
+      view: { wins: 4, losses: 2, rank: 12, mode: "classic", role: "tank", game: "overwatch" },
+      state: { wins: 4, losses: 2, rank: 12, mode: "classic", role: "tank", game: "overwatch" },
+    });
+  }
+
+  function showGallerySlide(index) {
+    galleryIndex = (index + ICON_SHEETS.length) % ICON_SHEETS.length;
+    const slug = ICON_SHEETS[galleryIndex];
+    galleryImage.src = sheetSrc(slug);
+    galleryImage.alt = sheetTitle(slug);
+    galleryName.textContent = sheetTitle(slug);
+    galleryIndexEl.textContent = String(galleryIndex + 1);
+    applyGallerySkin(slug);
+    const next = ICON_SHEETS[(galleryIndex + 1) % ICON_SHEETS.length];
+    const prev = ICON_SHEETS[(galleryIndex - 1 + ICON_SHEETS.length) % ICON_SHEETS.length];
+    [next, prev].forEach((s) => {
+      const preload = new Image();
+      preload.src = sheetSrc(s);
+    });
+  }
+
+  function openIconGallery() {
+    galleryTotalEl.textContent = String(ICON_SHEETS.length);
+    iconGallery.hidden = false;
+    document.body.style.overflow = "hidden";
+    showGallerySlide(galleryIndex);
+  }
+
+  function closeIconGallery() {
+    iconGallery.hidden = true;
+    if (lightbox.hidden) document.body.style.overflow = "";
+  }
   const lightbox = document.getElementById("lightbox");
   const lightboxFrame = document.getElementById("lightboxFrame");
   const lightboxClose = document.getElementById("lightboxClose");
 
   let lang = localStorage.getItem("ws-demo-lang") || "ru";
   let currentSkin = null;
+  let activeTab = localStorage.getItem("ws-demo-tab") || "install";
   let demoState = {
     wins: 0,
     losses: 0,
@@ -128,6 +268,26 @@
     });
   }
 
+  function showTab(id) {
+    activeTab = id;
+    localStorage.setItem("ws-demo-tab", id);
+    mainTabs.forEach((tab) => {
+      const on = tab.dataset.tab === id;
+      tab.classList.toggle("active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    tabPanels.forEach((panel) => {
+      const on = panel.id === `tab-${id}`;
+      panel.classList.toggle("active", on);
+      panel.hidden = !on;
+    });
+    if (id === "install") {
+      setTimeout(syncGuideVideos, 80);
+    } else {
+      document.querySelectorAll("video[data-guide-video]").forEach(pauseGuideVideo);
+    }
+  }
+
   function post(msg) {
     try {
       frame.contentWindow?.postMessage(msg, "*");
@@ -150,7 +310,6 @@
     post({ type: "widget-preview-state", view: { ...demoState }, state: { ...demoState } });
   }
 
-  /** Free play: do NOT re-push state before demo (that was resetting W/L every click). */
   function runAction(action) {
     if (currentSkin?.settings) pushSettings(currentSkin.settings);
 
@@ -207,7 +366,6 @@
         btn.classList.add("active");
         currentSkin = skin;
         pushSettings(skin.settings || {});
-        // Keep current W/L — only refresh look.
       });
       skinRow.appendChild(btn);
       if (i === 0) currentSkin = skin;
@@ -230,18 +388,85 @@
     return /\.webm$/i.test(name) || /\.mp4$/i.test(name);
   }
 
-  function probe(url) {
-    return fetch(url, { method: "HEAD" })
+  function assetUrl(file) {
+    return `assets/${encodeURIComponent(file)}`;
+  }
+
+  function probe(file) {
+    return fetch(assetUrl(file), { method: "HEAD" })
       .then((res) => res.ok)
       .catch(() => false);
   }
 
   async function resolveMedia(files) {
     for (const file of files) {
-      const url = `assets/${file}`;
-      if (await probe(url)) return { file, url };
+      if (await probe(file)) return { file, url: assetUrl(file) };
     }
     return null;
+  }
+
+  function createGuideVideo(url) {
+    const media = document.createElement("video");
+    media.src = url;
+    media.muted = true;
+    media.loop = true;
+    media.playsInline = true;
+    media.autoplay = true;
+    media.preload = "auto";
+    media.setAttribute("controlsList", "nodownload nofullscreen noremoteplayback");
+    media.disablePictureInPicture = true;
+    media.dataset.guideVideo = "1";
+    return media;
+  }
+
+  function playGuideVideo(video) {
+    if (!video || video.tagName !== "VIDEO") return;
+    const p = video.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  }
+
+  function pauseGuideVideo(video) {
+    if (!video || video.tagName !== "VIDEO") return;
+    video.pause();
+    try {
+      video.currentTime = 0;
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function syncGuideVideos() {
+    if (activeTab !== "install") {
+      document.querySelectorAll("video[data-guide-video]").forEach(pauseGuideVideo);
+      return;
+    }
+    document.querySelectorAll(".guide-media.is-ready video[data-guide-video]").forEach((video) => {
+      const box = video.closest(".guide-media");
+      if (!box) return;
+      const rect = box.getBoundingClientRect();
+      const visible = rect.top < window.innerHeight * 0.85 && rect.bottom > window.innerHeight * 0.15;
+      if (visible) playGuideVideo(video);
+      else pauseGuideVideo(video);
+    });
+  }
+
+  let videoObserver = null;
+
+  function watchGuideVideos() {
+    if (videoObserver) videoObserver.disconnect();
+    videoObserver = new IntersectionObserver(
+      (entries) => {
+        if (activeTab !== "install") return;
+        entries.forEach((entry) => {
+          const video = entry.target.querySelector("video[data-guide-video]");
+          if (!video) return;
+          if (entry.isIntersecting) playGuideVideo(video);
+          else pauseGuideVideo(video);
+        });
+      },
+      { threshold: 0.35, rootMargin: "0px 0px -8% 0px" }
+    );
+    document.querySelectorAll(".guide-media.is-ready").forEach((box) => videoObserver.observe(box));
   }
 
   function openLightbox(el) {
@@ -252,7 +477,7 @@
     clone.style.maxHeight = "90vh";
     clone.style.cursor = "default";
     if (clone.tagName === "VIDEO") {
-      clone.controls = true;
+      clone.controls = false;
       clone.muted = true;
       clone.loop = true;
       clone.autoplay = true;
@@ -260,12 +485,13 @@
     lightboxFrame.appendChild(clone);
     lightbox.hidden = false;
     document.body.style.overflow = "hidden";
+    if (clone.tagName === "VIDEO") playGuideVideo(clone);
   }
 
   function closeLightbox() {
     lightbox.hidden = true;
     lightboxFrame.innerHTML = "";
-    document.body.style.overflow = "";
+    if (iconGallery.hidden) document.body.style.overflow = "";
   }
 
   async function mountGuideMedia() {
@@ -273,30 +499,31 @@
     for (const step of steps) {
       const box = step.querySelector(".guide-media");
       if (!box) continue;
+      const optional = step.hasAttribute("data-media-optional");
       const files = step
         .getAttribute("data-media-files")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
 
-      box.className = "guide-media is-waiting";
-      box.innerHTML = `<span data-ph>${t("clip.need")}</span><code>${files[0] || ""}</code>`;
-
       const found = await resolveMedia(files);
-      if (!found) continue;
 
-      box.className = "guide-media is-ready";
+      if (!found) {
+        if (optional) {
+          box.className = "guide-media is-hidden";
+          box.innerHTML = "";
+        } else {
+          box.className = "guide-media is-waiting";
+          box.innerHTML = `<span data-ph>${t("clip.need")}</span><code>${files[0] || ""}</code>`;
+        }
+        continue;
+      }
+
+      box.className = "guide-media is-ready guide-media-video";
       box.innerHTML = "";
       let media;
       if (isVideo(found.file)) {
-        media = document.createElement("video");
-        media.src = found.url;
-        media.muted = true;
-        media.loop = true;
-        media.playsInline = true;
-        media.controls = true;
-        media.preload = "metadata";
-        media.addEventListener("mouseenter", () => media.play().catch(() => {}));
+        media = createGuideVideo(found.url);
       } else {
         media = document.createElement("img");
         media.src = found.url;
@@ -315,6 +542,8 @@
       });
       box.appendChild(expand);
     }
+    watchGuideVideos();
+    syncGuideVideos();
   }
 
   function bootPreview() {
@@ -330,6 +559,10 @@
     chip.addEventListener("click", () => setMode(chip.dataset.mode));
   });
 
+  mainTabs.forEach((tab) => {
+    tab.addEventListener("click", () => showTab(tab.dataset.tab));
+  });
+
   langBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       lang = btn.dataset.lang;
@@ -342,15 +575,59 @@
   lightbox.addEventListener("click", (e) => {
     if (e.target === lightbox) closeLightbox();
   });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !lightbox.hidden) closeLightbox();
+  openIconGalleryBtn?.addEventListener("click", openIconGallery);
+  iconGalleryClose?.addEventListener("click", closeIconGallery);
+  galleryPrev?.addEventListener("click", () => showGallerySlide(galleryIndex - 1));
+  galleryNext?.addEventListener("click", () => showGallerySlide(galleryIndex + 1));
+  galleryWidgetFrame?.addEventListener("load", () => {
+    if (!iconGallery.hidden) applyGallerySkin(ICON_SHEETS[galleryIndex]);
   });
+
+  let galleryTouchX = null;
+  galleryImage?.addEventListener("touchstart", (e) => {
+    galleryTouchX = e.changedTouches[0].screenX;
+  }, { passive: true });
+  galleryImage?.addEventListener("touchend", (e) => {
+    if (galleryTouchX == null) return;
+    const dx = e.changedTouches[0].screenX - galleryTouchX;
+    galleryTouchX = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) showGallerySlide(galleryIndex + 1);
+    else showGallerySlide(galleryIndex - 1);
+  }, { passive: true });
+
+  deckShotImg?.addEventListener("click", () => openLightbox(deckShotImg));
+  document.addEventListener("keydown", (e) => {
+    if (!iconGallery.hidden) {
+      if (e.key === "Escape") {
+        closeIconGallery();
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        showGallerySlide(galleryIndex + 1);
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        showGallerySlide(galleryIndex - 1);
+        return;
+      }
+    }
+    if (!lightbox.hidden && e.key === "Escape") closeLightbox();
+  });
+
+  window.addEventListener("scroll", () => syncGuideVideos(), { passive: true });
+  window.addEventListener("resize", () => syncGuideVideos());
+
+  if (location.hash === "#install") activeTab = "install";
 
   frame.addEventListener("load", () => bootPreview());
 
   applyI18n();
   renderSkins();
   mountGuideMedia();
+  showTab(activeTab);
 
   if (frame.contentDocument?.readyState === "complete") bootPreview();
 })();

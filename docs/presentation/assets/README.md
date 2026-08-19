@@ -1,12 +1,26 @@
-# Медиа для установки
+# WebM для установки и настройки
 
-Порядок шагов в презентации:
+Папка: `docs/presentation/assets/`
 
-1. Скачать (без медиа)  
-2. **Lua** — `install-lua.webm` / `.png` / `.webp`  
-3. SmartScreen — `install-smartscreen.webm` / `.png` …  
-4. Трей — `install-tray.png` …  
-5. WebSocket — `install-obs-websocket.webm` / `.png` …  
-6. На сцену — `install-place-scene.webm` / `.png` …
+## Установка (6 шагов)
 
-Презентация берёт первый найденный файл. Подробности: [RECORDING-SCENARIO.md](../RECORDING-SCENARIO.md)
+| # | Файл | Есть у тебя? |
+|---|------|--------------|
+| 1 | `adding the sv folder is an exception.webm` (или `install-defender-exclusion.webm`) | да |
+| 2 | `install-download.webm` | да |
+| 3 | `install-lua.webm` | да |
+| 4 | `install-tray.webm` | да |
+| 5 | `install-obs-websocket.webm` | да |
+| 6 | `install-place-scene.webm` | да |
+
+SmartScreen **не нужен** — исключения Defender вместо него.
+
+## Настройка (после установки)
+
+| # | Файл | Содержание |
+|---|------|------------|
+| 1 | `07-stats-win-loss-rank.webm` | Горячие клавиши в OBS |
+| 2 | `appearance.webm` | Внешний вид в админке |
+| 3 | `10-skins-gallery.webm` | Галерея скинов |
+
+Если опционального файла нет — блок видео скрывается.

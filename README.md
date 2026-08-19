@@ -21,9 +21,9 @@
 | Админка | `http://127.0.0.1:19123/admin/` |
 | Скрипт OBS | `obs/widget_control.lua` |
 
-Актуальные сборки публикуются в разделе [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
+**Попробовать в браузере** (живой виджет, скины, установка): [artj1.github.io/OBS-Stream-Widget-Statistics-v2/docs/presentation](https://artj1.github.io/OBS-Stream-Widget-Statistics-v2/docs/presentation/)
 
-**Презентация / живое демо** (виджет в браузере + установка): [docs/presentation](docs/presentation/index.html) · что снимать на видео: [RECORDING-SCENARIO.md](docs/presentation/RECORDING-SCENARIO.md)
+Актуальные сборки публикуются в разделе [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
 
 ## Установка
 
