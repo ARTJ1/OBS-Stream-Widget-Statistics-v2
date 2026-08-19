@@ -13,14 +13,16 @@ import (
 type Action string
 
 const (
-	Win      Action = "win"
-	Loss     Action = "loss"
-	RankUp   Action = "rank_up"
-	RankDown Action = "rank_down"
-	Reset    Action = "reset"
-	ModeNext Action = "mode_next"
-	RoleNext Action = "role_next"
-	Quit     Action = "quit"
+	Win       Action = "win"
+	WinDown   Action = "win_down"
+	Loss      Action = "loss"
+	LossDown  Action = "loss_down"
+	RankUp    Action = "rank_up"
+	RankDown  Action = "rank_down"
+	Reset     Action = "reset"
+	ModeNext  Action = "mode_next"
+	RoleNext  Action = "role_next"
+	Quit      Action = "quit"
 )
 
 // Handler runs for each dropped action.
@@ -105,8 +107,12 @@ func parse(s string) Action {
 	switch s {
 	case "win", "api_win":
 		return Win
+	case "win_down", "api_win_down":
+		return WinDown
 	case "loss", "api_loss":
 		return Loss
+	case "loss_down", "api_loss_down":
+		return LossDown
 	case "rank_up", "rankup", "api_rank_up":
 		return RankUp
 	case "rank_down", "rankdown", "api_rank_down":

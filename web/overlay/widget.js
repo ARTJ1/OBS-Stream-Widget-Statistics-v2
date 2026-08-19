@@ -1563,6 +1563,30 @@ document.addEventListener('DOMContentLoaded', () => {
       await updateContentAnimations();
       return;
     }
+    if (action === 'rankStepUp' || action === 'rankStepDown') {
+      const max = Math.max(0, activeRanks().length - 1);
+      const next =
+        action === 'rankStepUp'
+          ? Math.min(max, currentState.rank + 1)
+          : Math.max(0, currentState.rank - 1);
+      if (next === currentState.rank) return;
+      previousState = { ...currentState };
+      currentState = { ...currentState, rank: next };
+      await animateRankTransition(previousState.rank, currentState.rank);
+      return;
+    }
+    if (action === 'resetStats') {
+      abortRankTransition(currentState.rank);
+      resetVesselVisual(dom.winsIconContainer, dom.winsLiquid);
+      resetVesselVisual(dom.lossesIconContainer, dom.lossesLiquid);
+      currentState = { ...currentState, wins: 0, losses: 0 };
+      previousState = { ...currentState };
+      dom.wins.textContent = '0';
+      dom.losses.textContent = '0';
+      setLiquidLevel(dom.winsLiquid, 0, { instant: true });
+      setLiquidLevel(dom.lossesLiquid, 0, { instant: true });
+      return;
+    }
     if (action === 'rankUp' || action === 'rankUpEpic' || action === 'rankDown' || action === 'rankDownEpic' || action === 'rankShowcase') {
       await runRankShowcase(token);
       return;
@@ -1840,6 +1864,52 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function applyOfflinePreviewDefaults() {
+    currentState = {
+      wins: 7,
+      losses: 3,
+      rank: 12,
+      mode: 'classic',
+      role: 'tank',
+      game: 'overwatch',
+      roleCycle: ['tank', 'support', 'damage'],
+    };
+    previousState = { ...currentState };
+    applySettings({
+      bgColor: 'rgba(0,0,0,0.72)',
+      bgImage: '',
+      winsColor: '#39ff14',
+      lossesColor: '#ff3131',
+      rankTextColor: '#ffffff',
+      iconColor: '#ffffff',
+      separatorColor: 'rgba(255,255,255,0.55)',
+      font: "'Rajdhani', sans-serif",
+      fontSize: 18,
+      appearEffect: 'slide',
+      fillStyle: 'liquid',
+      rankFx: 'classic',
+      animDirection: 'left',
+      fillLimit: 10,
+      fillDurationMs: 650,
+      emptyDurationMs: 1600,
+      emptyEffect: 'drain',
+      vesselWave: true,
+      idlePulse: true,
+      skinId: 'default',
+      __previewLocal: true,
+    });
+    updateRoleBadge(currentState);
+    dom.wins.textContent = String(currentState.wins);
+    dom.losses.textContent = String(currentState.losses);
+    setLiquidLevel(dom.winsLiquid, currentState.wins, { instant: true });
+    setLiquidLevel(dom.lossesLiquid, currentState.losses, { instant: true });
+    const info = getRankInfo(currentState.rank);
+    setRankImages(info.img);
+    dom.rankValue.textContent = info.display;
+    showWidget(false);
+    fitPreviewWidget();
+  }
+
   ensureWaveLoop();
   if (isPreview) {
     window.addEventListener('resize', fitPreviewWidget);
@@ -1852,6 +1922,11 @@ document.addEventListener('DOMContentLoaded', () => {
     .then(connectWS)
     .catch((err) => {
       console.error(err);
+      if (isPreview) {
+        // Static demo / GitHub Pages: no local API — keep postMessage preview working.
+        applyOfflinePreviewDefaults();
+        return;
+      }
       setTimeout(() => loadInitial().then(connectWS), 1500);
     });
 });

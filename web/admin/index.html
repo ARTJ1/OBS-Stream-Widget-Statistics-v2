@@ -125,45 +125,99 @@
         <p class="setup-note" id="modeRoleHint" data-i18n="main.modeHint">В обычном режиме роль скрыта. В ролевых режимах правка идёт для выбранной роли.</p>
         <p class="setup-note" id="apexHint" hidden data-i18n="main.apexHint">Apex: ранги Rookie–Master (IV–I) и Apex Predator #1–#750. Роли Overwatch недоступны.</p>
         <div class="stats-row">
-          <div class="stat-card">
-            <span class="label">Wins</span>
-            <strong id="winsValue">0</strong>
-            <button data-action="/api/win">+1</button>
-          </div>
-          <div class="stat-card">
-            <span class="label">Losses</span>
-            <strong id="lossesValue">0</strong>
-            <button data-action="/api/loss">+1</button>
-          </div>
-          <div class="stat-card rank-card">
-            <span class="label" data-i18n="main.rank">Ранг</span>
-            <strong id="rankLabel">Bronze 5</strong>
-            <div class="rank-pick">
-              <select id="rankDivision">
-                <option value="Bronze">Bronze</option>
-                <option value="Silver">Silver</option>
-                <option value="Gold">Gold</option>
-                <option value="Platinum">Platinum</option>
-                <option value="Emerald">Emerald</option>
-                <option value="Diamond">Diamond</option>
-                <option value="Master">Master</option>
-                <option value="Grandmaster">Grandmaster</option>
-                <option value="Champion">Champion</option>
-                <option value="Top">Top 500</option>
-              </select>
-              <select id="rankLevel">
-                <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
-              </select>
-              <input id="rankTopInput" type="number" min="1" max="500" value="500" hidden>
+          <div class="stat-card stat-stepper">
+            <button type="button" class="stat-stepper-btn stat-stepper-up" data-action="/api/win">+1</button>
+            <div class="stat-stepper-body">
+              <span class="label">Wins</span>
+              <strong id="winsValue">0</strong>
             </div>
-            <div class="btn-row">
+            <button type="button" class="stat-stepper-btn stat-stepper-down" data-action="/api/win/down">−1</button>
+          </div>
+          <div class="stat-card stat-stepper">
+            <button type="button" class="stat-stepper-btn stat-stepper-up" data-action="/api/loss">+1</button>
+            <div class="stat-stepper-body">
+              <span class="label">Losses</span>
+              <strong id="lossesValue">0</strong>
+            </div>
+            <button type="button" class="stat-stepper-btn stat-stepper-down" data-action="/api/loss/down">−1</button>
+          </div>
+          <div class="stat-card rank-card stat-stepper">
+            <button type="button" class="stat-stepper-btn stat-stepper-up" data-action="/api/rank/up">+</button>
+            <div class="stat-stepper-body">
+              <span class="label" data-i18n="main.rank">Ранг</span>
+              <strong id="rankLabel">Bronze 5</strong>
+              <div class="rank-pick">
+                <select id="rankDivision">
+                  <option value="Bronze">Bronze</option>
+                  <option value="Silver">Silver</option>
+                  <option value="Gold">Gold</option>
+                  <option value="Platinum">Platinum</option>
+                  <option value="Emerald">Emerald</option>
+                  <option value="Diamond">Diamond</option>
+                  <option value="Master">Master</option>
+                  <option value="Grandmaster">Grandmaster</option>
+                  <option value="Champion">Champion</option>
+                  <option value="Top">Top 500</option>
+                </select>
+                <select id="rankLevel">
+                  <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+                </select>
+                <input id="rankTopInput" type="number" min="1" max="500" value="500" hidden>
+              </div>
               <button type="button" id="rankApplyBtn" data-i18n="main.apply">Применить</button>
-              <button data-action="/api/rank/down">−</button>
-              <button data-action="/api/rank/up">+</button>
             </div>
+            <button type="button" class="stat-stepper-btn stat-stepper-down" data-action="/api/rank/down">−</button>
           </div>
         </div>
         <button class="danger" data-action="/api/reset" data-i18n="main.reset">Сбросить W/L</button>
+      </section>
+
+      <section class="panel" id="autoPanel">
+        <div class="auto-head">
+          <h2>
+            <span data-i18n="auto.title">Автозачёт побед и поражений</span>
+            <span class="auto-alpha" data-i18n="auto.alpha">Альфа</span>
+          </h2>
+        </div>
+        <p class="setup-note" data-i18n="auto.note">Тестовая функция: виджет сам ставит +1, когда на экране Overwatch появляется плашка конца матча. Окно игры должно быть поверх остальных.</p>
+        <p class="setup-note" data-i18n="auto.how">Сначала один раз снимите образец экрана «Победа» и «Поражение». После нажатия есть 5 секунд, чтобы переключиться в игру на нужную плашку.</p>
+
+        <div class="auto-templates">
+          <div class="auto-chip" id="autoWinChip" data-ready="0">
+            <span class="auto-chip-dot" aria-hidden="true"></span>
+            <div class="auto-chip-body">
+              <strong data-i18n="auto.winTpl">Образец победы</strong>
+              <span class="auto-chip-state" id="autoWinChipText"></span>
+            </div>
+            <div class="auto-chip-actions">
+              <button type="button" id="autoCaptureWinBtn" data-i18n="auto.captureWin">Снять (5 с)</button>
+              <button type="button" id="autoDeleteWinBtn" class="danger" hidden data-i18n="auto.delete">Удалить</button>
+            </div>
+          </div>
+          <div class="auto-chip" id="autoLossChip" data-ready="0">
+            <span class="auto-chip-dot" aria-hidden="true"></span>
+            <div class="auto-chip-body">
+              <strong data-i18n="auto.lossTpl">Образец поражения</strong>
+              <span class="auto-chip-state" id="autoLossChipText"></span>
+            </div>
+            <div class="auto-chip-actions">
+              <button type="button" id="autoCaptureLossBtn" data-i18n="auto.captureLoss">Снять (5 с)</button>
+              <button type="button" id="autoDeleteLossBtn" class="danger" hidden data-i18n="auto.delete">Удалить</button>
+            </div>
+          </div>
+        </div>
+        <p class="auto-ready" id="autoReadyText"></p>
+
+        <div class="auto-switch-row">
+          <label class="switch" title="">
+            <input type="checkbox" id="autoToggle" role="switch">
+            <span class="switch-ui" aria-hidden="true"></span>
+          </label>
+          <div class="auto-switch-copy">
+            <strong id="autoToggleLabel"></strong>
+            <span class="setup-note" id="autoFocusText"></span>
+          </div>
+        </div>
       </section>
 
       <section class="panel">

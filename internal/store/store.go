@@ -642,6 +642,40 @@ func (s *Store) AddLoss() (Snapshot, error) {
 	return s.snapLocked(), nil
 }
 
+func (s *Store) SubWin() (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch s.state.Mode {
+	case ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		rs.Wins--
+		s.setRole(s.state.Role, rs)
+	default:
+		s.state.Wins = clampNonNeg(s.state.Wins - 1)
+	}
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
+func (s *Store) SubLoss() (Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch s.state.Mode {
+	case ModeRolesSplit:
+		rs := s.getRole(s.state.Role)
+		rs.Losses--
+		s.setRole(s.state.Role, rs)
+	default:
+		s.state.Losses = clampNonNeg(s.state.Losses - 1)
+	}
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, err
+	}
+	return s.snapLocked(), nil
+}
+
 func (s *Store) RankUp() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

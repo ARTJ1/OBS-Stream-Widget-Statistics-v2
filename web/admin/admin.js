@@ -78,6 +78,7 @@ function applyUiLang(lang, { persist = false } = {}) {
   renderCopyLinks({ baseUrl: (overlayUrl || '').replace(/\/overlay\/?$/, '') || location.origin });
   renderSkins();
   renderCustomSkins();
+  renderAutoStatus(lastAuto);
   if (persist) {
     saveAllSettings().catch(() => {});
   }
@@ -144,6 +145,7 @@ function refreshLocalizedDynamicUI() {
       opt.textContent = onAir ? `${base} ${live}` : base;
     }
   }
+  if (typeof renderAutoStatus === 'function') renderAutoStatus(lastAuto);
 }
 
 function clamp(n, min, max) {
@@ -535,6 +537,8 @@ function renderModeRole(view) {
   if (modeField) modeField.hidden = apex;
   if (modeHint) modeHint.hidden = apex;
   if (apexHint) apexHint.hidden = !apex;
+  const autoPanel = document.getElementById('autoPanel');
+  if (autoPanel) autoPanel.hidden = apex;
   if (modeEl && modeEl.value !== mode) modeEl.value = mode;
   if (roleField) roleField.hidden = apex || mode === 'classic';
   if (roleEl) {
@@ -623,7 +627,8 @@ function renderCopyLinks(runtime) {
   overlayUrl = `${base}/overlay/`;
   const items = [
     ['Overlay', overlayUrl], ['Admin', `${base}/admin/`],
-    ['Win +1', `${base}/api/win`], ['Loss +1', `${base}/api/loss`],
+    ['Win +1', `${base}/api/win`], ['Win −1', `${base}/api/win/down`],
+    ['Loss +1', `${base}/api/loss`], ['Loss −1', `${base}/api/loss/down`],
     ['Rank up', `${base}/api/rank/up`], ['Rank down', `${base}/api/rank/down`], ['Reset', `${base}/api/reset`],
     ['Game next', `${base}/api/game/next`],
     ['Mode next', `${base}/api/mode/next`], ['Role next', `${base}/api/role/next`],
@@ -1226,6 +1231,8 @@ async function boot() {
   applyPreviewOverlayURL(runtime);
   await loadCustomSkins();
   connectWS();
+  refreshAutoStatus();
+  if (!autoPollTimer) autoPollTimer = setInterval(refreshAutoStatus, 2000);
   checkForUpdates({ forceBanner: new URLSearchParams(location.search).has('update') });
   try {
     await api('/api/obs/connect', { method: 'POST' });
@@ -1242,6 +1249,154 @@ async function boot() {
     setObsStatusKey('main.obsOfflineHint');
   }
 }
+
+let lastAuto = { enabled: false, state: 'inactive', winTemplateReady: false, lossTemplateReady: false };
+let autoPollTimer = 0;
+
+function templatesReady(st) {
+  return !!(st?.winTemplateReady && st?.lossTemplateReady);
+}
+
+function fillAutoChip(chip, textEl, ready, captureBtn, deleteBtn) {
+  if (chip) chip.dataset.ready = ready ? '1' : '0';
+  if (textEl) textEl.textContent = t(ready ? 'auto.tplReady' : 'auto.tplMissing');
+  if (captureBtn) {
+    captureBtn.textContent = t(ready ? 'auto.recapture' : (captureBtn.id.includes('Loss') ? 'auto.captureLoss' : 'auto.captureWin'));
+    captureBtn.disabled = !lastAuto?.gameRunning;
+  }
+  if (deleteBtn) {
+    deleteBtn.hidden = !ready;
+  }
+}
+
+function renderAutoStatus(st) {
+  lastAuto = st || lastAuto;
+  const panel = document.getElementById('autoPanel');
+  if (panel) panel.hidden = currentGame === 'apex';
+  if (!lastAuto) return;
+
+  const ready = templatesReady(lastAuto);
+  fillAutoChip(
+    document.getElementById('autoWinChip'),
+    document.getElementById('autoWinChipText'),
+    lastAuto.winTemplateReady,
+    document.getElementById('autoCaptureWinBtn'),
+    document.getElementById('autoDeleteWinBtn'),
+  );
+  fillAutoChip(
+    document.getElementById('autoLossChip'),
+    document.getElementById('autoLossChipText'),
+    lastAuto.lossTemplateReady,
+    document.getElementById('autoCaptureLossBtn'),
+    document.getElementById('autoDeleteLossBtn'),
+  );
+
+  const readyEl = document.getElementById('autoReadyText');
+  if (readyEl) {
+    if (!lastAuto.gameRunning) {
+      readyEl.textContent = t('auto.notRunning');
+      readyEl.classList.remove('is-ok');
+    } else {
+      readyEl.textContent = t(ready ? 'auto.ready' : 'auto.need');
+      readyEl.classList.toggle('is-ok', ready);
+    }
+  }
+
+  const toggle = document.getElementById('autoToggle');
+  if (toggle) {
+    toggle.checked = !!lastAuto.enabled;
+    toggle.disabled = !ready;
+  }
+  const row = document.querySelector('.auto-switch-row');
+  if (row) row.classList.toggle('is-on', !!lastAuto.enabled);
+
+  const label = document.getElementById('autoToggleLabel');
+  if (label) label.textContent = t(lastAuto.enabled ? 'auto.on' : 'auto.off');
+
+  const focus = document.getElementById('autoFocusText');
+  if (focus) {
+    if (!lastAuto.gameRunning) {
+      focus.textContent = t('auto.notRunning');
+    } else if (!lastAuto.enabled) {
+      focus.textContent = ready ? '' : t('auto.needBoth');
+    } else if (lastAuto.state === 'match') {
+      focus.textContent = t('auto.watching');
+    } else if (lastAuto.state === 'menu') {
+      focus.textContent = t('auto.menu');
+    } else {
+      focus.textContent = t('auto.focusOff');
+    }
+  }
+}
+
+async function refreshAutoStatus() {
+  try {
+    const st = await api('/api/automation/status');
+    renderAutoStatus(st);
+  } catch {
+    /* ignore */
+  }
+}
+
+document.getElementById('autoToggle')?.addEventListener('change', async (e) => {
+  const on = !!e.target.checked;
+  if (on && !templatesReady(lastAuto)) {
+    e.target.checked = false;
+    setStatusKey('auto.needBoth');
+    return;
+  }
+  try {
+    const st = await api(`/api/automation/toggle?enabled=${on ? '1' : '0'}`, { method: 'POST' });
+    renderAutoStatus(st);
+  } catch (err) {
+    e.target.checked = !on;
+    setStatus(String(err.message || err));
+  }
+});
+
+function autoErrorKey(err) {
+  const msg = String(err?.message || err || '');
+  if (msg.includes('overwatch_not_running')) return 'auto.notRunning';
+  if (msg.includes('overwatch_not_visible')) return 'auto.notVisible';
+  return '';
+}
+
+async function captureTemplate(kind) {
+  await refreshAutoStatus();
+  if (!lastAuto?.gameRunning) {
+    setStatusKey('auto.notRunning');
+    return;
+  }
+  const delay = 5;
+  for (let n = delay; n > 0; n--) {
+    setStatusKey('auto.capturing', false, { n });
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  try {
+    const data = await api(`/api/automation/capture?kind=${encodeURIComponent(kind)}&delay=0`, { method: 'POST' });
+    if (data.status) renderAutoStatus(data.status);
+    setStatusKey('auto.captured', true);
+  } catch (err) {
+    const key = autoErrorKey(err);
+    if (key) setStatusKey(key);
+    else setStatus(String(err.message || err));
+  }
+}
+
+async function deleteTemplate(kind) {
+  try {
+    const data = await api(`/api/automation/capture?kind=${encodeURIComponent(kind)}&delete=1`, { method: 'POST' });
+    if (data.status) renderAutoStatus(data.status);
+    setStatusKey('auto.deleted', true);
+  } catch (err) {
+    setStatus(String(err.message || err));
+  }
+}
+
+document.getElementById('autoCaptureWinBtn')?.addEventListener('click', () => captureTemplate('win'));
+document.getElementById('autoCaptureLossBtn')?.addEventListener('click', () => captureTemplate('loss'));
+document.getElementById('autoDeleteWinBtn')?.addEventListener('click', () => deleteTemplate('win'));
+document.getElementById('autoDeleteLossBtn')?.addEventListener('click', () => deleteTemplate('loss'));
 
 let knownAppVersion = '';
 let awaitingServerRestart = false;

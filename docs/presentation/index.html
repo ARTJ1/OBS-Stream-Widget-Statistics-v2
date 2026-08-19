@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Widget Stats — попробуй до установки</title>
+  <meta name="description" content="Живое демо виджета статистики для OBS: скины, анимации и установка.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="bar">
+      <div class="brand">
+        <span class="mark">WS</span>
+        <div>
+          <strong>Widget Stats</strong>
+          <span data-i18n="bar.sub">Живое демо · без установки</span>
+        </div>
+      </div>
+      <div class="bar-right">
+        <div class="seg" role="group" aria-label="Language">
+          <button type="button" class="lang-btn active" data-lang="ru">RU</button>
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+        </div>
+        <a class="btn btn-sm" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases" target="_blank" rel="noopener" data-i18n="bar.download">Скачать</a>
+      </div>
+    </header>
+
+    <section class="panel hero" id="play">
+      <div class="hero-copy">
+        <p class="kicker" data-i18n="hero.kicker">Для OBS Studio</p>
+        <h1 data-i18n="hero.title">Widget Stats</h1>
+        <p class="lead" data-i18n="hero.lead">Победы, поражения и ранг на стриме — без мерцания. Жми сколько угодно, потом поставь по гайду ниже.</p>
+        <div class="actions">
+          <button type="button" class="btn primary" data-action="win">+ Win</button>
+          <button type="button" class="btn danger" data-action="loss">+ Loss</button>
+          <button type="button" class="btn" data-action="rankStepUp" data-i18n="hero.rankUp">Ранг +</button>
+          <button type="button" class="btn" data-action="rankStepDown" data-i18n="hero.rankDown">Ранг −</button>
+          <button type="button" class="btn ghost" data-action="resetStats" data-i18n="hero.reset">Сброс W/L</button>
+        </div>
+        <p class="hint" data-i18n="hero.hint">Настоящий оверлей, не видео. Счётчик не сбрасывается сам.</p>
+      </div>
+      <div class="stage">
+        <div class="stage-glow" aria-hidden="true"></div>
+        <iframe
+          id="widgetFrame"
+          class="widget-frame"
+          title="Widget Stats live preview"
+          src="../../web/overlay/index.html?preview=1"
+          loading="eager"
+        ></iframe>
+      </div>
+    </section>
+
+    <section class="panel" id="look">
+      <div class="section-head">
+        <p class="kicker" data-i18n="look.kicker">Внешний вид</p>
+        <h2 data-i18n="look.title">Скины и режимы</h2>
+        <p class="lead" data-i18n="look.lead">Пресет меняет живой виджет выше. Счёт W/L при смене скина не трогаем.</p>
+      </div>
+      <div class="skin-row" id="skinRow" aria-label="Skins"></div>
+      <div class="mode-row">
+        <button type="button" class="chip active" data-mode="ow" data-i18n="mode.ow">Overwatch</button>
+        <button type="button" class="chip" data-mode="ow-roles" data-i18n="mode.owRoles">OW · роли</button>
+        <button type="button" class="chip" data-mode="apex" data-i18n="mode.apex">Apex Legends</button>
+      </div>
+    </section>
+
+    <section class="panel" id="install">
+      <div class="section-head">
+        <p class="kicker" data-i18n="install.kicker">Установка</p>
+        <h2 data-i18n="install.title">Поставить самому</h2>
+        <p class="lead" data-i18n="install.lead">Где нужен экран — скрин или короткое видео. Lua — сразу после скачивания, он сам поднимет сервер.</p>
+      </div>
+
+      <div class="guide" id="installGuide">
+        <article class="guide-step" data-media="none">
+          <div class="guide-num">1</div>
+          <div class="guide-body">
+            <h3 data-i18n="i1.t">Скачай релиз</h3>
+            <p data-i18n="i1.d">Скачай widget-stats.exe и widget_control.lua из Releases — оба файла, в одну папку.</p>
+            <a class="link" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases" target="_blank" rel="noopener" data-i18n="i1.a">Открыть Releases →</a>
+          </div>
+        </article>
+
+        <article class="guide-step guide-step-important" data-media-files="install-lua.webm,install-lua.png,install-lua.webp">
+          <div class="guide-num">2</div>
+          <div class="guide-body">
+            <h3 data-i18n="i6.t">Сразу добавь Lua-скрипт</h3>
+            <p data-i18n="i6.d">Первым делом: OBS → Tools → Scripts → «+» → widget_control.lua (рядом с exe). Скрипт сам запустит сервер при старте OBS и остановит при закрытии.</p>
+            <div class="guide-media" aria-label="Lua script"></div>
+          </div>
+        </article>
+
+        <article class="guide-step" data-media-files="install-smartscreen.webm,install-smartscreen.png,install-smartscreen.webp,install-smartscreen.jpg">
+          <div class="guide-num">3</div>
+          <div class="guide-body">
+            <h3 data-i18n="i2.t">SmartScreen — это нормально</h3>
+            <p data-i18n="i2.d">При первом запуске exe Windows может предупредить. Подробнее → Выполнить в любом случае. Код открыт в репозитории.</p>
+            <div class="guide-media" aria-label="SmartScreen"></div>
+          </div>
+        </article>
+
+        <article class="guide-step" data-media-files="install-tray.png,install-tray.webp,install-tray.jpg,install-tray.webm">
+          <div class="guide-num">4</div>
+          <div class="guide-body">
+            <h3 data-i18n="i3.t">Открой админку</h3>
+            <p data-i18n="i3.d">Иконка в трее → Open Admin (или http://127.0.0.1:19123/admin/). Сервер уже должен быть запущен скриптом.</p>
+            <div class="guide-media" aria-label="Tray"></div>
+          </div>
+        </article>
+
+        <article class="guide-step" data-media-files="install-obs-websocket.webm,install-obs-websocket.png,install-obs-websocket.webp">
+          <div class="guide-num">5</div>
+          <div class="guide-body">
+            <h3 data-i18n="i4.t">Включи WebSocket в OBS</h3>
+            <p data-i18n="i4.d">Tools → WebSocket Server Settings → Enable, порт 4455.</p>
+            <div class="guide-media" aria-label="WebSocket"></div>
+          </div>
+        </article>
+
+        <article class="guide-step" data-media-files="install-place-scene.webm,install-place-scene.png,install-place-scene.webp">
+          <div class="guide-num">6</div>
+          <div class="guide-body">
+            <h3 data-i18n="i5.t">Поставь виджет на сцену</h3>
+            <p data-i18n="i5.d">В админке: Подключить OBS → сцена → Поставить виджет на сцену.</p>
+            <div class="guide-media" aria-label="Place on scene"></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <div class="lightbox" id="lightbox" hidden>
+      <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close">×</button>
+      <div class="lightbox-frame" id="lightboxFrame"></div>
+    </div>
+
+    <section class="panel slim" id="more">
+      <div class="section-head">
+        <p class="kicker" data-i18n="more.kicker">Ещё</p>
+        <h2 data-i18n="more.title">Stream Deck и API</h2>
+        <p class="lead" data-i18n="more.lead">HTTP: /api/win · /api/loss · /api/rank/up · /api/rank/down · /api/reset.</p>
+        <p class="links">
+          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0" target="_blank" rel="noopener" data-i18n="more.icons">Иконки кнопок</a>
+          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/blob/main/README.md" target="_blank" rel="noopener">README</a>
+          <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/issues" target="_blank" rel="noopener">Issues</a>
+        </p>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <a class="btn primary" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases" target="_blank" rel="noopener" data-i18n="foot.cta">Скачать и поставить</a>
+      <span data-i18n="foot.note">Страницу открывай через локальный сервер из корня репо.</span>
+    </footer>
+  </div>
+
+  <script src="../../web/admin/fonts.js"></script>
+  <script src="../../web/admin/skins.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

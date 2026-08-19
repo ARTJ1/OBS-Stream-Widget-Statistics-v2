@@ -12,6 +12,7 @@ A local application for displaying stream statistics in OBS Studio: wins, losses
 - Optional Lua script: auto-start, hotkeys, and shutdown when OBS closes
 - Admin UI language: English / Russian
 - Compatible with Stream Deck, Bitfocus Companion, and other HTTP clients
+- Alpha: Overwatch 2 auto win/loss from the end-of-match banner (hidden when another game is selected)
 
 | Component | Path / URL |
 |-----------|------------|
@@ -21,6 +22,8 @@ A local application for displaying stream statistics in OBS Studio: wins, losses
 | OBS script | `obs/widget_control.lua` |
 
 Release builds are published under [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
+
+**Live demo / walkthrough** (widget in the browser + setup): [docs/presentation](docs/presentation/index.html) · what to film: [RECORDING-SCENARIO.md](docs/presentation/RECORDING-SCENARIO.md)
 
 ## Installation
 
@@ -91,6 +94,10 @@ This produces `widget-stats.exe`. The `data/` directory is created on first laun
 | GET / POST | `/api/rank/up` | Rank up |
 | GET / POST | `/api/rank/down` | Rank down |
 | GET / POST | `/api/reset` | Reset W/L |
+| GET / POST | `/api/win/down` | Decrement wins |
+| GET / POST | `/api/loss/down` | Decrement losses |
+| GET / POST | `/api/automation/toggle` | Toggle OW2 auto-detect |
+| GET | `/api/automation/status` | Auto-detect status |
 | GET | `/api/state` | Current state |
 | GET / PUT | `/api/settings` | Settings |
 | GET | `/api/runtime` | Base URL and port |

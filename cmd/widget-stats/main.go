@@ -14,6 +14,7 @@ import (
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/hotkeydrop"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/hub"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/obsbridge"
+	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/owtracker"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/runtimeinfo"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/server"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/skins"
@@ -59,6 +60,12 @@ func main() {
 		update.CleanupJunk(filepath.Dir(exePath))
 	}
 	srv := server.New(st, skinStore, h, obs, info, webassets.FS, updater)
+	srv.Auto = owtracker.New(dataDir, func(outcome owtracker.Outcome) {
+		if srv.Store.State().Game != store.GameOverwatch {
+			return
+		}
+		srv.ApplyHotkey(string(outcome))
+	})
 
 	httpServer := &http.Server{Handler: srv.Handler()}
 	go func() {
@@ -82,6 +89,8 @@ func main() {
 		quitOnce()
 		os.Exit(0)
 	}
+
+	go srv.Auto.Run(ctx)
 
 	hotkeydrop.Start(ctx, dataDir, func(a hotkeydrop.Action) {
 		if a == hotkeydrop.Quit {

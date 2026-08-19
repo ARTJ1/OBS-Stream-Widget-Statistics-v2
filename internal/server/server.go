@@ -15,6 +15,7 @@ import (
 
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/hub"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/obsbridge"
+	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/owtracker"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/runtimeinfo"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/skins"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/store"
@@ -32,6 +33,7 @@ type Server struct {
 	WebFS   fs.FS
 	Updater *update.Checker
 	OnQuit  func()
+	Auto    *owtracker.Tracker
 	mux     *http.ServeMux
 }
 
@@ -80,7 +82,9 @@ func (s *Server) Serve(ln net.Listener) error {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("/api/win", s.methodAction(s.Store.AddWin, "win"))
+	s.mux.HandleFunc("/api/win/down", s.methodAction(s.Store.SubWin, "win"))
 	s.mux.HandleFunc("/api/loss", s.methodAction(s.Store.AddLoss, "loss"))
+	s.mux.HandleFunc("/api/loss/down", s.methodAction(s.Store.SubLoss, "loss"))
 	s.mux.HandleFunc("/api/rank/up", s.rankUpHandler)
 	s.mux.HandleFunc("/api/rank/down", s.rankDownHandler)
 	s.mux.HandleFunc("/api/rank/set", s.setRank)
@@ -107,6 +111,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/version", s.getVersion)
 	s.mux.HandleFunc("/api/update/check", s.updateCheck)
 	s.mux.HandleFunc("/api/update/apply", s.updateApply)
+	s.mux.HandleFunc("/api/automation/toggle", s.automationToggle)
+	s.mux.HandleFunc("/api/automation/status", s.automationStatus)
+	s.mux.HandleFunc("/api/automation/capture", s.automationCapture)
 	s.mux.HandleFunc("/ws", s.ws)
 	s.mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -162,8 +169,14 @@ func (s *Server) ApplyHotkey(name string) {
 	case name == "win":
 		snap, err = s.Store.AddWin()
 		msgType = "win"
+	case name == "win_down":
+		snap, err = s.Store.SubWin()
+		msgType = "win"
 	case name == "loss":
 		snap, err = s.Store.AddLoss()
+		msgType = "loss"
+	case name == "loss_down":
+		snap, err = s.Store.SubLoss()
 		msgType = "loss"
 	case name == "rank_up":
 		snap, err = s.Store.RankUp()

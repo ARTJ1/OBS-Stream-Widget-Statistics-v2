@@ -12,6 +12,7 @@
 - Опциональный Lua-скрипт: автозапуск сервера, горячие клавиши, остановка при закрытии OBS
 - Переключение языка интерфейса админки: русский / English
 - Совместимость со Stream Deck, Bitfocus Companion и другими HTTP-клиентами
+- Альфа: автозачёт побед/поражений Overwatch 2 по плашке конца матча (выключается, если выбрана другая игра)
 
 | Компонент | Путь / адрес |
 |-----------|----------------|
@@ -21,6 +22,8 @@
 | Скрипт OBS | `obs/widget_control.lua` |
 
 Актуальные сборки публикуются в разделе [Releases](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases).
+
+**Презентация / живое демо** (виджет в браузере + установка): [docs/presentation](docs/presentation/index.html) · что снимать на видео: [RECORDING-SCENARIO.md](docs/presentation/RECORDING-SCENARIO.md)
 
 ## Установка
 
@@ -91,6 +94,10 @@ http://127.0.0.1:19123/api/reset
 | GET / POST | `/api/rank/up` | Повысить ранг |
 | GET / POST | `/api/rank/down` | Понизить ранг |
 | GET / POST | `/api/reset` | Сбросить W/L |
+| GET / POST | `/api/win/down` | Уменьшить число побед |
+| GET / POST | `/api/loss/down` | Уменьшить число поражений |
+| GET / POST | `/api/automation/toggle` | Вкл/выкл автозачёт OW2 |
+| GET | `/api/automation/status` | Состояние автозачёта |
 | GET | `/api/state` | Текущее состояние |
 | GET / PUT | `/api/settings` | Настройки |
 | GET | `/api/runtime` | Базовый URL и порт |

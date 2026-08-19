@@ -759,10 +759,10 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
 
 /* Soft classic idle only — themes use brief bursts */
 #rank-animation-wrapper.rank-idle-pulse #rankImage {
-  animation: rankIdlePulseImage var(--rank-idle-duration) infinite alternate ease-in-out;
+    animation: rankIdlePulseImage var(--rank-idle-duration) infinite alternate ease-in-out;
 }
 .rank-section.rank-idle-pulse #rankValue {
-  animation: rankIdlePulseText var(--rank-idle-duration) infinite alternate ease-in-out;
+    animation: rankIdlePulseText var(--rank-idle-duration) infinite alternate ease-in-out;
 }
 .rank-section[data-rank-fx="neon"].rank-idle-pulse #rankImage,
 .rank-section[data-rank-fx="blaze"].rank-idle-pulse #rankImage,
@@ -844,11 +844,11 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
 }
 
 @keyframes rankIdlePulseImage {
-  0% { transform: scale(1); filter: brightness(1); }
+    0% { transform: scale(1); filter: brightness(1); }
   100% { transform: scale(1.025); filter: brightness(1.05) drop-shadow(0 0 4px rgba(255,255,255,0.18)); }
 }
 @keyframes rankIdlePulseText {
-  0% { transform: scale(1); opacity: 1; }
+    0% { transform: scale(1); opacity: 1; }
   100% { transform: scale(1.01); opacity: 0.96; }
 }
 
@@ -921,12 +921,12 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
   100% { transform: translateY(0); opacity: 1; }
 }
 @keyframes rankDivDownText {
-  0% { transform: translateY(0); opacity: 1; }
+    0% { transform: translateY(0); opacity: 1; }
   24% { transform: translateY(4px); opacity: 0.75; }
   44% { transform: translateY(12px); opacity: 0; }
   45% { transform: translateY(-10px); opacity: 0; }
   74% { transform: translateY(-2px); opacity: 1; }
-  100% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(0); opacity: 1; }
 }
 
 
@@ -1049,7 +1049,7 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
 }
 
 .rank-heat-glow {
-  position: absolute;
+    position: absolute;
   left: 8%;
   right: 8%;
   top: 12%;
@@ -1137,7 +1137,7 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
 }
 .rank-flame.flame-md {
   width: 11px;
-  height: 20px;
+    height: 20px;
 }
 .rank-flame.flame-lg {
   width: 16px;
@@ -1149,7 +1149,7 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
   position: absolute;
   width: 3px;
   height: 3px;
-  border-radius: 50%;
+    border-radius: 50%;
   background: #ffb347;
   box-shadow: 0 0 5px 1px rgba(255, 120, 30, 0.85);
   pointer-events: none;
@@ -1376,8 +1376,8 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
 }
 
 .rank-stamp-flash {
-  position: absolute;
-  left: 50%;
+    position: absolute;
+    left: 50%;
   top: 55%;
   width: 120%;
   height: 18px;
