@@ -8,7 +8,9 @@ local config = {
 }
 
 local hotkey_win = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_win_down = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_loss = obs.OBS_INVALID_HOTKEY_ID
+local hotkey_loss_down = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_rank_up = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_rank_down = obs.OBS_INVALID_HOTKEY_ID
 local hotkey_reset = obs.OBS_INVALID_HOTKEY_ID
@@ -233,7 +235,9 @@ function script_load(settings)
   math.randomseed(os.time())
 
   hotkey_win = obs.obs_hotkey_register_frontend("v2_widget_win", "V2 Виджет: +1 Победа", on_hotkey("win"))
+  hotkey_win_down = obs.obs_hotkey_register_frontend("v2_widget_win_down", "V2 Виджет: −1 Победа", on_hotkey("win_down"))
   hotkey_loss = obs.obs_hotkey_register_frontend("v2_widget_loss", "V2 Виджет: +1 Поражение", on_hotkey("loss"))
+  hotkey_loss_down = obs.obs_hotkey_register_frontend("v2_widget_loss_down", "V2 Виджет: −1 Поражение", on_hotkey("loss_down"))
   hotkey_rank_up = obs.obs_hotkey_register_frontend("v2_widget_rank_up", "V2 Виджет: Ранг вверх", on_hotkey("rank_up"))
   hotkey_rank_down = obs.obs_hotkey_register_frontend("v2_widget_rank_down", "V2 Виджет: Ранг вниз", on_hotkey("rank_down"))
   hotkey_reset = obs.obs_hotkey_register_frontend("v2_widget_reset", "V2 Виджет: Сброс W/L", on_hotkey("reset"))
@@ -254,7 +258,9 @@ function script_load(settings)
     end
   end
   load_hk(hotkey_win, "v2_widget_win")
+  load_hk(hotkey_win_down, "v2_widget_win_down")
   load_hk(hotkey_loss, "v2_widget_loss")
+  load_hk(hotkey_loss_down, "v2_widget_loss_down")
   load_hk(hotkey_rank_up, "v2_widget_rank_up")
   load_hk(hotkey_rank_down, "v2_widget_rank_down")
   load_hk(hotkey_reset, "v2_widget_reset")
@@ -287,7 +293,9 @@ function script_save(settings)
     end
   end
   save_hk(hotkey_win, "v2_widget_win")
+  save_hk(hotkey_win_down, "v2_widget_win_down")
   save_hk(hotkey_loss, "v2_widget_loss")
+  save_hk(hotkey_loss_down, "v2_widget_loss_down")
   save_hk(hotkey_rank_up, "v2_widget_rank_up")
   save_hk(hotkey_rank_down, "v2_widget_rank_down")
   save_hk(hotkey_reset, "v2_widget_reset")
