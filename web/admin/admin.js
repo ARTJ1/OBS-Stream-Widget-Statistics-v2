@@ -1250,23 +1250,90 @@ async function boot() {
   }
 }
 
-let lastAuto = { enabled: false, state: 'inactive', winTemplateReady: false, lossTemplateReady: false };
+let lastAuto = { enabled: false, state: 'inactive', winTemplateReady: false, lossTemplateReady: false, winQuality: 0, lossQuality: 0 };
 let autoPollTimer = 0;
+let lastAutoAnalysis = null;
 
 function templatesReady(st) {
   return !!(st?.winTemplateReady && st?.lossTemplateReady);
 }
 
-function fillAutoChip(chip, textEl, ready, captureBtn, deleteBtn) {
+function fillAutoChip(chip, textEl, qualityEl, ready, quality, uploadLabel) {
   if (chip) chip.dataset.ready = ready ? '1' : '0';
   if (textEl) textEl.textContent = t(ready ? 'auto.tplReady' : 'auto.tplMissing');
-  if (captureBtn) {
-    captureBtn.textContent = t(ready ? 'auto.recapture' : (captureBtn.id.includes('Loss') ? 'auto.captureLoss' : 'auto.captureWin'));
-    captureBtn.disabled = !lastAuto?.gameRunning;
+  if (uploadLabel) uploadLabel.textContent = t(ready ? 'auto.reupload' : 'auto.upload');
+  if (qualityEl) {
+    if (ready && quality > 0) {
+      qualityEl.hidden = false;
+      qualityEl.textContent = t('auto.quality', { n: quality });
+      qualityEl.classList.toggle('is-warn', quality < 75 && quality >= 55);
+      qualityEl.classList.toggle('is-bad', quality < 55);
+    } else {
+      qualityEl.hidden = true;
+      qualityEl.textContent = '';
+      qualityEl.classList.remove('is-warn', 'is-bad');
+    }
   }
-  if (deleteBtn) {
-    deleteBtn.hidden = !ready;
+}
+
+function setAutoFeedback(level, title, meta) {
+  const el = document.getElementById('autoAnalysisText');
+  if (!el) return;
+  el.hidden = false;
+  el.classList.remove('is-ok', 'is-warn', 'is-bad');
+  if (level) el.classList.add(`is-${level}`);
+  const titleHtml = `<span class="auto-feedback-title">${escapeHtml(title)}</span>`;
+  const metaHtml = meta ? `<span class="auto-feedback-meta">${escapeHtml(meta)}</span>` : '';
+  el.innerHTML = titleHtml + metaHtml;
+}
+
+function clearAutoFeedback() {
+  const el = document.getElementById('autoAnalysisText');
+  if (!el) return;
+  el.hidden = true;
+  el.classList.remove('is-ok', 'is-warn', 'is-bad');
+  el.textContent = '';
+}
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function showAutoAnalysis(analysis, { rejected = false } = {}) {
+  if (!analysis) return;
+  lastAutoAnalysis = analysis;
+  const warns = (analysis.warnings || []).map((w) => t(`auto.warn.${w}`)).filter(Boolean);
+  const metaParts = [];
+  if (analysis.cropW && analysis.cropH) {
+    metaParts.push(`${analysis.cropW}×${analysis.cropH}px`);
   }
+  if (typeof analysis.vsOtherPct === 'number' && analysis.vsOtherDistance >= 0) {
+    metaParts.push(t('auto.vsOther', { n: analysis.vsOtherPct }));
+  }
+  if (warns.length) metaParts.push(warns.join(', '));
+  if (rejected || !analysis.ok) metaParts.push(t('auto.uploadHint'));
+
+  let level = 'ok';
+  let title = t('auto.analysisOk', { n: analysis.qualityPct ?? 0, w: analysis.cropW, h: analysis.cropH });
+  if (rejected || containsWarn(analysis.warnings, 'too_similar_to_other')) {
+    level = 'bad';
+    title = t('auto.tooSimilar');
+    if (typeof analysis.qualityPct === 'number') {
+      title = `${t('auto.quality', { n: analysis.qualityPct })}. ${t('auto.tooSimilar')}`;
+    }
+  } else if (!analysis.ok || (analysis.qualityPct ?? 100) < 75) {
+    level = (analysis.qualityPct ?? 100) < 55 ? 'bad' : 'warn';
+    title = t('auto.analysisWarn', { n: analysis.qualityPct ?? 0 });
+  }
+  setAutoFeedback(level, title, metaParts.join(' · '));
+}
+
+function containsWarn(list, key) {
+  return Array.isArray(list) && list.includes(key);
 }
 
 function renderAutoStatus(st) {
@@ -1279,27 +1346,26 @@ function renderAutoStatus(st) {
   fillAutoChip(
     document.getElementById('autoWinChip'),
     document.getElementById('autoWinChipText'),
+    document.getElementById('autoWinQuality'),
     lastAuto.winTemplateReady,
-    document.getElementById('autoCaptureWinBtn'),
-    document.getElementById('autoDeleteWinBtn'),
+    lastAuto.winQuality || 0,
+    document.querySelector('#autoWinFile')?.closest('label')?.querySelector('span'),
   );
   fillAutoChip(
     document.getElementById('autoLossChip'),
     document.getElementById('autoLossChipText'),
+    document.getElementById('autoLossQuality'),
     lastAuto.lossTemplateReady,
-    document.getElementById('autoCaptureLossBtn'),
-    document.getElementById('autoDeleteLossBtn'),
+    lastAuto.lossQuality || 0,
+    document.querySelector('#autoLossFile')?.closest('label')?.querySelector('span'),
   );
+  document.getElementById('autoDeleteWinBtn').hidden = !lastAuto.winTemplateReady;
+  document.getElementById('autoDeleteLossBtn').hidden = !lastAuto.lossTemplateReady;
 
   const readyEl = document.getElementById('autoReadyText');
   if (readyEl) {
-    if (!lastAuto.gameRunning) {
-      readyEl.textContent = t('auto.notRunning');
-      readyEl.classList.remove('is-ok');
-    } else {
-      readyEl.textContent = t(ready ? 'auto.ready' : 'auto.need');
-      readyEl.classList.toggle('is-ok', ready);
-    }
+    readyEl.textContent = t(ready ? 'auto.ready' : 'auto.need');
+    readyEl.classList.toggle('is-ok', ready);
   }
 
   const toggle = document.getElementById('autoToggle');
@@ -1315,9 +1381,7 @@ function renderAutoStatus(st) {
 
   const focus = document.getElementById('autoFocusText');
   if (focus) {
-    if (!lastAuto.gameRunning) {
-      focus.textContent = t('auto.notRunning');
-    } else if (!lastAuto.enabled) {
+    if (!lastAuto.enabled) {
       focus.textContent = ready ? '' : t('auto.needBoth');
     } else if (lastAuto.state === 'match') {
       focus.textContent = t('auto.watching');
@@ -1342,7 +1406,7 @@ document.getElementById('autoToggle')?.addEventListener('change', async (e) => {
   const on = !!e.target.checked;
   if (on && !templatesReady(lastAuto)) {
     e.target.checked = false;
-    setStatusKey('auto.needBoth');
+    setAutoFeedback('warn', t('auto.needBoth'), '');
     return;
   }
   try {
@@ -1350,36 +1414,39 @@ document.getElementById('autoToggle')?.addEventListener('change', async (e) => {
     renderAutoStatus(st);
   } catch (err) {
     e.target.checked = !on;
-    setStatus(String(err.message || err));
+    setAutoFeedback('bad', String(err.message || err), '');
   }
 });
 
-function autoErrorKey(err) {
-  const msg = String(err?.message || err || '');
-  if (msg.includes('overwatch_not_running')) return 'auto.notRunning';
-  if (msg.includes('overwatch_not_visible')) return 'auto.notVisible';
-  return '';
-}
-
-async function captureTemplate(kind) {
-  await refreshAutoStatus();
-  if (!lastAuto?.gameRunning) {
-    setStatusKey('auto.notRunning');
-    return;
-  }
-  const delay = 5;
-  for (let n = delay; n > 0; n--) {
-    setStatusKey('auto.capturing', false, { n });
-    await new Promise((r) => setTimeout(r, 1000));
-  }
+async function uploadTemplate(kind, file) {
+  if (!file) return;
+  setAutoFeedback('warn', t('auto.uploading'), '');
+  const body = new FormData();
+  body.append('file', file);
   try {
-    const data = await api(`/api/automation/capture?kind=${encodeURIComponent(kind)}&delay=0`, { method: 'POST' });
-    if (data.status) renderAutoStatus(data.status);
-    setStatusKey('auto.captured', true);
+    const res = await fetch(`/api/automation/capture?kind=${encodeURIComponent(kind)}`, {
+      method: 'POST',
+      body,
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+    if (data?.status) renderAutoStatus(data.status);
+    if (!res.ok) {
+      if (data?.analysis) showAutoAnalysis(data.analysis, { rejected: true });
+      else if (String(data?.error || '').includes('template_too_similar_to_other')) {
+        setAutoFeedback('bad', t('auto.tooSimilar'), t('auto.uploadHint'));
+      } else if (/decode|PNG|JPG|image/i.test(String(data?.error || text || ''))) {
+        setAutoFeedback('bad', t('auto.badFile'), t('auto.uploadHint'));
+      } else {
+        setAutoFeedback('bad', String(data?.error || text || res.statusText), t('auto.uploadHint'));
+      }
+      return;
+    }
+    if (data.analysis) showAutoAnalysis(data.analysis);
+    else setAutoFeedback('ok', t('auto.analysisOk', { n: data.status?.winQuality || data.status?.lossQuality || 100 }), '');
   } catch (err) {
-    const key = autoErrorKey(err);
-    if (key) setStatusKey(key);
-    else setStatus(String(err.message || err));
+    setAutoFeedback('bad', String(err.message || err), t('auto.uploadHint'));
   }
 }
 
@@ -1387,14 +1454,36 @@ async function deleteTemplate(kind) {
   try {
     const data = await api(`/api/automation/capture?kind=${encodeURIComponent(kind)}&delete=1`, { method: 'POST' });
     if (data.status) renderAutoStatus(data.status);
-    setStatusKey('auto.deleted', true);
+    clearAutoFeedback();
   } catch (err) {
-    setStatus(String(err.message || err));
+    setAutoFeedback('bad', String(err.message || err), '');
   }
 }
 
-document.getElementById('autoCaptureWinBtn')?.addEventListener('click', () => captureTemplate('win'));
-document.getElementById('autoCaptureLossBtn')?.addEventListener('click', () => captureTemplate('loss'));
+function bindAutoUpload(inputId, kind, chipId) {
+  const input = document.getElementById(inputId);
+  const chip = document.getElementById(chipId);
+  input?.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.value = '';
+    await uploadTemplate(kind, file);
+  });
+  if (!chip) return;
+  chip.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    chip.dataset.drag = '1';
+  });
+  chip.addEventListener('dragleave', () => { chip.dataset.drag = '0'; });
+  chip.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    chip.dataset.drag = '0';
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await uploadTemplate(kind, file);
+  });
+}
+
+bindAutoUpload('autoWinFile', 'win', 'autoWinChip');
+bindAutoUpload('autoLossFile', 'loss', 'autoLossChip');
 document.getElementById('autoDeleteWinBtn')?.addEventListener('click', () => deleteTemplate('win'));
 document.getElementById('autoDeleteLossBtn')?.addEventListener('click', () => deleteTemplate('loss'));
 

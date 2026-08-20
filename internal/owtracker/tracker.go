@@ -3,6 +3,7 @@ package owtracker
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"sync/atomic"
 	"time"
@@ -35,6 +36,8 @@ type Status struct {
 	WindowTitle string `json:"windowTitle"`
 	WinReady    bool   `json:"winTemplateReady"`
 	LossReady   bool   `json:"lossTemplateReady"`
+	WinQuality  int    `json:"winQuality,omitempty"`
+	LossQuality int    `json:"lossQuality,omitempty"`
 	GameRunning bool   `json:"gameRunning"`
 	GameFocused bool   `json:"gameFocused"`
 }
@@ -47,6 +50,8 @@ type Tracker struct {
 	onResult func(Outcome)
 
 	lastTitle atomic.Value // string
+	winQ      atomic.Int32
+	lossQ     atomic.Int32
 }
 
 func New(dataDir string, onResult func(Outcome)) *Tracker {
@@ -61,6 +66,8 @@ func New(dataDir string, onResult func(Outcome)) *Tracker {
 	}
 	t.hashes.setWin(win)
 	t.hashes.setLoss(loss)
+	t.winQ.Store(int32(saved.WinQuality))
+	t.lossQ.Store(int32(saved.LossQuality))
 	t.lastTitle.Store("")
 	return t
 }
@@ -99,9 +106,67 @@ func (t *Tracker) Status() Status {
 		WindowTitle: title,
 		WinReady:    win != "",
 		LossReady:   loss != "",
+		WinQuality:  int(t.winQ.Load()),
+		LossQuality: int(t.lossQ.Load()),
 		GameRunning: overwatchProcessRunning(),
 		GameFocused: isOverwatchTitle(title),
 	}
+}
+
+func (t *Tracker) ImportTemplate(kind Outcome, r io.Reader) (TemplateAnalysis, error) {
+	img, err := decodeImage(r)
+	if err != nil {
+		return TemplateAnalysis{}, err
+	}
+	b := img.Bounds()
+	crop, usedFull := templateRegion(img)
+	h, err := perceptionHash(crop)
+	if err != nil {
+		return TemplateAnalysis{}, err
+	}
+	hashStr := h.ToString()
+	winT, lossT := t.hashes.get()
+	other := ""
+	switch kind {
+	case OutcomeWin:
+		other = lossT
+	case OutcomeLoss:
+		other = winT
+	default:
+		return TemplateAnalysis{}, fmt.Errorf("unknown kind")
+	}
+	analysis := analyzeImport(kind, crop, hashStr, other, b.Dx(), b.Dy(), usedFull)
+	// Hard reject only when win/loss samples would collide at match time.
+	if containsWarn(analysis.Warnings, "too_similar_to_other") {
+		return analysis, ErrTemplateTooSimilar
+	}
+
+	saved := loadSavedHashes(t.dataDir)
+	switch kind {
+	case OutcomeWin:
+		t.hashes.setWin(hashStr)
+		t.winQ.Store(int32(analysis.QualityPct))
+		saved.Win = hashStr
+		saved.WinQuality = analysis.QualityPct
+	case OutcomeLoss:
+		t.hashes.setLoss(hashStr)
+		t.lossQ.Store(int32(analysis.QualityPct))
+		saved.Loss = hashStr
+		saved.LossQuality = analysis.QualityPct
+	}
+	if err := saveHashes(t.dataDir, saved); err != nil {
+		return analysis, err
+	}
+	return analysis, nil
+}
+
+func containsWarn(list []string, key string) bool {
+	for _, w := range list {
+		if w == key {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *Tracker) CaptureTemplate(kind Outcome) (string, error) {
@@ -144,16 +209,18 @@ func (t *Tracker) ClearTemplate(kind Outcome) error {
 	switch kind {
 	case OutcomeWin:
 		t.hashes.setWin("")
+		t.winQ.Store(0)
 		saved.Win = ""
+		saved.WinQuality = 0
 	case OutcomeLoss:
 		t.hashes.setLoss("")
+		t.lossQ.Store(0)
 		saved.Loss = ""
+		saved.LossQuality = 0
 	default:
 		return fmt.Errorf("unknown kind")
 	}
-	if saved.Win == "" && saved.Loss == "" {
-		t.SetEnabled(false)
-	} else if saved.Win == "" || saved.Loss == "" {
+	if saved.Win == "" || saved.Loss == "" {
 		t.SetEnabled(false)
 	}
 	return saveHashes(t.dataDir, saved)

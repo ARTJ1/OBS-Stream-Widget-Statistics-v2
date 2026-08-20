@@ -179,8 +179,8 @@
             <span class="auto-alpha" data-i18n="auto.alpha">Альфа</span>
           </h2>
         </div>
-        <p class="setup-note" data-i18n="auto.note">Тестовая функция: виджет сам ставит +1, когда на экране Overwatch появляется плашка конца матча. Окно игры должно быть поверх остальных.</p>
-        <p class="setup-note" data-i18n="auto.how">Сначала один раз снимите образец экрана «Победа» и «Поражение». После нажатия есть 5 секунд, чтобы переключиться в игру на нужную плашку.</p>
+        <p class="setup-note" data-i18n="auto.note">Тестовая функция: виджет сам ставит +1, когда на экране Overwatch появляется плашка конца матча. Во время матча окно игры должно быть поверх остальных.</p>
+        <p class="setup-note" data-i18n="auto.how">Сделайте скриншот экрана «Победа» и «Поражение» в игре (Win+Shift+S или Print Screen) и загрузите файлы сюда. Система сама вырежет центр и посчитает pHash.</p>
 
         <div class="auto-templates">
           <div class="auto-chip" id="autoWinChip" data-ready="0">
@@ -188,9 +188,13 @@
             <div class="auto-chip-body">
               <strong data-i18n="auto.winTpl">Образец победы</strong>
               <span class="auto-chip-state" id="autoWinChipText"></span>
+              <span class="auto-chip-quality" id="autoWinQuality" hidden></span>
             </div>
             <div class="auto-chip-actions">
-              <button type="button" id="autoCaptureWinBtn" data-i18n="auto.captureWin">Снять (5 с)</button>
+              <label class="auto-upload-btn">
+                <input type="file" id="autoWinFile" accept="image/png,image/jpeg,image/jpg,image/gif,.png,.jpg,.jpeg" hidden>
+                <span data-i18n="auto.upload">Загрузить скрин</span>
+              </label>
               <button type="button" id="autoDeleteWinBtn" class="danger" hidden data-i18n="auto.delete">Удалить</button>
             </div>
           </div>
@@ -199,14 +203,19 @@
             <div class="auto-chip-body">
               <strong data-i18n="auto.lossTpl">Образец поражения</strong>
               <span class="auto-chip-state" id="autoLossChipText"></span>
+              <span class="auto-chip-quality" id="autoLossQuality" hidden></span>
             </div>
             <div class="auto-chip-actions">
-              <button type="button" id="autoCaptureLossBtn" data-i18n="auto.captureLoss">Снять (5 с)</button>
+              <label class="auto-upload-btn">
+                <input type="file" id="autoLossFile" accept="image/png,image/jpeg,image/jpg,image/gif,.png,.jpg,.jpeg" hidden>
+                <span data-i18n="auto.upload">Загрузить скрин</span>
+              </label>
               <button type="button" id="autoDeleteLossBtn" class="danger" hidden data-i18n="auto.delete">Удалить</button>
             </div>
           </div>
         </div>
         <p class="auto-ready" id="autoReadyText"></p>
+        <div class="auto-feedback" id="autoAnalysisText" hidden></div>
 
         <div class="auto-switch-row">
           <label class="switch" title="">

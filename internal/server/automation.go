@@ -2,10 +2,10 @@ package server
 
 import (
 	"errors"
+	"io"
 	"net/http"
-	"strconv"
+	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/owtracker"
 )
@@ -68,28 +68,55 @@ func (s *Server) automationCapture(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": kind, "status": s.Auto.Status()})
 		return
 	}
-	delay := 5
-	if q := r.URL.Query().Get("delay"); q != "" {
-		if n, err := strconv.Atoi(q); err == nil && n >= 0 && n <= 30 {
-			delay = n
-		}
+
+	ct := r.Header.Get("Content-Type")
+	if strings.Contains(ct, "multipart/form-data") {
+		s.automationImportUpload(w, r, kind)
+		return
 	}
-	if delay > 0 {
-		time.Sleep(time.Duration(delay) * time.Second)
+	writeJSON(w, http.StatusBadRequest, map[string]string{
+		"error": "upload a PNG/JPG screenshot as multipart field \"file\"",
+	})
+}
+
+func (s *Server) automationImportUpload(w http.ResponseWriter, r *http.Request, kind owtracker.Outcome) {
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
 	}
-	hash, err := s.Auto.CaptureTemplate(kind)
+	file, header, err := r.FormFile("file")
 	if err != nil {
-		code := http.StatusInternalServerError
-		if errors.Is(err, owtracker.ErrGameNotRunning) || errors.Is(err, owtracker.ErrGameNotVisible) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file required"})
+		return
+	}
+	defer file.Close()
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", "":
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported image type — use PNG or JPG"})
+		return
+	}
+
+	limited := io.LimitReader(file, 20<<20)
+	analysis, err := s.Auto.ImportTemplate(kind, limited)
+	if err != nil {
+		code := http.StatusBadRequest
+		if errors.Is(err, owtracker.ErrTemplateTooSimilar) {
 			code = http.StatusConflict
 		}
-		writeJSON(w, code, map[string]string{"error": err.Error()})
+		writeJSON(w, code, map[string]any{
+			"error":    err.Error(),
+			"analysis": analysis,
+			"status":   s.Auto.Status(),
+		})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":     true,
-		"kind":   kind,
-		"hash":   hash,
-		"status": s.Auto.Status(),
+		"ok":       true,
+		"kind":     kind,
+		"analysis": analysis,
+		"status":   s.Auto.Status(),
 	})
 }

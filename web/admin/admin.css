@@ -400,21 +400,88 @@ h2 { font-size: 18px; margin-bottom: 16px; }
   gap: 6px;
   flex: 0 0 auto;
 }
-.auto-chip button {
-  flex: 0 0 auto;
+.auto-chip-quality {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ok);
+}
+.auto-chip-quality.is-warn {
+  color: #e0b35a;
+}
+.auto-chip-quality.is-bad {
+  color: var(--danger);
+}
+.auto-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 8px 10px;
   font-size: 12px;
+  font-weight: 700;
+  border-radius: 10px;
   background: var(--btn-soft);
   color: var(--btn-soft-text);
   border: 1px solid var(--line);
+  cursor: pointer;
 }
-.auto-chip button:hover {
+.auto-upload-btn:hover {
   background: var(--btn-soft-hover);
 }
+.auto-chip[data-drag="1"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+}
+#autoAnalysisText {
+  margin-top: 8px;
+}
+.auto-feedback {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.45;
+  color: var(--text);
+}
+.auto-feedback[hidden] {
+  display: none !important;
+}
+.auto-feedback.is-ok {
+  border-color: var(--ok-line);
+  background: color-mix(in srgb, var(--ok) 12%, var(--surface-2));
+  color: var(--ok);
+}
+.auto-feedback.is-warn {
+  border-color: color-mix(in srgb, #e0b35a 55%, var(--line));
+  background: color-mix(in srgb, #e0b35a 14%, var(--surface-2));
+  color: #e0b35a;
+}
+.auto-feedback.is-bad {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-2));
+  color: var(--danger);
+}
+.auto-feedback .auto-feedback-title {
+  display: block;
+  margin-bottom: 4px;
+}
+.auto-feedback .auto-feedback-meta {
+  display: block;
+  font-weight: 550;
+  opacity: 0.92;
+}
 .auto-chip button.danger {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line));
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
   background: color-mix(in srgb, var(--danger) 16%, var(--surface-2));
   color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
 }
 .auto-chip button.danger:hover {
   background: var(--danger);

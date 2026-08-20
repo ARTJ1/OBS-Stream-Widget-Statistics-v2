@@ -8,8 +8,10 @@ import (
 )
 
 type savedHashes struct {
-	Win  string `json:"win"`
-	Loss string `json:"loss"`
+	Win         string `json:"win"`
+	Loss        string `json:"loss"`
+	WinQuality  int    `json:"winQuality,omitempty"`
+	LossQuality int    `json:"lossQuality,omitempty"`
 }
 
 func templatesPath(dir string) string {
