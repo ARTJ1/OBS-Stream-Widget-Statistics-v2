@@ -3,10 +3,14 @@ package owtracker
 import (
 	"context"
 	"fmt"
+	"image"
 	"io"
 	"log"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/owtracker/ml"
 )
 
 const (
@@ -16,11 +20,17 @@ const (
 )
 
 const (
-	pollInactive = 2 * time.Second
-	pollMenu     = 1 * time.Second
-	pollMatch    = 1 * time.Second
-	antiBlink    = 1 * time.Second
-	cooldown     = 40 * time.Second
+	pollDisabled   = 15 * time.Second // auto off — minimal wakeups
+	pollNoGame     = 12 * time.Second // auto on, Overwatch not running
+	pollInactive   = 3 * time.Second  // game running, not focused
+	pollMenu       = 1500 * time.Millisecond
+	pollMatch      = 1000 * time.Millisecond
+	pollEndScreen  = 400 * time.Millisecond
+	pollTest       = 800 * time.Millisecond
+	pollTestSlow   = 1200 * time.Millisecond
+	pollTestFast   = 400 * time.Millisecond
+	antiBlink      = 1 * time.Second
+	cooldown       = 40 * time.Second
 )
 
 type Outcome string
@@ -36,10 +46,17 @@ type Status struct {
 	WindowTitle string `json:"windowTitle"`
 	WinReady    bool   `json:"winTemplateReady"`
 	LossReady   bool   `json:"lossTemplateReady"`
+	WinCustom   bool   `json:"winCustom,omitempty"`
+	LossCustom  bool   `json:"lossCustom,omitempty"`
+	ZoneCustom  bool   `json:"zoneCustom,omitempty"`
 	WinQuality  int    `json:"winQuality,omitempty"`
 	LossQuality int    `json:"lossQuality,omitempty"`
 	GameRunning bool   `json:"gameRunning"`
 	GameFocused bool   `json:"gameFocused"`
+	ZoneReady   bool   `json:"zoneReady"`
+	Zone        Zone   `json:"zone,omitempty"`
+	OcrReady    bool   `json:"ocrReady"`
+	DevMode     bool   `json:"devMode,omitempty"`
 }
 
 type Tracker struct {
@@ -52,35 +69,171 @@ type Tracker struct {
 	lastTitle atomic.Value // string
 	winQ      atomic.Int32
 	lossQ     atomic.Int32
+
+	testMode       atomic.Bool
+	debugLogOn     atomic.Bool
+	dryRun         atomic.Bool
+	matchThresholdVal atomic.Int32
+	captureSource     atomic.Value // string
+	debug             *debugLog
+	zoneMu            sync.RWMutex
+	zone              Zone
+
+	lastAppliedMu sync.Mutex
+	lastApplied   *ProbeResult
+
+	tplMu      sync.RWMutex
+	winTplImg  image.Image
+	lossTplImg image.Image
+
+	lastPeekMu sync.Mutex
+	lastPeek   ProbeResult
+
+	lastProbeImgMu sync.Mutex
+	lastProbeImg   image.Image
+
+	endScreen endScreenWatch
+	bannerStable bannerStability
+	autoLearn    *mlAutoStore
 }
 
 func New(dataDir string, onResult func(Outcome)) *Tracker {
 	t := &Tracker{dataDir: dataDir, onResult: onResult}
-	saved := loadSavedHashes(dataDir)
-	win, loss := WIN_HASH_TEMPLATE, LOSS_HASH_TEMPLATE
+	t.lastTitle.Store("")
+	bindOCRDataDir(dataDir)
+	t.debug = newDebugLog(dataDir)
+	ml.Init(dataDir)
+	ml.InitText(dataDir)
+	t.autoLearn = newMLAutoStore(dataDir)
+	t.captureSource.Store(CaptureWindow)
+	t.applyDebugSettings(loadDebugSettings(dataDir))
+	if !DevMode() {
+		t.testMode.Store(false)
+		t.debugLogOn.Store(false)
+		t.dryRun.Store(false)
+	}
+	t.applySavedConfig(loadSavedHashes(dataDir))
+	t.reloadTemplateImages()
+	return t
+}
+
+func (t *Tracker) applySavedConfig(saved savedHashes) {
+	cfg := effectiveConfig(normalizeSaved(saved))
+	t.hashes.setWin(cfg.Win)
+	t.hashes.setLoss(cfg.Loss)
+	t.winQ.Store(int32(cfg.WinQuality))
+	t.lossQ.Store(int32(cfg.LossQuality))
+	mt := cfg.MatchThreshold
+	if mt < 5 || mt > 32 {
+		mt = defaultMatchThreshold
+	}
+	t.matchThresholdVal.Store(int32(mt))
+	if cfg.Zone.Valid() {
+		t.zone = cfg.Zone
+	}
+}
+
+func normalizeSaved(saved savedHashes) savedHashes {
 	if saved.Win != "" {
-		win = saved.Win
+		saved.CustomWin = true
 	}
 	if saved.Loss != "" {
-		loss = saved.Loss
+		saved.CustomLoss = true
 	}
-	t.hashes.setWin(win)
-	t.hashes.setLoss(loss)
-	t.winQ.Store(int32(saved.WinQuality))
-	t.lossQ.Store(int32(saved.LossQuality))
-	t.lastTitle.Store("")
-	return t
+	if saved.Zone.Valid() {
+		saved.CustomZone = true
+	}
+	return saved
+}
+
+func (t *Tracker) getZone() Zone {
+	t.zoneMu.RLock()
+	defer t.zoneMu.RUnlock()
+	return t.zone
+}
+
+func (t *Tracker) setZone(z Zone) {
+	t.zoneMu.Lock()
+	t.zone = z
+	t.zoneMu.Unlock()
+}
+
+func (t *Tracker) zoneReady() bool {
+	return t.getZone().Valid()
+}
+
+func (t *Tracker) saveZone(z Zone) error {
+	if !z.Valid() {
+		return ErrZoneInvalid
+	}
+	t.setZone(z)
+	saved := normalizeSaved(loadSavedHashes(t.dataDir))
+	saved.Zone = z
+	saved.CustomZone = true
+	return saveHashes(t.dataDir, saved)
+}
+
+func (t *Tracker) matchThreshold() int {
+	v := int(t.matchThresholdVal.Load())
+	if v < 5 {
+		return defaultMatchThreshold
+	}
+	return v
+}
+
+func (t *Tracker) getCaptureSource() string {
+	v, _ := t.captureSource.Load().(string)
+	if v == CaptureScreen || v == CaptureWindow {
+		return v
+	}
+	return CaptureBoth
+}
+
+func (t *Tracker) SetCaptureSource(v string) {
+	switch v {
+	case CaptureScreen, CaptureWindow, CaptureBoth:
+		t.captureSource.Store(v)
+	default:
+		t.captureSource.Store(CaptureWindow)
+	}
+	t.persistDebugSettings()
+}
+
+func (t *Tracker) SetMatchThreshold(v int) {
+	if v < 5 {
+		v = 5
+	}
+	if v > 32 {
+		v = 32
+	}
+	t.matchThresholdVal.Store(int32(v))
+	saved := loadSavedHashes(t.dataDir)
+	saved.MatchThreshold = v
+	_ = saveHashes(t.dataDir, saved)
+}
+
+func (t *Tracker) SetEnabled(v bool) {
+	t.enabled.Store(v)
+	if !v {
+		t.state.Store(StateInactive)
+		t.endScreen.reset()
+		t.bannerStable.reset()
+	}
 }
 
 func (t *Tracker) Enabled() bool { return t.enabled.Load() }
 
-func (t *Tracker) SetEnabled(v bool) { t.enabled.Store(v) }
-
 func (t *Tracker) Toggle() bool {
 	for {
 		cur := t.enabled.Load()
-		if t.enabled.CompareAndSwap(cur, !cur) {
-			return !cur
+		next := !cur
+		if t.enabled.CompareAndSwap(cur, next) {
+			if !next {
+				t.state.Store(StateInactive)
+				t.endScreen.reset()
+				t.bannerStable.reset()
+			}
+			return next
 		}
 	}
 }
@@ -98,6 +251,7 @@ func (t *Tracker) StateName() string {
 
 func (t *Tracker) Status() Status {
 	win, loss := t.hashes.get()
+	saved := effectiveConfig(normalizeSaved(loadSavedHashes(t.dataDir)))
 	title := activeWindowTitle()
 	t.lastTitle.Store(title)
 	return Status{
@@ -106,25 +260,45 @@ func (t *Tracker) Status() Status {
 		WindowTitle: title,
 		WinReady:    win != "",
 		LossReady:   loss != "",
+		WinCustom:   saved.CustomWin,
+		LossCustom:  saved.CustomLoss,
+		ZoneCustom:  saved.CustomZone,
 		WinQuality:  int(t.winQ.Load()),
 		LossQuality: int(t.lossQ.Load()),
 		GameRunning: overwatchProcessRunning(),
-		GameFocused: isOverwatchTitle(title),
+		GameFocused: isOverwatchForeground(),
+		ZoneReady:   t.zoneReady(),
+		Zone:        t.getZone(),
+		OcrReady:    t.ocrReady(),
+		DevMode:     DevMode(),
 	}
 }
 
-func (t *Tracker) ImportTemplate(kind Outcome, r io.Reader) (TemplateAnalysis, error) {
+func (t *Tracker) ImportTemplate(kind Outcome, r io.Reader, zone Zone) (TemplateAnalysis, error) {
 	img, err := decodeImage(r)
 	if err != nil {
 		return TemplateAnalysis{}, err
 	}
 	b := img.Bounds()
-	crop, usedFull := templateRegion(img)
-	h, err := perceptionHash(crop)
+	useZone := zone
+	if !useZone.Valid() {
+		useZone = t.getZone()
+	}
+	if !useZone.Valid() {
+		return TemplateAnalysis{}, ErrZoneRequired
+	}
+	crop, ok := cropZone(img, useZone)
+	if !ok {
+		return TemplateAnalysis{}, ErrZoneInvalid
+	}
+	if err := t.saveZone(useZone); err != nil {
+		return TemplateAnalysis{}, err
+	}
+	h, err := computeTemplateHash(crop)
 	if err != nil {
 		return TemplateAnalysis{}, err
 	}
-	hashStr := h.ToString()
+	hashStr := h
 	winT, lossT := t.hashes.get()
 	other := ""
 	switch kind {
@@ -135,28 +309,50 @@ func (t *Tracker) ImportTemplate(kind Outcome, r io.Reader) (TemplateAnalysis, e
 	default:
 		return TemplateAnalysis{}, fmt.Errorf("unknown kind")
 	}
-	analysis := analyzeImport(kind, crop, hashStr, other, b.Dx(), b.Dy(), usedFull)
+	analysis := analyzeImport(kind, crop, hashStr, other, b.Dx(), b.Dy(), false)
+	if other != "" {
+		otherDist := bestDistance(crop, other)
+		if kind == OutcomeWin && otherDist >= 0 && otherDist <= hashDistanceThreshold+6 {
+			analysis.Warnings = append(analysis.Warnings, "looks_like_loss")
+			analysis.OK = false
+		}
+		if kind == OutcomeLoss && otherDist >= 0 && otherDist <= hashDistanceThreshold+6 {
+			analysis.Warnings = append(analysis.Warnings, "looks_like_win")
+			analysis.OK = false
+		}
+	}
 	// Hard reject only when win/loss samples would collide at match time.
 	if containsWarn(analysis.Warnings, "too_similar_to_other") {
 		return analysis, ErrTemplateTooSimilar
 	}
+	if containsWarn(analysis.Warnings, "looks_like_loss") || containsWarn(analysis.Warnings, "looks_like_win") {
+		return analysis, ErrTemplateWrongKind
+	}
 
-	saved := loadSavedHashes(t.dataDir)
+	saved := normalizeSaved(loadSavedHashes(t.dataDir))
+	saved.Zone = useZone
+	saved.CustomZone = true
+	cb := crop.Bounds()
 	switch kind {
 	case OutcomeWin:
-		t.hashes.setWin(hashStr)
-		t.winQ.Store(int32(analysis.QualityPct))
 		saved.Win = hashStr
+		saved.CustomWin = true
 		saved.WinQuality = analysis.QualityPct
+		saved.WinCropW = cb.Dx()
+		saved.WinCropH = cb.Dy()
 	case OutcomeLoss:
-		t.hashes.setLoss(hashStr)
-		t.lossQ.Store(int32(analysis.QualityPct))
 		saved.Loss = hashStr
+		saved.CustomLoss = true
 		saved.LossQuality = analysis.QualityPct
+		saved.LossCropW = cb.Dx()
+		saved.LossCropH = cb.Dy()
 	}
 	if err := saveHashes(t.dataDir, saved); err != nil {
 		return analysis, err
 	}
+	t.applySavedConfig(saved)
+	t.reloadTemplateImages()
+	_ = saveTemplateCrop(t.dataDir, kind, crop)
 	return analysis, nil
 }
 
@@ -204,38 +400,109 @@ func (t *Tracker) CaptureTemplate(kind Outcome) (string, error) {
 	return s, nil
 }
 
+func (t *Tracker) SaveZone(zone Zone) error {
+	if !zone.Valid() {
+		return ErrZoneInvalid
+	}
+	return t.saveZone(zone)
+}
+
+func (t *Tracker) SwapTemplates() error {
+	saved := normalizeSaved(loadSavedHashes(t.dataDir))
+	if !saved.CustomWin || !saved.CustomLoss {
+		return fmt.Errorf("swap requires custom win and loss samples")
+	}
+	saved.Win, saved.Loss = saved.Loss, saved.Win
+	saved.WinQuality, saved.LossQuality = saved.LossQuality, saved.WinQuality
+	saved.WinCropW, saved.LossCropW = saved.LossCropW, saved.WinCropW
+	saved.WinCropH, saved.LossCropH = saved.LossCropH, saved.WinCropH
+	if err := saveHashes(t.dataDir, saved); err != nil {
+		return err
+	}
+	if err := swapTemplateCropFiles(t.dataDir); err != nil {
+		return err
+	}
+	t.applySavedConfig(saved)
+	t.reloadTemplateImages()
+	return nil
+}
+
+func (t *Tracker) ResetToDefaults() error {
+	mt := int(t.matchThresholdVal.Load())
+	saved := savedHashes{MatchThreshold: mt}
+	removeTemplateCrop(t.dataDir, OutcomeWin)
+	removeTemplateCrop(t.dataDir, OutcomeLoss)
+	if err := saveHashes(t.dataDir, saved); err != nil {
+		return err
+	}
+	t.applySavedConfig(saved)
+	t.reloadTemplateImages()
+	return nil
+}
+
 func (t *Tracker) ClearTemplate(kind Outcome) error {
-	saved := loadSavedHashes(t.dataDir)
+	saved := normalizeSaved(loadSavedHashes(t.dataDir))
 	switch kind {
 	case OutcomeWin:
-		t.hashes.setWin("")
-		t.winQ.Store(0)
+		saved.CustomWin = false
 		saved.Win = ""
 		saved.WinQuality = 0
+		saved.WinCropW = 0
+		saved.WinCropH = 0
+		removeTemplateCrop(t.dataDir, OutcomeWin)
 	case OutcomeLoss:
-		t.hashes.setLoss("")
-		t.lossQ.Store(0)
+		saved.CustomLoss = false
 		saved.Loss = ""
 		saved.LossQuality = 0
+		saved.LossCropW = 0
+		saved.LossCropH = 0
+		removeTemplateCrop(t.dataDir, OutcomeLoss)
 	default:
 		return fmt.Errorf("unknown kind")
 	}
-	if saved.Win == "" || saved.Loss == "" {
+	if saved.CustomWin == false && saved.CustomLoss == false && !saved.CustomZone {
 		t.SetEnabled(false)
 	}
-	return saveHashes(t.dataDir, saved)
+	if err := saveHashes(t.dataDir, saved); err != nil {
+		return err
+	}
+	t.applySavedConfig(saved)
+	return nil
 }
 
 func (t *Tracker) Run(ctx context.Context) {
 	initDPI()
-	log.Printf("owtracker: started (win/loss pHash + state machine)")
+	log.Printf("owtracker: started (text=%v ml=%v)", ml.TextReady(), ml.Ready())
+	if note := ml.TextStatusNote(); note != "" {
+		log.Printf("owtracker: text: %s", note)
+	}
+	if note := ml.StatusNote(); note != "" && ml.Ready() {
+		log.Printf("owtracker: ocr init: %s", note)
+	}
 	for {
 		if !sleep(ctx, 0) {
 			return
 		}
+
 		if !t.enabled.Load() {
 			t.state.Store(StateInactive)
-			if !sleep(ctx, pollInactive) {
+			if !sleep(ctx, pollDisabled) {
+				return
+			}
+			continue
+		}
+
+		if DevMode() && t.testMode.Load() {
+			t.runTestTick(ctx)
+			if !sleep(ctx, t.testPollInterval()) {
+				return
+			}
+			continue
+		}
+
+		if !overwatchProcessRunning() {
+			t.state.Store(StateInactive)
+			if !sleep(ctx, pollNoGame) {
 				return
 			}
 			continue
@@ -243,7 +510,7 @@ func (t *Tracker) Run(ctx context.Context) {
 
 		title := activeWindowTitle()
 		t.lastTitle.Store(title)
-		if !isOverwatchTitle(title) {
+		if !isOverwatchForeground() {
 			t.state.Store(StateInactive)
 			if !sleep(ctx, pollInactive) {
 				return
@@ -263,14 +530,17 @@ func (t *Tracker) Run(ctx context.Context) {
 				t.state.Store(StateMatch)
 				log.Printf("owtracker: STATE_MATCH")
 			}
-			if !sleep(ctx, pollMenu) {
+			if t.tryFinish(ctx) {
+				continue
+			}
+			if !sleep(ctx, t.runtimePollInterval()) {
 				return
 			}
 		case StateMatch:
 			if t.tryFinish(ctx) {
 				continue
 			}
-			if !sleep(ctx, pollMatch) {
+			if !sleep(ctx, t.runtimePollInterval()) {
 				return
 			}
 		default:
@@ -289,45 +559,145 @@ func (t *Tracker) detectMatchHUD() bool {
 	return looksLikeMatchHUD(img)
 }
 
-func (t *Tracker) tryFinish(ctx context.Context) bool {
-	kind, dist, ok := t.classifyCenter()
-	if !ok {
-		return false
-	}
-	if !sleep(ctx, antiBlink) {
-		return true
-	}
-	kind2, dist2, ok2 := t.classifyCenter()
-	if !ok2 || kind2 != kind {
-		log.Printf("owtracker: anti-blink rejected (%s d=%d then %s d=%d)", kind, dist, kind2, dist2)
-		return false
-	}
-	log.Printf("owtracker: confirmed %s (hamming %d then %d)", kind, dist, dist2)
-	if t.onResult != nil {
-		t.onResult(kind)
-	}
-	t.state.Store(StateMenu)
-	_ = sleep(ctx, cooldown)
-	return true
+func (t *Tracker) setLastProbeImage(img image.Image) {
+	t.lastProbeImgMu.Lock()
+	t.lastProbeImg = img
+	t.lastProbeImgMu.Unlock()
 }
 
-func (t *Tracker) classifyCenter() (Outcome, int, bool) {
-	img, err := captureCenter()
+func (t *Tracker) getLastProbeImage() image.Image {
+	t.lastProbeImgMu.Lock()
+	defer t.lastProbeImgMu.Unlock()
+	return t.lastProbeImg
+}
+
+func (t *Tracker) runTestTick(ctx context.Context) {
+	t.state.Store(StateMenu)
+	probe, err := t.ProbeLive()
 	if err != nil {
-		return "", -1, false
+		probe = ProbeResult{
+			At:       time.Now(),
+			Source:   "live",
+			TestMode: true,
+			DryRun:   t.dryRun.Load(),
+			State:    t.StateName(),
+			Notes:    "capture: " + err.Error(),
+		}
+		t.recordProbe(probe)
+		return
 	}
-	h, err := perceptionHash(img)
+	if probe.WouldTrigger && t.dryRun.Load() {
+		probe.RejectedReason = "dry_run"
+	}
+	probe = normalizeTriggerProbe(probe)
+	t.recordProbe(probe)
+
+	if t.dryRun.Load() || !probe.WouldTrigger || (probe.MatchMethod != "ocr" && probe.MatchMethod != "banner" && probe.MatchMethod != "ml" && probe.MatchMethod != "text") {
+		return
+	}
+	t.applyIfReady(ctx, probe)
+}
+
+func (t *Tracker) applyIfReady(ctx context.Context, probe ProbeResult) bool {
+	if t.dryRun.Load() || !probe.WouldTrigger {
+		return false
+	}
+	if !applyProbeAllowed(probe) {
+		log.Printf("owtracker: rejected match=%s gold=%d defeat=%d end=%v (color/shape gate)",
+			probe.Match, probe.GoldPct, probe.DefeatPct, probe.EndScreenActive)
+		return false
+	}
+	if instantApply(probe) {
+		t.applyBannerResult(ctx, probe, "instant")
+		return true
+	}
+	img := t.getLastProbeImage()
+	if img == nil {
+		return false
+	}
+	t.bannerStable.add(probe, img)
+	if confirmed, ok := t.bannerStable.confirm(time.Now()); ok {
+		t.applyBannerResult(ctx, confirmed, "ocr stable")
+		return true
+	}
+	log.Printf("owtracker: candidate match=%s defeat=%d gold=%d (waiting 2nd frame)",
+		probe.Match, probe.DefeatPct, probe.GoldPct)
+	return false
+}
+
+func (t *Tracker) applyBannerResult(ctx context.Context, confirmed ProbeResult, note string) {
+	log.Printf("owtracker: confirmed %s method=%s text=%q", confirmed.Match, confirmed.MatchMethod, confirmed.OcrText)
+	img := t.getLastProbeImage()
+	confirmed.Notes = note
+	confirmed.Applied = true
+	confirmed.WouldTrigger = true
+	t.markApplied(confirmed)
+	t.recordProbe(confirmed)
+	t.learnFromAuto(confirmed, img)
+	if t.onResult != nil {
+		t.onResult(Outcome(confirmed.Match))
+	}
+	t.bannerStable.reset()
+	t.endScreen.reset()
+	_ = sleep(ctx, cooldown)
+}
+
+func (t *Tracker) lastProbeImage() (image.Image, error) {
+	if img := t.getLastProbeImage(); img != nil {
+		return img, nil
+	}
+	zone := t.getZone()
+	if !zone.Valid() {
+		return nil, ErrZoneRequired
+	}
+	if t.testMode.Load() {
+		return t.captureTestZone(zone)
+	}
+	return captureGameZone(zone)
+}
+
+func (t *Tracker) testPollInterval() time.Duration {
+	if t.endScreen.isActive() || t.endScreen.isPending() {
+		return pollTestFast
+	}
+	return pollTestSlow
+}
+
+func (t *Tracker) runtimePollInterval() time.Duration {
+	if t.endScreen.isActive() || t.endScreen.isPending() {
+		return pollEndScreen
+	}
+	if t.state.Load() == StateMatch {
+		return pollMatch
+	}
+	return pollMenu
+}
+
+func (t *Tracker) tryFinish(ctx context.Context) bool {
+	zone := t.getZone()
+	if !zone.Valid() {
+		return false
+	}
+	img, err := captureGameZone(zone)
 	if err != nil {
-		return "", -1, false
+		return false
 	}
-	winT, lossT := t.hashes.get()
-	if d, ok := hashMatches(h, winT); ok {
-		return OutcomeWin, d, true
+	hudImg, _ := captureHUD()
+	hud := looksLikeMatchHUD(hudImg)
+	b := img.Bounds()
+	probe := t.probeCrop(img, b.Dx(), b.Dy(), activeWindowTitle(), hud, "runtime")
+	t.setLastProbeImage(img)
+	if t.debugLogOn.Load() {
+		t.recordProbe(probe)
 	}
-	if d, ok := hashMatches(h, lossT); ok {
-		return OutcomeLoss, d, true
+	if !probe.WouldTrigger || (probe.MatchMethod != "ocr" && probe.MatchMethod != "banner" && probe.MatchMethod != "ml" && probe.MatchMethod != "text") {
+		return false
 	}
-	return "", -1, false
+	if t.applyIfReady(ctx, probe) {
+		t.state.Store(StateMenu)
+		return true
+	}
+	return false
 }
 
 func sleep(ctx context.Context, d time.Duration) bool {

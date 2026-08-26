@@ -35,8 +35,8 @@ func looksLikeMatchHUD(img image.Image) bool {
 			}
 		}
 	}
-	// 40×40 crop: a handful of timer/pip pixels is enough; menus are mostly dark/desaturated.
-	return ui >= total/12 && white >= 4
+	// Small top-center crop: a handful of timer/pip pixels is enough; menus are mostly dark/desaturated.
+	return ui >= total/20 && white >= 2
 }
 
 func isHUDWhite(r, g, b uint8) bool {

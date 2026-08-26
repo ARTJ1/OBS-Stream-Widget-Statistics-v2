@@ -145,11 +145,11 @@ func analyzeImport(kind Outcome, crop image.Image, hashStr, otherHash string, so
 	}
 
 	if otherHash != "" {
-		h, err := perceptionHash(crop)
+		ref, err := goimagehash.ImageHashFromString(hashStr)
 		if err == nil {
-			ref, err := goimagehash.ImageHashFromString(otherHash)
+			otherRef, err := goimagehash.ImageHashFromString(otherHash)
 			if err == nil {
-				if d, err := h.Distance(ref); err == nil {
+				if d, err := ref.Distance(otherRef); err == nil {
 					a.VsOtherDistance = d
 					a.VsOtherPct = similarityPct(d)
 					if d <= hashDistanceThreshold+3 {

@@ -1,4 +1,7 @@
-# Dependencies
+# Embedded OCR binaries (fetched at build time via scripts/fetch-tesseract.ps1)
+internal/owtracker/assets/tesseract/*
+!internal/owtracker/assets/tesseract/.gitkeep
+
 node_modules/
 .venv/
 venv/

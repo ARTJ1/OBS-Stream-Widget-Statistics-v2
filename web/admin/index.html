@@ -176,14 +176,28 @@
         <div class="auto-head">
           <h2>
             <span data-i18n="auto.title">Автозачёт побед и поражений</span>
-            <span class="auto-alpha" data-i18n="auto.alpha">Альфа</span>
+            <span class="auto-beta" data-i18n="auto.beta">Бета</span>
           </h2>
         </div>
-        <p class="setup-note" data-i18n="auto.note">Тестовая функция: виджет сам ставит +1, когда на экране Overwatch появляется плашка конца матча. Во время матча окно игры должно быть поверх остальных.</p>
-        <p class="setup-note" data-i18n="auto.how">Сделайте скриншот экрана «Победа» и «Поражение» в игре (Win+Shift+S или Print Screen) и загрузите файлы сюда. Система сама вырежет центр и посчитает pHash.</p>
+        <p class="setup-note" data-i18n="auto.note">Автоматически добавляет победу или поражение на экране конца матча в Overwatch. Работает только когда игра запущена и автозачёт включён.</p>
+        <p class="setup-note auto-disclaimer" data-i18n="auto.disclaimer">Возможны редкие ошибки — сверяйте счёт после матча. Автораспознавание рангов — в разработке. При выключенном автозачёте экран не анализируется и ПК не нагружается.</p>
+        <p class="setup-note" data-i18n="auto.how">Встроенные эталоны уже установлены. Загрузите свои скрины только если детект ошибается на вашем мониторе или языке клиента.</p>
+
+        <div class="auto-zone-preview" id="autoZonePreviewWrap" hidden>
+          <div class="auto-zone-preview-head">
+            <strong data-i18n="auto.preview">Сейчас видит (зона захвата)</strong>
+            <div class="auto-zone-preview-actions">
+              <button type="button" id="autoZoneEditBtn" class="ghost" data-i18n="auto.zoneEdit">Настроить зону</button>
+              <span class="auto-zone-coords" id="autoZoneCoords"></span>
+            </div>
+          </div>
+          <img id="autoLivePreview" alt="" class="auto-live-preview-img">
+          <p class="auto-zone-metrics setup-note" id="autoZoneMetrics" hidden></p>
+        </div>
 
         <div class="auto-templates">
           <div class="auto-chip" id="autoWinChip" data-ready="0">
+            <img id="autoWinThumb" class="auto-template-thumb" alt="" hidden>
             <span class="auto-chip-dot" aria-hidden="true"></span>
             <div class="auto-chip-body">
               <strong data-i18n="auto.winTpl">Образец победы</strong>
@@ -199,6 +213,7 @@
             </div>
           </div>
           <div class="auto-chip" id="autoLossChip" data-ready="0">
+            <img id="autoLossThumb" class="auto-template-thumb" alt="" hidden>
             <span class="auto-chip-dot" aria-hidden="true"></span>
             <div class="auto-chip-body">
               <strong data-i18n="auto.lossTpl">Образец поражения</strong>
@@ -214,7 +229,12 @@
             </div>
           </div>
         </div>
+        <div class="auto-template-tools" id="autoTemplateTools" hidden>
+          <button type="button" id="autoSwapTemplatesBtn" class="ghost" hidden data-i18n="auto.swapTemplates">Поменять win/loss местами</button>
+          <button type="button" id="autoResetDefaultsBtn" class="ghost" data-i18n="auto.resetDefaults">Вернуть заводские эталоны</button>
+        </div>
         <p class="auto-ready" id="autoReadyText"></p>
+        <div class="auto-mode-banner" id="autoModeBanner" hidden></div>
         <div class="auto-feedback" id="autoAnalysisText" hidden></div>
 
         <div class="auto-switch-row">
@@ -227,6 +247,54 @@
             <span class="setup-note" id="autoFocusText"></span>
           </div>
         </div>
+
+        <details class="auto-debug" id="autoDebugPanel" hidden>
+          <summary data-i18n="auto.debug.title">Тест и отладка (без игры)</summary>
+          <p class="setup-note" data-i18n="auto.debug.note">Для проверки стрима/ролика: включите «Тестовый режим» ниже. Для реальной игры — выключите его и включите переключатель автозачёта. Счёт не меняется, пока включён «Только лог».</p>
+          <p class="setup-note" data-i18n="auto.debug.streamHint">Для стрима/ролика: полноэкран (F11), захват «экран + окно». Сжатие видео увеличивает расстояние — смотрите колонки win/loss в логе (нужно ≤ порога).</p>
+          <div class="auto-debug-toggles">
+            <label class="auto-debug-toggle">
+              <input type="checkbox" id="autoTestMode">
+              <span data-i18n="auto.debug.testMode">Тестовый режим (любое окно)</span>
+            </label>
+            <label class="auto-debug-toggle">
+              <input type="checkbox" id="autoDebugLog" checked>
+              <span data-i18n="auto.debug.debugLog">Запись лога</span>
+            </label>
+            <label class="auto-debug-toggle">
+              <input type="checkbox" id="autoDryRun">
+              <span data-i18n="auto.debug.dryRun">Только лог (не менять счёт)</span>
+            </label>
+          </div>
+          <div class="auto-debug-settings">
+            <label>
+              <span data-i18n="auto.debug.captureSource">Захват</span>
+              <select id="autoCaptureSource">
+                <option value="both" data-i18n="auto.debug.captureBoth">Экран + окно (лучший)</option>
+                <option value="screen" data-i18n="auto.debug.captureScreen">Только центр экрана</option>
+                <option value="window" data-i18n="auto.debug.captureWindow">Только центр окна</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="auto.debug.matchThreshold">Порог расстояния</span>
+              <input type="number" id="autoMatchThreshold" min="5" max="32" value="12">
+            </label>
+          </div>
+          <div class="auto-debug-actions">
+            <button type="button" id="autoProbeBtn" data-i18n="auto.debug.probe">Проверить экран сейчас</button>
+            <label class="auto-upload-btn">
+              <input type="file" id="autoDebugFile" accept="image/png,image/jpeg,image/jpg,image/gif,.png,.jpg,.jpeg" hidden>
+              <span data-i18n="auto.debug.upload">Проверить файл</span>
+            </label>
+            <button type="button" id="autoDebugClearBtn" data-i18n="auto.debug.clear">Очистить лог</button>
+            <button type="button" id="autoTrainWinBtn" data-i18n="auto.debug.trainWin">Сохранить кроп: победа</button>
+            <button type="button" id="autoTrainLossBtn" data-i18n="auto.debug.trainLoss">Сохранить кроп: поражение</button>
+          </div>
+          <p class="setup-note" data-i18n="auto.debug.mlHint">Нейросеть v5: OCR отключён. Сохраните 5–10 кропов победы/поражения с Twitch, затем пересоберите exe (python scripts/ml/train_banner.py).</p>
+          <p class="setup-note auto-debug-path" id="autoDebugPath"></p>
+          <div class="auto-debug-last" id="autoDebugLast" hidden></div>
+          <div class="auto-debug-log" id="autoDebugLogBox"></div>
+        </details>
       </section>
 
       <section class="panel">
@@ -528,6 +596,30 @@
       </section>
     </section>
   </main>
+
+  <div id="autoRoiModal" class="auto-roi-modal" hidden>
+    <div class="auto-roi-dialog" role="dialog" aria-modal="true" aria-labelledby="autoRoiTitle">
+      <h3 id="autoRoiTitle" data-i18n="auto.roi.title">Выделите зону плашки</h3>
+      <p class="setup-note" data-i18n="auto.roi.hint">Обведите прямоугольником область с надписью ПОБЕДА или ПОРАЖЕНИЕ. Эта же зона будет использоваться при игре на этом мониторе.</p>
+      <div class="auto-roi-fields">
+        <label>X % <input type="number" id="roiX" min="0" max="100" step="0.1"></label>
+        <label>Y % <input type="number" id="roiY" min="0" max="100" step="0.1"></label>
+        <label>W % <input type="number" id="roiW" min="1" max="100" step="0.1"></label>
+        <label>H % <input type="number" id="roiH" min="1" max="100" step="0.1"></label>
+      </div>
+      <div class="auto-roi-stage" id="autoRoiStage">
+        <img id="autoRoiImg" alt="" draggable="false">
+        <div id="autoRoiBox" class="auto-roi-box">
+          <span class="auto-roi-handle auto-roi-handle-br" data-handle="br"></span>
+        </div>
+      </div>
+      <div class="auto-roi-actions">
+        <button type="button" id="autoRoiCancel" data-i18n="auto.roi.cancel">Отмена</button>
+        <button type="button" id="autoRoiSave" class="primary" data-i18n="auto.roi.save">Сохранить образец</button>
+      </div>
+    </div>
+  </div>
+
   <script src="i18n.js"></script>
   <script src="fonts.js"></script>
   <script src="skins.js"></script>

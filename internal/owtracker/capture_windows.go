@@ -54,15 +54,54 @@ func screenSize() (int, int) {
 	return b.Dx(), b.Dy()
 }
 
+func isOverwatchForeground() bool {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return false
+	}
+	return hwndIsOverwatchGame(hwnd)
+}
+
+func hwndIsOverwatchGame(hwnd uintptr) bool {
+	if isOverwatchTitle(windowTitle(hwnd)) {
+		return true
+	}
+	// Exclusive fullscreen often has an empty caption; match by process instead.
+	var pid uint32
+	_, _, _ = procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	_, ok := overwatchPIDs()[pid]
+	return ok
+}
+
 func overwatchClientBounds() (x, y, w, h int, ok bool) {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
 		return 0, 0, 0, 0, false
 	}
-	if !isOverwatchTitle(windowTitle(hwnd)) {
+	if !hwndIsOverwatchGame(hwnd) {
 		return 0, 0, 0, 0, false
 	}
 	return clientBoundsOf(hwnd)
+}
+
+func foregroundClientBounds() (x, y, w, h int, ok bool) {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return 0, 0, 0, 0, false
+	}
+	return clientBoundsOf(hwnd)
+}
+
+func foregroundClientBoundsWithTitle() (x, y, w, h int, title string, ok bool) {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return 0, 0, 0, 0, "", false
+	}
+	x, y, w, h, ok = clientBoundsOf(hwnd)
+	if !ok {
+		return 0, 0, 0, 0, "", false
+	}
+	return x, y, w, h, windowTitle(hwnd), true
 }
 
 func windowTitle(hwnd uintptr) string {

@@ -8,10 +8,52 @@ import (
 )
 
 type savedHashes struct {
-	Win         string `json:"win"`
-	Loss        string `json:"loss"`
-	WinQuality  int    `json:"winQuality,omitempty"`
-	LossQuality int    `json:"lossQuality,omitempty"`
+	Win            string `json:"win,omitempty"`
+	Loss           string `json:"loss,omitempty"`
+	WinQuality     int    `json:"winQuality,omitempty"`
+	LossQuality    int    `json:"lossQuality,omitempty"`
+	MatchThreshold int    `json:"matchThreshold,omitempty"`
+	WinCropW       int    `json:"winCropW,omitempty"`
+	WinCropH       int    `json:"winCropH,omitempty"`
+	LossCropW      int    `json:"lossCropW,omitempty"`
+	LossCropH      int    `json:"lossCropH,omitempty"`
+	Zone           Zone   `json:"zone,omitempty"`
+	CustomWin      bool   `json:"customWin,omitempty"`
+	CustomLoss     bool   `json:"customLoss,omitempty"`
+	CustomZone     bool   `json:"customZone,omitempty"`
+}
+
+func effectiveConfig(saved savedHashes) savedHashes {
+	out := savedHashes{
+		Win:            defaultWinHash,
+		Loss:           defaultLossHash,
+		WinQuality:     100,
+		LossQuality:    100,
+		MatchThreshold: saved.MatchThreshold,
+		Zone:           defaultZone,
+	}
+	if saved.CustomWin && saved.Win != "" {
+		out.Win = saved.Win
+		out.WinQuality = saved.WinQuality
+		out.WinCropW = saved.WinCropW
+		out.WinCropH = saved.WinCropH
+		out.CustomWin = true
+	}
+	if saved.CustomLoss && saved.Loss != "" {
+		out.Loss = saved.Loss
+		out.LossQuality = saved.LossQuality
+		out.LossCropW = saved.LossCropW
+		out.LossCropH = saved.LossCropH
+		out.CustomLoss = true
+	}
+	if saved.CustomZone && saved.Zone.Valid() {
+		out.Zone = saved.Zone
+		out.CustomZone = true
+	}
+	if out.MatchThreshold < 5 || out.MatchThreshold > 32 {
+		out.MatchThreshold = defaultMatchThreshold
+	}
+	return out
 }
 
 func templatesPath(dir string) string {

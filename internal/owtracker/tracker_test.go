@@ -21,7 +21,10 @@ func TestIsOverwatchTitle(t *testing.T) {
 	if !isOverwatchTitle("Overwatch") || !isOverwatchTitle(" Overwatch 2 ") {
 		t.Fatal("expected Overwatch titles to match")
 	}
-	if isOverwatchTitle("Chrome") || isOverwatchTitle("Overwatch 2 - Battle.net") {
+	if !isOverwatchTitle("Overwatch 2 - Battle.net") {
+		t.Fatal("expected Battle.net style title to match")
+	}
+	if isOverwatchTitle("Chrome") || isOverwatchTitle("") {
 		t.Fatal("expected non-game titles to be rejected")
 	}
 }
@@ -50,18 +53,18 @@ func TestLooksLikeMatchHUD(t *testing.T) {
 	if looksLikeMatchHUD(dark) {
 		t.Fatal("dark crop should not look like HUD")
 	}
-	hud := image.NewRGBA(image.Rect(0, 0, 40, 40))
+	hud := image.NewRGBA(image.Rect(0, 0, 80, 48))
 	draw.Draw(hud, hud.Bounds(), &image.Uniform{C: color.RGBA{R: 8, G: 10, B: 14, A: 255}}, image.Point{}, draw.Src)
 	for y := 8; y < 20; y++ {
-		for x := 10; x < 30; x++ {
+		for x := 20; x < 60; x++ {
 			hud.Set(x, y, color.RGBA{R: 240, G: 240, B: 245, A: 255})
 		}
 	}
-	for y := 22; y < 30; y++ {
-		for x := 6; x < 14; x++ {
+	for y := 24; y < 36; y++ {
+		for x := 10; x < 22; x++ {
 			hud.Set(x, y, color.RGBA{R: 70, G: 140, B: 230, A: 255})
 		}
-		for x := 26; x < 34; x++ {
+		for x := 58; x < 70; x++ {
 			hud.Set(x, y, color.RGBA{R: 230, G: 90, B: 40, A: 255})
 		}
 	}

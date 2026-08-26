@@ -22,7 +22,7 @@ func hashMatches(cur *goimagehash.ImageHash, template string) (int, bool) {
 	if cur == nil || template == "" {
 		return -1, false
 	}
-	ref, err := goimagehash.ImageHashFromString(template)
+	ref, err := hashFromString(template)
 	if err != nil {
 		return -1, false
 	}
@@ -31,4 +31,23 @@ func hashMatches(cur *goimagehash.ImageHash, template string) (int, bool) {
 		return -1, false
 	}
 	return d, d <= hashDistanceThreshold
+}
+
+func hashFromString(s string) (*goimagehash.ImageHash, error) {
+	return goimagehash.ImageHashFromString(s)
+}
+
+func hammingDistance(cur *goimagehash.ImageHash, template string) int {
+	if cur == nil || template == "" {
+		return -1
+	}
+	ref, err := hashFromString(template)
+	if err != nil {
+		return -1
+	}
+	d, err := cur.Distance(ref)
+	if err != nil {
+		return -1
+	}
+	return d
 }

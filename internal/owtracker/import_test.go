@@ -51,7 +51,7 @@ func TestImportTemplateFromPNG(t *testing.T) {
 	if err := png.Encode(&buf, img); err != nil {
 		t.Fatal(err)
 	}
-	a, err := tr.ImportTemplate(OutcomeWin, &buf)
+	a, err := tr.ImportTemplate(OutcomeWin, &buf, DefaultZone())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -100,10 +101,14 @@ func (s *Server) automationImportUpload(w http.ResponseWriter, r *http.Request, 
 	}
 
 	limited := io.LimitReader(file, 20<<20)
-	analysis, err := s.Auto.ImportTemplate(kind, limited)
+	zone := owtracker.ParseZoneForm(r.FormValue("zoneX"), r.FormValue("zoneY"), r.FormValue("zoneW"), r.FormValue("zoneH"))
+	analysis, err := s.Auto.ImportTemplate(kind, limited, zone)
 	if err != nil {
 		code := http.StatusBadRequest
 		if errors.Is(err, owtracker.ErrTemplateTooSimilar) {
+			code = http.StatusConflict
+		}
+		if errors.Is(err, owtracker.ErrTemplateWrongKind) {
 			code = http.StatusConflict
 		}
 		writeJSON(w, code, map[string]any{
@@ -119,4 +124,94 @@ func (s *Server) automationImportUpload(w http.ResponseWriter, r *http.Request, 
 		"analysis": analysis,
 		"status":   s.Auto.Status(),
 	})
+}
+
+func (s *Server) automationZone(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Auto == nil {
+		http.Error(w, "automation unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	zone := owtracker.ParseZoneForm(r.FormValue("zoneX"), r.FormValue("zoneY"), r.FormValue("zoneW"), r.FormValue("zoneH"))
+	if err := s.Auto.SaveZone(zone); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": s.Auto.Status()})
+}
+
+func (s *Server) automationSwapTemplates(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Auto == nil {
+		http.Error(w, "automation unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err := s.Auto.SwapTemplates(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": s.Auto.Status()})
+}
+
+func (s *Server) automationTemplateImage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Auto == nil {
+		http.Error(w, "automation unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	kind := owtracker.Outcome(strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind"))))
+	if kind != owtracker.OutcomeWin && kind != owtracker.OutcomeLoss {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "kind=win or kind=loss required"})
+		return
+	}
+	path := s.Auto.TemplateCropFile(kind)
+	if path != "" {
+		f, err := os.Open(path)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = io.Copy(w, f)
+		return
+	}
+	b, err := s.Auto.BuiltinTemplateBytes(kind)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(b)
+}
+
+func (s *Server) automationResetDefaults(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.Auto == nil {
+		http.Error(w, "automation unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if err := s.Auto.ResetToDefaults(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": s.Auto.Status()})
 }

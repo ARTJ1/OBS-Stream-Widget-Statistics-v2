@@ -1232,7 +1232,12 @@ async function boot() {
   await loadCustomSkins();
   connectWS();
   refreshAutoStatus();
-  if (!autoPollTimer) autoPollTimer = setInterval(refreshAutoStatus, 2000);
+  if (!autoPollTimer) {
+    autoPollTimer = setInterval(() => {
+      refreshAutoStatus();
+      if (lastAuto?.devMode) refreshDebugLog();
+    }, 5000);
+  }
   checkForUpdates({ forceBanner: new URLSearchParams(location.search).has('update') });
   try {
     await api('/api/obs/connect', { method: 'POST' });
@@ -1250,17 +1255,281 @@ async function boot() {
   }
 }
 
-let lastAuto = { enabled: false, state: 'inactive', winTemplateReady: false, lossTemplateReady: false, winQuality: 0, lossQuality: 0 };
+let lastAuto = { enabled: false, state: 'inactive', winTemplateReady: false, lossTemplateReady: false, winQuality: 0, lossQuality: 0, zoneReady: false, devMode: false };
 let autoPollTimer = 0;
+let autoPreviewTimer = 0;
 let lastAutoAnalysis = null;
+let roiPreviewBlob = null;
+let roiPendingKind = null;
+let roiPendingFile = null;
+let roiObjectUrl = '';
+const roiState = { xPct: 37.5, yPct: 45, wPct: 25, hPct: 10 };
+let roiDrag = null;
 
 function templatesReady(st) {
-  return !!(st?.winTemplateReady && st?.lossTemplateReady);
+  return !!(st?.winTemplateReady && st?.lossTemplateReady && st?.zoneReady);
 }
 
-function fillAutoChip(chip, textEl, qualityEl, ready, quality, uploadLabel) {
+function clampRoi() {
+  roiState.wPct = Math.max(1, Math.min(100, Number(roiState.wPct) || 1));
+  roiState.hPct = Math.max(1, Math.min(100, Number(roiState.hPct) || 1));
+  roiState.xPct = Math.max(0, Math.min(100 - roiState.wPct, Number(roiState.xPct) || 0));
+  roiState.yPct = Math.max(0, Math.min(100 - roiState.hPct, Number(roiState.yPct) || 0));
+}
+
+function syncRoiInputs() {
+  clampRoi();
+  const map = { roiX: 'xPct', roiY: 'yPct', roiW: 'wPct', roiH: 'hPct' };
+  for (const [id, key] of Object.entries(map)) {
+    const el = document.getElementById(id);
+    if (el) el.value = roiState[key].toFixed(1);
+  }
+  renderRoiBox();
+}
+
+function renderRoiBox() {
+  const box = document.getElementById('autoRoiBox');
+  if (!box) return;
+  box.style.left = `${roiState.xPct}%`;
+  box.style.top = `${roiState.yPct}%`;
+  box.style.width = `${roiState.wPct}%`;
+  box.style.height = `${roiState.hPct}%`;
+}
+
+function closeRoiModal() {
+  const modal = document.getElementById('autoRoiModal');
+  if (modal) modal.hidden = true;
+  roiPendingKind = null;
+  roiPendingFile = null;
+  if (roiObjectUrl) {
+    URL.revokeObjectURL(roiObjectUrl);
+    roiObjectUrl = '';
+  }
+}
+
+function openRoiPicker(kind, file) {
+  if (kind !== 'zone' && !file) return;
+  roiPendingKind = kind;
+  roiPendingFile = file || null;
+  if (lastAuto?.zoneReady && lastAuto.zone) {
+    Object.assign(roiState, lastAuto.zone);
+  } else {
+    Object.assign(roiState, { xPct: 37.5, yPct: 45, wPct: 25, hPct: 10 });
+  }
+  const img = document.getElementById('autoRoiImg');
+  if (roiObjectUrl) URL.revokeObjectURL(roiObjectUrl);
+  if (file) {
+    roiObjectUrl = URL.createObjectURL(file);
+    if (img) img.src = roiObjectUrl;
+  }
+  const title = document.getElementById('autoRoiTitle');
+  if (title) {
+    const key = kind === 'zone' ? 'auto.roi.titleZone' : kind === 'win' ? 'auto.roi.titleWin' : kind === 'loss' ? 'auto.roi.titleLoss' : 'auto.roi.title';
+    title.textContent = t(key);
+  }
+  const saveBtn = document.getElementById('autoRoiSave');
+  if (saveBtn) {
+    saveBtn.textContent = t(kind === 'zone' ? 'auto.roi.saveZone' : 'auto.roi.save');
+  }
+  const modal = document.getElementById('autoRoiModal');
+  if (modal) modal.hidden = false;
+  syncRoiInputs();
+}
+
+async function openZoneEditorFromPreview() {
+  setAutoFeedback('warn', t('auto.zoneLoading'), '');
+  try {
+    const res = await fetch(`/api/automation/preview?t=${Date.now()}`);
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    roiPreviewBlob = blob;
+    if (roiObjectUrl) URL.revokeObjectURL(roiObjectUrl);
+    roiObjectUrl = URL.createObjectURL(blob);
+    const img = document.getElementById('autoRoiImg');
+    if (img) img.src = roiObjectUrl;
+    roiPendingKind = 'zone';
+    roiPendingFile = null;
+    if (lastAuto?.zone) Object.assign(roiState, lastAuto.zone);
+    const title = document.getElementById('autoRoiTitle');
+    if (title) title.textContent = t('auto.roi.titleZone');
+    const saveBtn = document.getElementById('autoRoiSave');
+    if (saveBtn) saveBtn.textContent = t('auto.roi.saveZone');
+    const modal = document.getElementById('autoRoiModal');
+    if (modal) modal.hidden = false;
+    syncRoiInputs();
+    clearAutoFeedback();
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+}
+
+async function saveZoneOnly() {
+  clampRoi();
+  try {
+    const q = new URLSearchParams({
+      zoneX: String(roiState.xPct),
+      zoneY: String(roiState.yPct),
+      zoneW: String(roiState.wPct),
+      zoneH: String(roiState.hPct),
+    });
+    const data = await api(`/api/automation/zone?${q}`, { method: 'POST' });
+    if (data.status) renderAutoStatus(data.status);
+    closeRoiModal();
+    refreshLivePreview();
+    setAutoFeedback('warn', t('auto.zoneSaved'), t('auto.zoneSavedHint'));
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+}
+
+function refreshTemplateThumbs(st) {
+  const winImg = document.getElementById('autoWinThumb');
+  const lossImg = document.getElementById('autoLossThumb');
+  if (winImg) {
+    if (st?.winTemplateReady) {
+      winImg.hidden = false;
+      winImg.src = `/api/automation/template?kind=win&t=${Date.now()}`;
+    } else {
+      winImg.hidden = true;
+      winImg.removeAttribute('src');
+    }
+  }
+  if (lossImg) {
+    if (st?.lossTemplateReady) {
+      lossImg.hidden = false;
+      lossImg.src = `/api/automation/template?kind=loss&t=${Date.now()}`;
+    } else {
+      lossImg.hidden = true;
+      lossImg.removeAttribute('src');
+    }
+  }
+  const swapBtn = document.getElementById('autoSwapTemplatesBtn');
+  if (swapBtn) swapBtn.hidden = !(st?.winCustom && st?.lossCustom);
+}
+
+function roiPointFromEvent(e, stage) {
+  const rect = stage.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 100;
+  const y = ((e.clientY - rect.top) / rect.height) * 100;
+  return { x, y };
+}
+
+function bindRoiEditor() {
+  const stage = document.getElementById('autoRoiStage');
+  const box = document.getElementById('autoRoiBox');
+  if (!stage || !box) return;
+
+  box.addEventListener('pointerdown', (e) => {
+    if (e.target?.dataset?.handle) {
+      roiDrag = { mode: 'resize', start: roiPointFromEvent(e, stage), orig: { ...roiState } };
+    } else {
+      roiDrag = { mode: 'move', start: roiPointFromEvent(e, stage), orig: { ...roiState } };
+    }
+    box.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!roiDrag) return;
+    const p = roiPointFromEvent(e, stage);
+    const dx = p.x - roiDrag.start.x;
+    const dy = p.y - roiDrag.start.y;
+    if (roiDrag.mode === 'move') {
+      roiState.xPct = roiDrag.orig.xPct + dx;
+      roiState.yPct = roiDrag.orig.yPct + dy;
+    } else {
+      roiState.wPct = roiDrag.orig.wPct + dx;
+      roiState.hPct = roiDrag.orig.hPct + dy;
+    }
+    syncRoiInputs();
+  });
+  box.addEventListener('pointerup', () => { roiDrag = null; });
+  box.addEventListener('pointercancel', () => { roiDrag = null; });
+
+  for (const id of ['roiX', 'roiY', 'roiW', 'roiH']) {
+    document.getElementById(id)?.addEventListener('change', (e) => {
+      const key = id === 'roiX' ? 'xPct' : id === 'roiY' ? 'yPct' : id === 'roiW' ? 'wPct' : 'hPct';
+      roiState[key] = Number(e.target.value);
+      syncRoiInputs();
+    });
+  }
+
+  document.getElementById('autoRoiCancel')?.addEventListener('click', closeRoiModal);
+  document.getElementById('autoRoiSave')?.addEventListener('click', () => {
+    if (roiPendingKind === 'zone') saveZoneOnly();
+    else uploadTemplate(roiPendingKind, roiPendingFile, roiState);
+  });
+}
+
+async function refreshLivePreview() {
+  if (!lastAuto?.zoneReady) return;
+  const wrap = document.getElementById('autoZonePreviewWrap');
+  const img = document.getElementById('autoLivePreview');
+  const metrics = document.getElementById('autoZoneMetrics');
+  if (!wrap || !img) return;
+  wrap.hidden = false;
+  img.src = `/api/automation/preview?t=${Date.now()}`;
+  const z = lastAuto.zone;
+  const coords = document.getElementById('autoZoneCoords');
+  if (coords && z) {
+    coords.textContent = `X ${z.xPct?.toFixed?.(1) ?? z.xPct}% · Y ${z.yPct?.toFixed?.(1) ?? z.yPct}% · ${z.wPct?.toFixed?.(1) ?? z.wPct}%×${z.hPct?.toFixed?.(1) ?? z.hPct}%`;
+  }
+  try {
+    const data = await api('/api/automation/preview/status');
+    const p = data.probe;
+    if (metrics && p) {
+      metrics.hidden = false;
+      const win = p.winDistance >= 0 ? p.winDistance : '—';
+      const loss = p.lossDistance >= 0 ? p.lossDistance : '—';
+      const winPct = p.winPixelPct >= 0 ? p.winPixelPct : '—';
+      const lossPct = p.lossPixelPct >= 0 ? p.lossPixelPct : '—';
+      const thr = p.threshold ?? 12;
+      let line = t('auto.previewMetrics', { win, loss, winPct, lossPct, thr });
+      if (p.wouldTrigger) {
+        line += ` · ${t('auto.previewHit', { match: p.match })}`;
+        metrics.classList.add('is-hit');
+      } else {
+        metrics.classList.remove('is-hit');
+        if (p.ambiguous) line += ` · ${t('auto.previewAmbiguous')}`;
+        if (lastDebug?.dryRun) line += ` · ${t('auto.previewDryRun')}`;
+      }
+      metrics.textContent = line;
+    }
+  } catch {
+    if (metrics) metrics.hidden = true;
+  }
+}
+
+function stopAutoPreviewPoll() {
+  if (autoPreviewTimer) {
+    clearInterval(autoPreviewTimer);
+    autoPreviewTimer = 0;
+  }
+}
+
+function startAutoPreviewPoll() {
+  if (autoPreviewTimer || !lastAuto?.devMode || !lastAuto?.enabled) return;
+  refreshLivePreview();
+  autoPreviewTimer = setInterval(refreshLivePreview, 2000);
+}
+
+function applyDevAutomationUI() {
+  const dev = !!lastAuto?.devMode;
+  const debugPanel = document.getElementById('autoDebugPanel');
+  const tools = document.getElementById('autoTemplateTools');
+  const modeBanner = document.getElementById('autoModeBanner');
+  if (debugPanel) debugPanel.hidden = !dev;
+  if (tools) tools.hidden = !dev;
+  if (modeBanner && !dev) modeBanner.hidden = true;
+  if (!dev) stopAutoPreviewPoll();
+}
+
+function fillAutoChip(chip, textEl, qualityEl, ready, quality, uploadLabel, custom) {
   if (chip) chip.dataset.ready = ready ? '1' : '0';
-  if (textEl) textEl.textContent = t(ready ? 'auto.tplReady' : 'auto.tplMissing');
+  if (chip) chip.dataset.custom = custom ? '1' : '0';
+  if (textEl) {
+    const base = t(ready ? 'auto.tplReady' : 'auto.tplMissing');
+    textEl.textContent = ready ? `${base} · ${t(custom ? 'auto.tplCustom' : 'auto.tplBuiltin')}` : base;
+  }
   if (uploadLabel) uploadLabel.textContent = t(ready ? 'auto.reupload' : 'auto.upload');
   if (qualityEl) {
     if (ready && quality > 0) {
@@ -1350,6 +1619,7 @@ function renderAutoStatus(st) {
     lastAuto.winTemplateReady,
     lastAuto.winQuality || 0,
     document.querySelector('#autoWinFile')?.closest('label')?.querySelector('span'),
+    !!lastAuto.winCustom,
   );
   fillAutoChip(
     document.getElementById('autoLossChip'),
@@ -1358,9 +1628,11 @@ function renderAutoStatus(st) {
     lastAuto.lossTemplateReady,
     lastAuto.lossQuality || 0,
     document.querySelector('#autoLossFile')?.closest('label')?.querySelector('span'),
+    !!lastAuto.lossCustom,
   );
-  document.getElementById('autoDeleteWinBtn').hidden = !lastAuto.winTemplateReady;
-  document.getElementById('autoDeleteLossBtn').hidden = !lastAuto.lossTemplateReady;
+  document.getElementById('autoDeleteWinBtn').hidden = !lastAuto.winCustom;
+  document.getElementById('autoDeleteLossBtn').hidden = !lastAuto.lossCustom;
+  refreshTemplateThumbs(lastAuto);
 
   const readyEl = document.getElementById('autoReadyText');
   if (readyEl) {
@@ -1382,7 +1654,9 @@ function renderAutoStatus(st) {
   const focus = document.getElementById('autoFocusText');
   if (focus) {
     if (!lastAuto.enabled) {
-      focus.textContent = ready ? '' : t('auto.needBoth');
+      focus.textContent = t('auto.disabledOff');
+    } else if (!lastAuto.gameRunning) {
+      focus.textContent = t('auto.gameOff');
     } else if (lastAuto.state === 'match') {
       focus.textContent = t('auto.watching');
     } else if (lastAuto.state === 'menu') {
@@ -1391,6 +1665,13 @@ function renderAutoStatus(st) {
       focus.textContent = t('auto.focusOff');
     }
   }
+
+  applyDevAutomationUI();
+  const previewWrap = document.getElementById('autoZonePreviewWrap');
+  if (previewWrap) previewWrap.hidden = !lastAuto.devMode || !lastAuto.zoneReady;
+  if (lastAuto.devMode && lastAuto.enabled && lastAuto.zoneReady) startAutoPreviewPoll();
+  else stopAutoPreviewPoll();
+  if (lastAuto.devMode && lastDebug) renderAutoModeBanner(lastDebug);
 }
 
 async function refreshAutoStatus() {
@@ -1418,11 +1699,17 @@ document.getElementById('autoToggle')?.addEventListener('change', async (e) => {
   }
 });
 
-async function uploadTemplate(kind, file) {
+async function uploadTemplate(kind, file, zone) {
   if (!file) return;
   setAutoFeedback('warn', t('auto.uploading'), '');
   const body = new FormData();
   body.append('file', file);
+  if (zone) {
+    body.append('zoneX', String(zone.xPct));
+    body.append('zoneY', String(zone.yPct));
+    body.append('zoneW', String(zone.wPct));
+    body.append('zoneH', String(zone.hPct));
+  }
   try {
     const res = await fetch(`/api/automation/capture?kind=${encodeURIComponent(kind)}`, {
       method: 'POST',
@@ -1436,6 +1723,10 @@ async function uploadTemplate(kind, file) {
       if (data?.analysis) showAutoAnalysis(data.analysis, { rejected: true });
       else if (String(data?.error || '').includes('template_too_similar_to_other')) {
         setAutoFeedback('bad', t('auto.tooSimilar'), t('auto.uploadHint'));
+      } else if (String(data?.error || '').includes('template_wrong_kind')) {
+        setAutoFeedback('bad', t('auto.wrongKind'), t('auto.uploadHint'));
+      } else if (String(data?.error || '').includes('zone')) {
+        setAutoFeedback('bad', t('auto.roi.required'), '');
       } else if (/decode|PNG|JPG|image/i.test(String(data?.error || text || ''))) {
         setAutoFeedback('bad', t('auto.badFile'), t('auto.uploadHint'));
       } else {
@@ -1445,6 +1736,8 @@ async function uploadTemplate(kind, file) {
     }
     if (data.analysis) showAutoAnalysis(data.analysis);
     else setAutoFeedback('ok', t('auto.analysisOk', { n: data.status?.winQuality || data.status?.lossQuality || 100 }), '');
+    closeRoiModal();
+    refreshLivePreview();
   } catch (err) {
     setAutoFeedback('bad', String(err.message || err), t('auto.uploadHint'));
   }
@@ -1466,7 +1759,7 @@ function bindAutoUpload(inputId, kind, chipId) {
   input?.addEventListener('change', async () => {
     const file = input.files?.[0];
     input.value = '';
-    await uploadTemplate(kind, file);
+    if (file) openRoiPicker(kind, file);
   });
   if (!chip) return;
   chip.addEventListener('dragover', (e) => {
@@ -1478,14 +1771,306 @@ function bindAutoUpload(inputId, kind, chipId) {
     e.preventDefault();
     chip.dataset.drag = '0';
     const file = e.dataTransfer?.files?.[0];
-    if (file) await uploadTemplate(kind, file);
+    if (file) openRoiPicker(kind, file);
   });
 }
 
 bindAutoUpload('autoWinFile', 'win', 'autoWinChip');
 bindAutoUpload('autoLossFile', 'loss', 'autoLossChip');
+bindRoiEditor();
+document.getElementById('autoZoneEditBtn')?.addEventListener('click', openZoneEditorFromPreview);
+document.getElementById('autoSwapTemplatesBtn')?.addEventListener('click', async () => {
+  try {
+    const data = await api('/api/automation/swap', { method: 'POST' });
+    if (data.status) renderAutoStatus(data.status);
+    setAutoFeedback('ok', t('auto.swapDone'), t('auto.swapHint'));
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
+document.getElementById('autoResetDefaultsBtn')?.addEventListener('click', async () => {
+  if (!window.confirm(t('auto.resetDefaultsConfirm'))) return;
+  try {
+    const data = await api('/api/automation/reset-defaults', { method: 'POST' });
+    if (data.status) renderAutoStatus(data.status);
+    refreshLivePreview();
+    setAutoFeedback('ok', t('auto.resetDefaultsDone'), '');
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
 document.getElementById('autoDeleteWinBtn')?.addEventListener('click', () => deleteTemplate('win'));
 document.getElementById('autoDeleteLossBtn')?.addEventListener('click', () => deleteTemplate('loss'));
+
+let lastDebug = null;
+let autoDebugPollTimer = 0;
+
+function formatProbeLine(p) {
+  if (!p) return '';
+  const time = p.at ? new Date(p.at).toLocaleTimeString() : '—';
+  const win = p.winDistance >= 0 ? `${p.winDistance}/${p.winSimilarityPct ?? 0}%` : '—';
+  const loss = p.lossDistance >= 0 ? `${p.lossDistance}/${p.lossSimilarityPct ?? 0}%` : '—';
+  let match = '—';
+  if (p.applied) match = `+${p.match || '?'}`;
+  else if (p.wouldTrigger) match = `${p.match || '?'}?`;
+  else if (p.rejectedReason) match = `×${p.match || '?'}`;
+  const src = p.source || '';
+  const title = (p.windowTitle || p.notes || p.rejectedReason || '').slice(0, 40);
+  return { time, win, loss, match, src, title, hit: !!p.applied };
+}
+
+function renderDebugLast(probe) {
+  const el = document.getElementById('autoDebugLast');
+  if (!el || !probe) return;
+  el.hidden = false;
+  el.classList.toggle('is-hit', !!probe.applied);
+  const parts = [];
+  parts.push(`<strong>${escapeHtml(t('auto.debug.last'))}</strong>`);
+  if (probe.applied) {
+    parts.push(escapeHtml(t('auto.debug.applied', { match: probe.match })));
+  } else if (probe.wouldTrigger && probe.rejectedReason === 'dry_run') {
+    parts.push(escapeHtml(t('auto.debug.peekDryRun', { match: probe.match })));
+  } else if (probe.wouldTrigger) {
+    parts.push(escapeHtml(t('auto.debug.peek', { match: probe.match })));
+  } else {
+    parts.push(escapeHtml(t('auto.debug.noMatch')));
+  }
+  if (probe.winDistance >= 0) {
+    parts.push(escapeHtml(t('auto.debug.winDist', { d: probe.winDistance, p: probe.winSimilarityPct ?? 0 })));
+  }
+  if (probe.lossDistance >= 0) {
+    parts.push(escapeHtml(t('auto.debug.lossDist', { d: probe.lossDistance, p: probe.lossSimilarityPct ?? 0 })));
+  }
+  if (probe.ocrText) {
+    parts.push(escapeHtml(t('auto.debug.ocrText', { text: probe.ocrText })));
+  }
+  if (probe.endScreenActive != null) {
+    parts.push(escapeHtml(t('auto.debug.endScreen', { on: probe.endScreenActive ? 'yes' : 'no' })));
+  }
+  if (probe.goldPct != null || probe.defeatPct != null) {
+    parts.push(escapeHtml(t('auto.debug.colors', { gold: probe.goldPct ?? 0, defeat: probe.defeatPct ?? 0 })));
+  }
+  if (probe.mlWinPct != null || probe.mlLossPct != null || probe.mlNonePct != null) {
+    parts.push(escapeHtml(t('auto.debug.mlSplit', {
+      win: probe.mlWinPct ?? 0,
+      loss: probe.mlLossPct ?? 0,
+      none: probe.mlNonePct ?? 0,
+    })));
+  }
+  if (probe.mlConfidencePct != null && probe.mlConfidencePct > 0 && probe.mlWinPct == null) {
+    parts.push(escapeHtml(t('auto.debug.mlConf', { n: probe.mlConfidencePct })));
+  }
+  parts.push(escapeHtml(t('auto.debug.threshold', { n: probe.threshold ?? 5 })));
+  if (probe.windowTitle) parts.push(escapeHtml(probe.windowTitle));
+  if (probe.notes) parts.push(escapeHtml(probe.notes));
+  if (probe.cropSaved) parts.push(escapeHtml(probe.cropSaved));
+  el.innerHTML = parts.join('<br>');
+}
+
+function renderDebugLog(entries) {
+  const box = document.getElementById('autoDebugLogBox');
+  if (!box) return;
+  const list = Array.isArray(entries) ? entries : [];
+  if (!list.length) {
+    box.innerHTML = `<p class="setup-note" style="padding:10px;margin:0">${escapeHtml(t('auto.debug.empty'))}</p>`;
+    return;
+  }
+  const rows = list.slice().reverse().map((p) => {
+    const line = formatProbeLine(p);
+    return `<tr class="${line.hit ? 'hit' : ''}"><td>${escapeHtml(line.time)}</td><td>${escapeHtml(line.src)}</td><td>${escapeHtml(line.win)}</td><td>${escapeHtml(line.loss)}</td><td>${escapeHtml(line.match)}</td><td>${escapeHtml(line.title)}</td></tr>`;
+  }).join('');
+  box.innerHTML = `<table><thead><tr><th>time</th><th>src</th><th>win</th><th>loss</th><th>match</th><th>info</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderAutoModeBanner(debug) {
+  const el = document.getElementById('autoModeBanner');
+  if (!el) return;
+  const test = !!debug?.testMode;
+  const dry = !!debug?.dryRun;
+  const enabled = !!lastAuto?.enabled;
+  let key = 'auto.mode.prodOff';
+  let level = '';
+  if (test && dry) {
+    key = 'auto.mode.testDry';
+    level = 'warn';
+  } else if (test && !dry) {
+    key = 'auto.mode.testLive';
+    level = 'warn';
+  } else if (!test && enabled) {
+    key = 'auto.mode.prodOn';
+    level = 'ok';
+  } else if (!test && !enabled) {
+    key = 'auto.mode.prodOff';
+    level = '';
+  }
+  const parts = [t(key)];
+  if (debug?.lastApplied?.match) {
+    parts.push(t('auto.mode.lastApplied', {
+      match: debug.lastApplied.match,
+      time: new Date(debug.lastApplied.at).toLocaleTimeString(),
+    }));
+  }
+  if (debug?.ocrReady === false) {
+    parts.push(t('auto.debug.ocrReady', { status: t('auto.debug.ocrMissing') }));
+  } else if (debug?.ocrReady && !debug?.mlReady) {
+    parts.push(t('auto.debug.ocrReady', { status: t('auto.debug.ocrOk') }));
+  }
+  if (debug?.textReady) {
+    parts.push(t('auto.debug.textReady', { note: debug.textNote || '' }));
+  } else if (debug?.mlReady) {
+    parts.push(t('auto.debug.mlReady', { note: debug.mlNote || '' }));
+    if (debug.mlAutoWin || debug.mlAutoLoss) {
+      parts.push(`auto: win=${debug.mlAutoWin || 0} loss=${debug.mlAutoLoss || 0}`);
+    }
+  }
+  el.hidden = false;
+  el.className = `auto-mode-banner${level ? ` is-${level}` : ''}`;
+  el.textContent = parts.join(' · ');
+}
+
+function renderDebugStatus(st) {
+  lastDebug = st || lastDebug;
+  if (!lastDebug) return;
+  renderAutoModeBanner(lastDebug);
+  const pathEl = document.getElementById('autoDebugPath');
+  if (pathEl && lastDebug.logPath) {
+    pathEl.textContent = t('auto.debug.path', { path: lastDebug.logPath });
+  }
+  const testEl = document.getElementById('autoTestMode');
+  const logEl = document.getElementById('autoDebugLog');
+  const dryEl = document.getElementById('autoDryRun');
+  const capEl = document.getElementById('autoCaptureSource');
+  const thrEl = document.getElementById('autoMatchThreshold');
+  if (testEl) testEl.checked = !!lastDebug.testMode;
+  if (logEl) logEl.checked = !!lastDebug.debugLog;
+  if (dryEl) dryEl.checked = !!lastDebug.dryRun;
+  if (capEl && lastDebug.captureSource) capEl.value = lastDebug.captureSource;
+  if (thrEl && lastDebug.matchThreshold) thrEl.value = String(lastDebug.matchThreshold);
+  if (lastDebug.lastProbe) renderDebugLast(lastDebug.lastProbe);
+}
+
+async function refreshDebugLog() {
+  try {
+    const data = await api('/api/automation/debug/log?limit=40');
+    if (data.debug) {
+      lastDebug = data.debug;
+      renderDebugStatus(data.debug);
+    }
+    renderDebugLog(data.entries);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function setDebugFlag(name, value) {
+  try {
+    const st = await api(`/api/automation/debug?${encodeURIComponent(name)}=${value ? '1' : '0'}`, { method: 'POST' });
+    renderDebugStatus(st);
+    await refreshDebugLog();
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+}
+
+document.getElementById('autoTestMode')?.addEventListener('change', (e) => setDebugFlag('testMode', e.target.checked));
+document.getElementById('autoDebugLog')?.addEventListener('change', (e) => setDebugFlag('debugLog', e.target.checked));
+document.getElementById('autoDryRun')?.addEventListener('change', (e) => setDebugFlag('dryRun', e.target.checked));
+document.getElementById('autoCaptureSource')?.addEventListener('change', async (e) => {
+  try {
+    const st = await api(`/api/automation/debug?captureSource=${encodeURIComponent(e.target.value)}`, { method: 'POST' });
+    renderDebugStatus(st);
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
+document.getElementById('autoMatchThreshold')?.addEventListener('change', async (e) => {
+  const n = Math.max(5, Math.min(32, Number(e.target.value) || 12));
+  e.target.value = String(n);
+  try {
+    const st = await api(`/api/automation/debug?matchThreshold=${n}`, { method: 'POST' });
+    renderDebugStatus(st);
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
+
+document.getElementById('autoProbeBtn')?.addEventListener('click', async () => {
+  setAutoFeedback('warn', t('auto.debug.probing'), '');
+  try {
+    const data = await api('/api/automation/debug/probe', { method: 'POST' });
+    if (data.probe) renderDebugLast(data.probe);
+    if (data.debug) renderDebugStatus(data.debug);
+    await refreshDebugLog();
+    clearAutoFeedback();
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
+
+document.getElementById('autoDebugClearBtn')?.addEventListener('click', async () => {
+  try {
+    const data = await api('/api/automation/debug/clear', { method: 'POST' });
+    renderDebugStatus(data.debug);
+    renderDebugLog([]);
+    clearAutoFeedback();
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
+
+async function saveTrainingCrop(label) {
+  setAutoFeedback('warn', t('auto.debug.probing'), '');
+  try {
+    const data = await api(`/api/automation/debug/train?label=${encodeURIComponent(label)}`, { method: 'POST' });
+    setAutoFeedback('ok', data.path || label, t('auto.debug.mlHint'));
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+}
+
+document.getElementById('autoTrainWinBtn')?.addEventListener('click', () => saveTrainingCrop('win'));
+document.getElementById('autoTrainLossBtn')?.addEventListener('click', () => saveTrainingCrop('loss'));
+
+document.getElementById('autoDebugFile')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  setAutoFeedback('warn', t('auto.debug.probing'), '');
+  const body = new FormData();
+  body.append('file', file);
+  try {
+    const res = await fetch('/api/automation/debug/test', { method: 'POST', body });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    if (data.probe) renderDebugLast(data.probe);
+    if (data.debug) renderDebugStatus(data.debug);
+    await refreshDebugLog();
+    clearAutoFeedback();
+  } catch (err) {
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
+
+document.getElementById('autoDebugPanel')?.addEventListener('toggle', () => {
+  const open = document.getElementById('autoDebugPanel')?.open;
+  if (open) {
+    refreshDebugLog();
+    if (!autoDebugPollTimer) autoDebugPollTimer = setInterval(refreshDebugLog, 2000);
+  } else if (autoDebugPollTimer) {
+    clearInterval(autoDebugPollTimer);
+    autoDebugPollTimer = 0;
+  }
+});
+
+async function initAutoDebug() {
+  try {
+    const st = await api('/api/automation/debug');
+    renderDebugStatus(st);
+  } catch {
+    /* ignore */
+  }
+}
+initAutoDebug();
 
 let knownAppVersion = '';
 let awaitingServerRestart = false;

@@ -64,7 +64,7 @@ func main() {
 		if srv.Store.State().Game != store.GameOverwatch {
 			return
 		}
-		srv.ApplyHotkey(string(outcome))
+		srv.ApplyHotkeyFromAuto(string(outcome))
 	})
 
 	httpServer := &http.Server{Handler: srv.Handler()}

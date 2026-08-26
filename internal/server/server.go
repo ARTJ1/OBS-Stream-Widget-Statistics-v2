@@ -81,9 +81,9 @@ func (s *Server) Serve(ln net.Listener) error {
 }
 
 func (s *Server) routes() {
-	s.mux.HandleFunc("/api/win", s.methodAction(s.Store.AddWin, "win"))
+	s.mux.HandleFunc("/api/win", s.storeActionWithLearn(s.Store.AddWin, "win", "win"))
 	s.mux.HandleFunc("/api/win/down", s.methodAction(s.Store.SubWin, "win"))
-	s.mux.HandleFunc("/api/loss", s.methodAction(s.Store.AddLoss, "loss"))
+	s.mux.HandleFunc("/api/loss", s.storeActionWithLearn(s.Store.AddLoss, "loss", "loss"))
 	s.mux.HandleFunc("/api/loss/down", s.methodAction(s.Store.SubLoss, "loss"))
 	s.mux.HandleFunc("/api/rank/up", s.rankUpHandler)
 	s.mux.HandleFunc("/api/rank/down", s.rankDownHandler)
@@ -114,6 +114,18 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/automation/toggle", s.automationToggle)
 	s.mux.HandleFunc("/api/automation/status", s.automationStatus)
 	s.mux.HandleFunc("/api/automation/capture", s.automationCapture)
+	s.mux.HandleFunc("/api/automation/zone", s.automationZone)
+	s.mux.HandleFunc("/api/automation/swap", s.automationSwapTemplates)
+	s.mux.HandleFunc("/api/automation/reset-defaults", s.automationResetDefaults)
+	s.mux.HandleFunc("/api/automation/template", s.automationTemplateImage)
+	s.mux.HandleFunc("/api/automation/preview", s.automationPreview)
+	s.mux.HandleFunc("/api/automation/preview/status", s.automationPreviewStatus)
+	s.mux.HandleFunc("/api/automation/debug", s.automationDebug)
+	s.mux.HandleFunc("/api/automation/debug/probe", s.automationDebugProbe)
+	s.mux.HandleFunc("/api/automation/debug/test", s.automationDebugTest)
+	s.mux.HandleFunc("/api/automation/debug/log", s.automationDebugLog)
+	s.mux.HandleFunc("/api/automation/debug/clear", s.automationDebugClear)
+	s.mux.HandleFunc("/api/automation/debug/train", s.automationDebugTrain)
 	s.mux.HandleFunc("/ws", s.ws)
 	s.mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -142,10 +154,17 @@ func (s *Server) routes() {
 type actionFn func() (store.Snapshot, error)
 
 func (s *Server) methodAction(fn actionFn, msgType string) http.HandlerFunc {
+	return s.storeActionWithLearn(fn, msgType, "")
+}
+
+func (s *Server) storeActionWithLearn(fn actionFn, msgType, learnLabel string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
+		}
+		if learnLabel != "" && s.Auto != nil {
+			s.Auto.LearnFromManual(learnLabel)
 		}
 		snap, err := fn()
 		if err != nil {
@@ -160,6 +179,15 @@ func (s *Server) methodAction(fn actionFn, msgType string) http.HandlerFunc {
 // ApplyHotkey runs the same mutations as /api/* for the OBS file-drop hotkey path
 // (no HTTP / no console from Lua).
 func (s *Server) ApplyHotkey(name string) {
+	s.applyHotkey(name, true)
+}
+
+// ApplyHotkeyFromAuto is used by owtracker automation (no manual ML learn — auto path already saved).
+func (s *Server) ApplyHotkeyFromAuto(name string) {
+	s.applyHotkey(name, false)
+}
+
+func (s *Server) applyHotkey(name string, learnManual bool) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	var snap store.Snapshot
 	var err error
@@ -167,12 +195,18 @@ func (s *Server) ApplyHotkey(name string) {
 
 	switch {
 	case name == "win":
+		if learnManual && s.Auto != nil {
+			s.Auto.LearnFromManual("win")
+		}
 		snap, err = s.Store.AddWin()
 		msgType = "win"
 	case name == "win_down":
 		snap, err = s.Store.SubWin()
 		msgType = "win"
 	case name == "loss":
+		if learnManual && s.Auto != nil {
+			s.Auto.LearnFromManual("loss")
+		}
 		snap, err = s.Store.AddLoss()
 		msgType = "loss"
 	case name == "loss_down":

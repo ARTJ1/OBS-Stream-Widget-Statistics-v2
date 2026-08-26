@@ -1,13 +1,15 @@
 package owtracker
 
-// Perceptual hashes of the Overwatch 2 center victory / defeat banners.
-// Fill these after a calibrated screenshot, or capture from the admin panel
-// (saved to data/ow_phash.json and used at runtime).
-// Empty strings disable matching until templates exist.
+// Import-time: win/loss samples must differ by more than this.
 const (
-	WIN_HASH_TEMPLATE  = ""
-	LOSS_HASH_TEMPLATE = ""
-
-	// Hamming distance: <= 5 is typically ~95%+ visual similarity for 64-bit pHash.
 	hashDistanceThreshold = 5
+
+	// Runtime default: streams/compression need a slightly higher bar.
+	defaultMatchThreshold = 12
+)
+
+// WIN_HASH_TEMPLATE and LOSS_HASH_TEMPLATE alias the built-in defaults.
+var (
+	WIN_HASH_TEMPLATE  = defaultWinHash
+	LOSS_HASH_TEMPLATE = defaultLossHash
 )
