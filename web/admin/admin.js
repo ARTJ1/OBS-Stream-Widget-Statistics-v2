@@ -2136,12 +2136,12 @@ function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {})
       reloadAdminFresh(ver);
       return;
     }
-    if (tries > 90) {
+    if (tries > 120) {
       clearInterval(updateWaitTimer);
       awaitingServerRestart = false;
       const btn = document.getElementById('updateApplyBtn');
       if (btn) btn.disabled = false;
-      setStatusKey('update.waiting');
+      setStatusKey('update.timeout', false);
     }
   }, 1000);
 }
@@ -2176,6 +2176,13 @@ document.getElementById('updateLaterBtn')?.addEventListener('click', () => {
   const banner = document.getElementById('updateBanner');
   if (banner) banner.hidden = true;
 });
+function isUpdateRestartDrop(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  if (!msg) return true;
+  if (/download|incomplete|too small|too many redirects|status \d{3}/.test(msg)) return false;
+  return /failed to fetch|network|load failed|connection|abort|reset|empty response/.test(msg);
+}
+
 document.getElementById('updateApplyBtn')?.addEventListener('click', async () => {
   const btn = document.getElementById('updateApplyBtn');
   const prev = knownAppVersion || latestUpdateInfo?.current || '';
@@ -2183,10 +2190,22 @@ document.getElementById('updateApplyBtn')?.addEventListener('click', async () =>
   try {
     if (btn) btn.disabled = true;
     setStatusKey('update.applying', true);
+    let staged = false;
     try {
       await api('/api/update/apply', { method: 'POST' });
-    } catch {
-      // Server often dies mid-response while restarting — expected.
+      staged = true;
+    } catch (err) {
+      if (isUpdateRestartDrop(err)) staged = true;
+      else {
+        setStatusKey('update.failed', false, { msg: String(err.message || err) });
+        if (btn) btn.disabled = false;
+        return;
+      }
+    }
+    if (!staged) {
+      setStatusKey('update.failed', false, { msg: t('update.failedUnknown') });
+      if (btn) btn.disabled = false;
+      return;
     }
     setStatusKey('update.done', true);
     waitForServerRestart({ expectVersion: expect, previousVersion: prev });

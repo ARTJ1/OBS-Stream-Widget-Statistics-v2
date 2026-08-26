@@ -14,9 +14,12 @@ import (
 	"time"
 )
 
+// maxUpdateBytes caps release downloads (embedded OCR makes exe ~250 MiB).
+const maxUpdateBytes = 512 << 20
+
 func downloadClient() *http.Client {
 	return &http.Client{
-		Timeout: 5 * time.Minute,
+		Timeout: 20 * time.Minute,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
@@ -302,7 +305,7 @@ func downloadOnce(client *http.Client, url, dest string) error {
 		return err
 	}
 
-	written, err := io.Copy(f, io.LimitReader(res.Body, 200<<20))
+	written, err := io.Copy(f, io.LimitReader(res.Body, maxUpdateBytes))
 	closeErr := f.Close()
 	if err != nil {
 		_ = os.Remove(tmp)
