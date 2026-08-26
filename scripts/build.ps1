@@ -1,22 +1,16 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-$Version = if ($env:WIDGET_STATS_VERSION) { $env:WIDGET_STATS_VERSION } else { "v2.4.1" }
+$Version = if ($env:WIDGET_STATS_VERSION) { $env:WIDGET_STATS_VERSION } else { "v2.4.0" }
 if ($Version -notmatch '^v') { $Version = "v$Version" }
 
 Write-Host "Training banner TEXT net (binary glyphs)..."
 if (Get-Command python -ErrorAction SilentlyContinue) {
   python ./scripts/ml/train_banner_text.py
-  if ($LASTEXITCODE -ne 0) { Write-Host "WARN: text training failed" }
-  python ./scripts/ml/train_banner.py
-  if ($LASTEXITCODE -ne 0) { Write-Host "WARN: ML training failed, using existing model if present" }
+  if ($LASTEXITCODE -ne 0) { Write-Host "WARN: text training failed, using existing model if present" }
 } else {
   Write-Host "WARN: python not found, skip ML training"
 }
-
-Write-Host "Fetching embedded Tesseract OCR (build-time)..."
-powershell -ExecutionPolicy Bypass -File ./scripts/fetch-tesseract.ps1
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Embedding Windows icon..."
 $env:PATH = "$(go env GOPATH)\bin;$env:PATH"

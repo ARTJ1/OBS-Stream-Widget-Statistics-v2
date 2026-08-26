@@ -9,8 +9,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-
-	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/owtracker/ml"
 )
 
 const (
@@ -113,14 +111,7 @@ func (s *mlAutoStore) save(img image.Image, label string, manual bool) bool {
 }
 
 func (s *mlAutoStore) retrainAsync() {
-	ok, note, err := ml.Retrain(s.dataDir)
-	if err != nil {
-		log.Printf("owtracker: ml retrain: %v", err)
-		return
-	}
-	if ok {
-		log.Printf("owtracker: ml retrained (%s)", note)
-	}
+	// Samples are saved for manual rebuild (scripts/ml/train_banner_text.py); no runtime RGB retrain.
 }
 
 func autoLearnDuplicate(dir, hash string) (bool, error) {

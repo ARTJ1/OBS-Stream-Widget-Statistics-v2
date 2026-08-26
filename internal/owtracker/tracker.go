@@ -102,7 +102,6 @@ func New(dataDir string, onResult func(Outcome)) *Tracker {
 	t.lastTitle.Store("")
 	bindOCRDataDir(dataDir)
 	t.debug = newDebugLog(dataDir)
-	ml.Init(dataDir)
 	ml.InitText(dataDir)
 	t.autoLearn = newMLAutoStore(dataDir)
 	t.captureSource.Store(CaptureWindow)
@@ -472,12 +471,9 @@ func (t *Tracker) ClearTemplate(kind Outcome) error {
 
 func (t *Tracker) Run(ctx context.Context) {
 	initDPI()
-	log.Printf("owtracker: started (text=%v ml=%v)", ml.TextReady(), ml.Ready())
+	log.Printf("owtracker: started (text=%v)", ml.TextReady())
 	if note := ml.TextStatusNote(); note != "" {
-		log.Printf("owtracker: text: %s", note)
-	}
-	if note := ml.StatusNote(); note != "" && ml.Ready() {
-		log.Printf("owtracker: ocr init: %s", note)
+		log.Printf("owtracker: %s", note)
 	}
 	for {
 		if !sleep(ctx, 0) {

@@ -34,7 +34,7 @@ func loadMLP(dataDir string) *mlpClassifier {
 	c := &mlpClassifier{}
 	paths := []string{
 		filepath.Join(dataDir, "banner_mlp.json"),
-		"internal/owtracker/assets/models/banner_mlp.json",
+		"internal/owtracker/ml/assets/models/banner_mlp.json",
 	}
 	for _, p := range paths {
 		b, err := os.ReadFile(p)

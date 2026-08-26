@@ -2,14 +2,7 @@
 
 package ml
 
-import (
-	"embed"
-	"io/fs"
-)
-
-//go:embed assets/models/banner_mlp.json
-var embeddedModel embed.FS
-
+// Legacy RGB banner model is not embedded in release builds (text net only).
 func embeddedMLP() ([]byte, error) {
-	return fs.ReadFile(embeddedModel, "assets/models/banner_mlp.json")
+	return nil, nil
 }
