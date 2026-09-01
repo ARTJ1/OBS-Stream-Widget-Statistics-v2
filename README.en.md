@@ -72,8 +72,10 @@ Devices without HTTP support can use the same hotkeys configured in OBS.
 
 ### AJAZZ / Stream Dock
 
-- Silent HTTP request plugin: [streamdock-http-request](https://github.com/ARTJ1/streamdock-http-request)
-- Button icons for every widget skin: [streamdock-icons release](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0) (generator in `extras/streamdock-icons/`)
+- Silent HTTP plugin + **Live Mode**: [streamdock-http-request](https://github.com/ARTJ1/streamdock-http-request/releases)
+- LIVE button icons (counts + short rank codes): [streamdock-icons-live-v1.0.0](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-live-v1.0.0)
+- Classic icons: [streamdock-icons-v1.0.0](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0)
+- Setup guide: [docs/STREAMDOCK-LIVE.md](docs/STREAMDOCK-LIVE.md)
 
 ## Build
 

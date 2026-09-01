@@ -72,8 +72,10 @@ http://127.0.0.1:19123/api/reset
 
 ### AJAZZ / Stream Dock
 
-- Плагин тихих HTTP-запросов (без вкладок браузера): [streamdock-http-request](https://github.com/ARTJ1/streamdock-http-request)
-- Готовые иконки кнопок под все скины виджета: релиз [streamdock-icons](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0) (исходник генератора — `extras/streamdock-icons/`)
+- Плагин тихих HTTP-запросов + **Live Mode**: [streamdock-http-request](https://github.com/ARTJ1/streamdock-http-request/releases)
+- LIVE-иконки (цифры и код ранга на кнопках): [streamdock-icons-live-v1.0.0](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-live-v1.0.0)
+- Классические иконки: [streamdock-icons-v1.0.0](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0)
+- Пошаговая инструкция: [docs/STREAMDOCK-LIVE.md](docs/STREAMDOCK-LIVE.md)
 
 ## Сборка из исходников
 

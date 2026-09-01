@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// maxUpdateBytes caps release downloads (embedded OCR makes exe ~250 MiB).
+// maxUpdateBytes caps release downloads (safety limit for widget-stats.exe).
 const maxUpdateBytes = 512 << 20
 
 func downloadClient() *http.Client {

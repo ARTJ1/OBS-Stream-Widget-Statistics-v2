@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/deck"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/store"
 )
 
@@ -12,6 +13,7 @@ type Message struct {
 	State    store.State    `json:"state"`
 	Settings store.Settings `json:"settings"`
 	View     store.View     `json:"view"`
+	Deck     deck.State     `json:"deck"`
 }
 
 type client chan []byte
@@ -46,6 +48,7 @@ func (h *Hub) Broadcast(msgType string, snap store.Snapshot) {
 		State:    snap.State,
 		Settings: snap.Settings,
 		View:     snap.View,
+		Deck:     deck.FromSnapshot(snap, ""),
 	})
 	if err != nil {
 		return

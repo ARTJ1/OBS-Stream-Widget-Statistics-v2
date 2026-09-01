@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/deck"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/hub"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/obsbridge"
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/owtracker"
@@ -100,6 +101,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/settings", s.settings)
 	s.mux.HandleFunc("/api/runtime", s.getRuntime)
 	s.mux.HandleFunc("/api/snapshot", s.getSnapshot)
+	s.mux.HandleFunc("/api/deck/state", s.getDeckState)
 	s.mux.HandleFunc("/api/obs/status", s.obsStatus)
 	s.mux.HandleFunc("/api/obs/connect", s.obsConnect)
 	s.mux.HandleFunc("/api/obs/disconnect", s.obsDisconnect)
@@ -488,6 +490,15 @@ func (s *Server) getSnapshot(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.Store.Snapshot())
 }
 
+func (s *Server) getDeckState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	base := strings.TrimRight(s.Runtime.BaseURL, "/")
+	writeJSON(w, http.StatusOK, deck.FromSnapshot(s.Store.Snapshot(), base))
+}
+
 func (s *Server) getRuntime(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -748,7 +759,13 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	snap := s.Store.Snapshot()
-	_ = conn.WriteJSON(hub.Message{Type: "hello", State: snap.State, Settings: snap.Settings, View: snap.View})
+	_ = conn.WriteJSON(hub.Message{
+		Type:     "hello",
+		State:    snap.State,
+		Settings: snap.Settings,
+		View:     snap.View,
+		Deck:     deck.FromSnapshot(snap, ""),
+	})
 
 	ch := s.Hub.Subscribe()
 	defer s.Hub.Unsubscribe(ch)

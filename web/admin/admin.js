@@ -630,6 +630,7 @@ function renderCopyLinks(runtime) {
     ['Win +1', `${base}/api/win`], ['Win −1', `${base}/api/win/down`],
     ['Loss +1', `${base}/api/loss`], ['Loss −1', `${base}/api/loss/down`],
     ['Rank up', `${base}/api/rank/up`], ['Rank down', `${base}/api/rank/down`], ['Reset', `${base}/api/reset`],
+    ['Deck state (Live)', `${base}/api/deck/state`],
     ['Game next', `${base}/api/game/next`],
     ['Mode next', `${base}/api/mode/next`], ['Role next', `${base}/api/role/next`],
     ['Rank↑ Tank', `${base}/api/rank/up?role=tank`],

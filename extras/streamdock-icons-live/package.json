@@ -1,0 +1,11 @@
+﻿{
+  "name": "streamdock-icons-live",
+  "private": true,
+  "scripts": {
+    "generate": "node generate-live.js",
+    "generate:default": "node generate-live.js default"
+  },
+  "dependencies": {
+    "sharp": "^0.35.3"
+  }
+}
