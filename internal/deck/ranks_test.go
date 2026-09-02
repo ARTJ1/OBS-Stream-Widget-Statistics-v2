@@ -19,7 +19,7 @@ func TestResolveOWBronze5(t *testing.T) {
 func TestResolveOWEmerald(t *testing.T) {
 	// 4 tiers * 5 + 0 = Emerald 5 at index 20
 	label, short, _, tier := resolveRank(store.GameOverwatch, 20)
-	if label != "Emerald 5" || tier != "Emerald" || short != "I5" {
+	if label != "Emerald 5" || tier != "Emerald" || short != "E5" {
 		t.Fatalf("got label=%q short=%q tier=%q", label, short, tier)
 	}
 }
@@ -40,6 +40,28 @@ func TestResolveApexPredator(t *testing.T) {
 	}
 	if img != "assets/apex/Predator.webp" {
 		t.Fatalf("img=%q", img)
+	}
+}
+
+func TestFromSnapshotRolesShared(t *testing.T) {
+	st := store.DefaultState()
+	st.Mode = store.ModeRolesShared
+	st.Role = store.RoleDamage
+	st.Wins = 3
+	st.Losses = 1
+	st.Roles[store.RoleTank] = store.RoleStats{Rank: 0}     // Bronze 5 → B5
+	st.Roles[store.RoleSupport] = store.RoleStats{Rank: 20} // Emerald 5 → E5
+	st.Roles[store.RoleDamage] = store.RoleStats{Rank: 10}  // Gold 5 → G5
+	snap := store.Snapshot{State: st, Settings: store.Settings{SkinID: "x"}, View: st.View()}
+	d := FromSnapshot(snap, "http://127.0.0.1:19123")
+	if d.RankShort != "G5" {
+		t.Fatalf("current rankShort=%q", d.RankShort)
+	}
+	if d.Roles == nil || d.Roles["support"].RankShort != "E5" || d.Roles["tank"].RankShort != "B5" {
+		t.Fatalf("roles=%+v", d.Roles)
+	}
+	if d.Roles["support"].Wins != 3 || d.Roles["tank"].Wins != 3 {
+		t.Fatalf("shared wins expected 3, got %+v", d.Roles)
 	}
 }
 

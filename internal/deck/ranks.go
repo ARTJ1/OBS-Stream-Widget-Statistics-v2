@@ -86,7 +86,7 @@ func ranksForGame(game string) []rankEntry {
 
 var owShortCode = map[string]string{
 	"Bronze": "B", "Silver": "S", "Gold": "G", "Platinum": "P",
-	"Emerald": "I", "Diamond": "D", "Master": "M",
+	"Emerald": "E", "Diamond": "D", "Master": "M",
 	"Grandmaster": "GM", "Champion": "CH",
 }
 

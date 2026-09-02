@@ -4,8 +4,8 @@
 
 ## Что нужно
 
-1. **Widget Stats** ≥ **v2.5.0** (API `/api/deck/state` + `rankShort`)
-2. **Плагин HTTP** ≥ **v1.1.0** — [streamdock-http-request releases](https://github.com/ARTJ1/streamdock-http-request/releases)
+1. **Widget Stats** ≥ **v2.5.1** (API `/api/deck/state` + `rankShort` + `roles`)
+2. **Плагин HTTP** ≥ **v1.2.0** — [streamdock-http-request releases](https://github.com/ARTJ1/streamdock-http-request/releases)
 3. **LIVE-иконки C4** — [streamdock-icons-live](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-live-v1.0.0)
 
 Классический пак иконок (без места под цифры) по-прежнему здесь: [streamdock-icons-v1.0.0](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-v1.0.0).
@@ -15,9 +15,9 @@
 ## Установка за 5 шагов
 
 ### 1. Обновите виджет
-Скачайте `widget-stats.exe` из [релизов виджета](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases) (v2.5.0+), замените старый exe, запустите. Админка: `http://127.0.0.1:19123/admin/`.
+Скачайте `widget-stats.exe` из [релизов виджета](https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases) (v2.5.1+), замените старый exe, запустите. Админка: `http://127.0.0.1:19123/admin/`.
 
-### 2. Установите плагин v1.1.0
+### 2. Установите плагин v1.2.0
 1. Скачайте `streamdock-http-request.zip` из [релизов плагина](https://github.com/ARTJ1/streamdock-http-request/releases)
 2. Распакуйте папку `com.kdfx.streamdock.httprequest.sdPlugin` в:
    `%AppData%\HotSpot\StreamDock\plugins\`
