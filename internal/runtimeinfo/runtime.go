@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const DefaultPort = 19123
@@ -86,4 +87,34 @@ func AcquireLock(dataDir string) (*os.File, error) {
 	_, _ = f.Seek(0, 0)
 	_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
 	return f, nil
+}
+
+// AcquireLockWait retries AcquireLock for up to wait. After an update the new
+// exe can start while the old one is still shutting down; waiting a moment
+// keeps the restart from failing (and the admin page waiting forever).
+func AcquireLockWait(dataDir string, wait time.Duration) (*os.File, error) {
+	deadline := time.Now().Add(wait)
+	for {
+		f, err := AcquireLock(dataDir)
+		if err == nil || time.Now().After(deadline) {
+			return f, err
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+}
+
+// ListenPreferred waits up to wait for the preferred port (so an open admin page
+// reconnects to the same address after a restart), then falls back to FindPort.
+func ListenPreferred(port int, wait time.Duration) (int, net.Listener, error) {
+	deadline := time.Now().Add(wait)
+	for {
+		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err == nil {
+			return port, ln, nil
+		}
+		if time.Now().After(deadline) {
+			return FindPort(port)
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
 }

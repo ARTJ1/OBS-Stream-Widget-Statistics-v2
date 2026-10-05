@@ -29,7 +29,7 @@ import (
 
 func main() {
 	dataDir := dataDirPath()
-	lock, err := runtimeinfo.AcquireLock(dataDir)
+	lock, err := runtimeinfo.AcquireLockWait(dataDir, 15*time.Second)
 	if err != nil {
 		log.Fatalf("single-instance: %v", err)
 	}
@@ -40,7 +40,7 @@ func main() {
 		log.Fatalf("store: %v", err)
 	}
 
-	port, ln, err := runtimeinfo.FindPort(runtimeinfo.DefaultPort)
+	port, ln, err := runtimeinfo.ListenPreferred(runtimeinfo.DefaultPort, 5*time.Second)
 	if err != nil {
 		log.Fatalf("listen: %v", err)
 	}

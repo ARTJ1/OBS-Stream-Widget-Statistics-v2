@@ -205,8 +205,12 @@ func luaUpdateTargets(exeDir, dataDir string) []string {
 	seen := map[string]bool{}
 	var out []string
 	add := func(p string) {
-		p = filepath.Clean(strings.TrimSpace(p))
-		if p == "" || seen[p] {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return // e.g. empty data/lua_path.txt (Clean("") would be ".")
+		}
+		p = filepath.Clean(p)
+		if seen[p] {
 			return
 		}
 		seen[p] = true
