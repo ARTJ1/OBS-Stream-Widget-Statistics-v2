@@ -1,0 +1,90 @@
+# Build + test on every pull request and push to main.
+# Release automatically: when main contains docs/releases/vX.Y.Z.md for a version
+# that has no GitHub release yet, build that version and publish
+# widget-stats.exe + widget_control.lua with the file as release notes
+# (first line "# <title>" is the release title, the rest is the body).
+name: Build & Release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      release: ${{ steps.ver.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Pick version
+        id: ver
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = Get-ChildItem docs/releases -Filter 'v*.md' |
+            Where-Object { $_.BaseName -match '^v\d+\.\d+\.\d+$' } |
+            Sort-Object { [version]$_.BaseName.Substring(1) } |
+            Select-Object -Last 1
+          if (-not $notes) { throw "no docs/releases/vX.Y.Z.md found" }
+          $v = $notes.BaseName
+          gh release view $v --repo $env:GITHUB_REPOSITORY *> $null
+          $exists = ($LASTEXITCODE -eq 0)
+          $global:LASTEXITCODE = 0
+          $isMain = ("${{ github.event_name }}" -ne "pull_request") -and ("${{ github.ref }}" -eq "refs/heads/main")
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "release=$((-not $exists) -and $isMain)".ToLower() >> $env:GITHUB_OUTPUT
+          Write-Host "version $v, release exists: $exists, main: $isMain"
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        shell: pwsh
+        run: |
+          if (-not (Test-Path obs/widget_control.lua)) { throw "obs/widget_control.lua is missing — every release must ship it" }
+          $env:WIDGET_STATS_VERSION = "${{ steps.ver.outputs.version }}"
+          ./scripts/build.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: widget-stats-${{ steps.ver.outputs.version }}
+          path: |
+            widget-stats.exe
+            obs/widget_control.lua
+
+  release:
+    needs: build
+    if: needs.build.outputs.release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: widget-stats-${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ needs.build.outputs.version }}"
+          $lines = Get-Content "docs/releases/$v.md" -Encoding utf8
+          $title = $lines[0] -replace '^#\s*', ''
+          $lines | Select-Object -Skip 1 | Set-Content notes.md -Encoding utf8
+          gh release create $v dist/widget-stats.exe dist/obs/widget_control.lua `
+            --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
+            --title $title --notes-file notes.md

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"image"
 	"log"
 	"net/http"
 	"os"
@@ -65,6 +66,14 @@ func main() {
 			return
 		}
 		srv.ApplyHotkeyFromAuto(string(outcome))
+	})
+	// Auto win/loss reads frames from OBS (it already captures the game).
+	srv.Auto.SetFrameSource(func(width int) (image.Image, error) {
+		source, err := obs.GameSource()
+		if err != nil {
+			return nil, err
+		}
+		return obs.SourceFrame(source, width)
 	})
 
 	httpServer := &http.Server{Handler: srv.Handler()}

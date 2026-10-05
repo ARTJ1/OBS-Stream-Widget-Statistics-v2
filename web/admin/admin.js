@@ -1644,7 +1644,7 @@ function renderAutoStatus(st) {
   const toggle = document.getElementById('autoToggle');
   if (toggle) {
     toggle.checked = !!lastAuto.enabled;
-    toggle.disabled = !ready;
+    toggle.disabled = false; // Windows OCR detector needs no templates
   }
   const row = document.querySelector('.auto-switch-row');
   if (row) row.classList.toggle('is-on', !!lastAuto.enabled);
@@ -1652,10 +1652,26 @@ function renderAutoStatus(st) {
   const label = document.getElementById('autoToggleLabel');
   if (label) label.textContent = t(lastAuto.enabled ? 'auto.on' : 'auto.off');
 
+  const devBox = document.getElementById('autoDevBox');
+  if (devBox) devBox.hidden = !lastAuto.devMode;
+
+  const lastEl = document.getElementById('autoLastResult');
+  if (lastEl) {
+    const r = lastAuto.enabled ? lastAuto.lastResult : null;
+    lastEl.hidden = !r;
+    if (r) {
+      const when = new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      lastEl.textContent = t(r.outcome === 'win' ? 'auto.lastWin' : 'auto.lastLoss').replace('{time}', when);
+      lastEl.classList.add('is-ok');
+    }
+  }
+
   const focus = document.getElementById('autoFocusText');
   if (focus) {
     if (!lastAuto.enabled) {
       focus.textContent = t('auto.disabledOff');
+    } else if (lastAuto.winOcrError && !(lastAuto.winOcrLangs || []).length) {
+      focus.textContent = t('auto.ocrError');
     } else if (!lastAuto.gameRunning) {
       focus.textContent = t('auto.gameOff');
     } else if (lastAuto.state === 'match') {
@@ -1664,6 +1680,10 @@ function renderAutoStatus(st) {
       focus.textContent = t('auto.menu');
     } else {
       focus.textContent = t('auto.focusOff');
+    }
+    // Where frames come from: OBS (preferred) or the screen-capture fallback.
+    if (lastAuto.enabled && lastAuto.gameRunning && lastAuto.captureVia) {
+      focus.textContent += ' · ' + t(lastAuto.captureVia === 'obs' ? 'auto.viaObs' : 'auto.viaScreen');
     }
   }
 
@@ -1686,11 +1706,6 @@ async function refreshAutoStatus() {
 
 document.getElementById('autoToggle')?.addEventListener('change', async (e) => {
   const on = !!e.target.checked;
-  if (on && !templatesReady(lastAuto)) {
-    e.target.checked = false;
-    setAutoFeedback('warn', t('auto.needBoth'), '');
-    return;
-  }
   try {
     const st = await api(`/api/automation/toggle?enabled=${on ? '1' : '0'}`, { method: 'POST' });
     renderAutoStatus(st);

@@ -8,8 +8,8 @@ import (
 )
 
 func saveDebugCrop(dataDir, name string, img image.Image) string {
-	if img == nil {
-		return ""
+	if img == nil || !DevMode() {
+		return "" // debug images only for developers
 	}
 	dir := filepath.Join(dataDir, "ow_debug_crops")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

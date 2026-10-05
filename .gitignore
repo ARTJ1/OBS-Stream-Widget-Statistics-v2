@@ -43,3 +43,6 @@ Thumbs.db
 
 streamdock-icons-live-*.zip
 
+
+# Local training/test recordings (huge, never commit)
+video/

@@ -12,7 +12,7 @@ A local application for displaying stream statistics in OBS Studio: wins, losses
 - Optional Lua script: auto-start, hotkeys, and shutdown when OBS closes
 - Admin UI language: English / Russian
 - Compatible with Stream Deck, Bitfocus Companion, and other HTTP clients
-- Alpha: Overwatch 2 auto win/loss from the end-of-match banner (hidden when another game is selected)
+- Beta: Overwatch 2 auto win/loss — a built-in neural network recognizes the end-of-match banner from OBS frames (even dimmed or under menus), one count per match. Trained on the Russian client so far
 
 | Component | Path / URL |
 |-----------|------------|
