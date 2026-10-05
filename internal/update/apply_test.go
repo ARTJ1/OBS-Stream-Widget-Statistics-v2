@@ -101,3 +101,15 @@ func TestCleanupJunkKeepsLuaScript(t *testing.T) {
 		t.Fatalf("empty obs/ kept: %v", err)
 	}
 }
+
+func TestLuaUpdateTargetsIgnoresEmptyPathFile(t *testing.T) {
+	dir := t.TempDir()
+	data := filepath.Join(dir, "data")
+	_ = os.MkdirAll(data, 0o755)
+	_ = os.WriteFile(filepath.Join(data, "lua_path.txt"), []byte("  \n"), 0o644)
+	for _, p := range luaUpdateTargets(dir, data) {
+		if p == "." || p == "" {
+			t.Fatalf("empty lua_path.txt produced target %q", p)
+		}
+	}
+}
