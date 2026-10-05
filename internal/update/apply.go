@@ -81,23 +81,18 @@ func CleanupJunk(exeDir string) {
 			}
 		}
 	}
-	// Remove auto-created empty (or lua-only) obs/ clutter from older updaters.
+	// Remove updater leftovers inside obs/ (widget_control.lua.new / .part / numbered
+	// copies). The real widget_control.lua is never touched: users load it in OBS from
+	// there, and the repo keeps it in obs/. The folder goes only if it ends up empty.
 	obsDir := filepath.Join(exeDir, "obs")
 	if ents, err := os.ReadDir(obsDir); err == nil {
-		onlyOurs := true
 		for _, e := range ents {
 			n := strings.ToLower(e.Name())
-			if n != "widget_control.lua" && !strings.HasPrefix(n, "widget_control.lua") {
-				onlyOurs = false
-				break
-			}
-		}
-		if onlyOurs {
-			for _, e := range ents {
+			if strings.HasPrefix(n, "widget_control.lua") && n != "widget_control.lua" {
 				_ = os.Remove(filepath.Join(obsDir, e.Name()))
 			}
-			_ = os.Remove(obsDir)
 		}
+		_ = os.Remove(obsDir) // fails (keeps it) unless empty
 	}
 }
 

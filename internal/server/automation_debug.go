@@ -118,7 +118,12 @@ func (s *Server) automationDebugTest(w http.ResponseWriter, r *http.Request) {
 	}
 	probe := s.Auto.ProbeImage(img, "upload")
 	s.Auto.RecordProbePublic(probe)
-	writeJSON(w, http.StatusOK, map[string]any{"probe": probe, "debug": s.Auto.DebugStatus()})
+	banner, berr := s.Auto.ReadBannerImage(img)
+	resp := map[string]any{"probe": probe, "banner": banner, "debug": s.Auto.DebugStatus()}
+	if berr != nil {
+		resp["bannerError"] = berr.Error()
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) automationDebugLog(w http.ResponseWriter, r *http.Request) {

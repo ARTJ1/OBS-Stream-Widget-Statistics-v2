@@ -181,6 +181,8 @@
         </div>
         <p class="setup-note" data-i18n="auto.note">Автоматически добавляет победу или поражение на экране конца матча в Overwatch. Работает только когда игра запущена и автозачёт включён.</p>
         <p class="setup-note auto-disclaimer" data-i18n="auto.disclaimer">Возможны редкие ошибки — сверяйте счёт после матча. Автораспознавание рангов — в разработке. При выключенном автозачёте экран не анализируется и ПК не нагружается.</p>
+        <!-- Templates / zone tools: dev mode only (detection needs no setup). -->
+        <div class="auto-dev-box" id="autoDevBox" hidden>
         <p class="setup-note" data-i18n="auto.how">Встроенные эталоны уже установлены. Загрузите свои скрины только если детект ошибается на вашем мониторе или языке клиента.</p>
 
         <div class="auto-zone-preview" id="autoZonePreviewWrap" hidden>
@@ -235,6 +237,7 @@
         </div>
         <p class="auto-ready" id="autoReadyText"></p>
         <div class="auto-mode-banner" id="autoModeBanner" hidden></div>
+        </div>
         <div class="auto-feedback" id="autoAnalysisText" hidden></div>
 
         <div class="auto-switch-row">
@@ -247,6 +250,7 @@
             <span class="setup-note" id="autoFocusText"></span>
           </div>
         </div>
+        <p class="auto-ready" id="autoLastResult" hidden></p>
 
         <details class="auto-debug" id="autoDebugPanel" hidden>
           <summary data-i18n="auto.debug.title">Тест и отладка (без игры)</summary>

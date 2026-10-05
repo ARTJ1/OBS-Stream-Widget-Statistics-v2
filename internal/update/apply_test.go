@@ -69,3 +69,35 @@ func bytesEqual(a, b []byte) bool {
 	}
 	return true
 }
+
+// CleanupJunk must never delete the real obs/widget_control.lua (it once wiped the
+// repo copy whenever widget-stats.exe ran from the project folder).
+func TestCleanupJunkKeepsLuaScript(t *testing.T) {
+	dir := t.TempDir()
+	obsDir := filepath.Join(dir, "obs")
+	if err := os.MkdirAll(obsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(obsDir, "widget_control.lua")
+	junk := filepath.Join(obsDir, "widget_control.lua.new")
+	for _, p := range []string{keep, junk} {
+		if err := os.WriteFile(p, []byte("-- lua"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	CleanupJunk(dir)
+	if _, err := os.Stat(keep); err != nil {
+		t.Fatalf("widget_control.lua was deleted: %v", err)
+	}
+	if _, err := os.Stat(junk); !os.IsNotExist(err) {
+		t.Fatalf("leftover not removed: %v", err)
+	}
+	// An obs/ folder with only leftovers disappears.
+	empty := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(empty, "obs"), 0o755)
+	_ = os.WriteFile(filepath.Join(empty, "obs", "widget_control.lua.part"), nil, 0o644)
+	CleanupJunk(empty)
+	if _, err := os.Stat(filepath.Join(empty, "obs")); !os.IsNotExist(err) {
+		t.Fatalf("empty obs/ kept: %v", err)
+	}
+}

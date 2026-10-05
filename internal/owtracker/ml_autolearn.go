@@ -31,6 +31,9 @@ func newMLAutoStore(dataDir string) *mlAutoStore {
 
 // LearnFromManual saves the last probe crop when the user presses win/loss (correction or manual score).
 func (t *Tracker) LearnFromManual(label string) {
+	if !legacyDetector() {
+		return // the OCR detector needs no training images: save nothing
+	}
 	switch label {
 	case "win", "loss":
 	default:
@@ -46,7 +49,7 @@ func (t *Tracker) LearnFromManual(label string) {
 }
 
 func (t *Tracker) learnFromAuto(confirmed ProbeResult, img image.Image) {
-	if img == nil || confirmed.Match == "" {
+	if !legacyDetector() || img == nil || confirmed.Match == "" {
 		return
 	}
 	if confirmed.MatchMethod != "ml" && confirmed.MatchMethod != "text" {

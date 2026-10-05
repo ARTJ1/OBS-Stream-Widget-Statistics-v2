@@ -3,6 +3,7 @@ package obsbridge
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/andreykaipov/goobs"
 	"github.com/andreykaipov/goobs/api/requests/inputs"
@@ -40,6 +41,9 @@ type Bridge struct {
 	client *goobs.Client
 	cfg    Config
 	lastErr string
+
+	gameSource   string // OBS input showing the game (frames.go)
+	gameSourceAt time.Time
 }
 
 func New() *Bridge {

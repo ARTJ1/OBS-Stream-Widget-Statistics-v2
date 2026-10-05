@@ -1,16 +1,12 @@
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
-$Version = if ($env:WIDGET_STATS_VERSION) { $env:WIDGET_STATS_VERSION } else { "v2.4.0" }
+$Version = if ($env:WIDGET_STATS_VERSION) { $env:WIDGET_STATS_VERSION } else { "v2.6.0" }
 if ($Version -notmatch '^v') { $Version = "v$Version" }
 
-Write-Host "Training banner TEXT net (binary glyphs)..."
-if (Get-Command python -ErrorAction SilentlyContinue) {
-  python ./scripts/ml/train_banner_text.py
-  if ($LASTEXITCODE -ne 0) { Write-Host "WARN: text training failed, using existing model if present" }
-} else {
-  Write-Host "WARN: python not found, skip ML training"
-}
+# The auto win/loss banner CNN is NOT retrained here: it is trained deliberately
+# (scripts/ml/train_banner_cnn.py), checked end-to-end on recorded streams
+# (cmd/owscan -cnn), then committed to internal/owtracker/assets/models.
 
 Write-Host "Embedding Windows icon..."
 $env:PATH = "$(go env GOPATH)\bin;$env:PATH"

@@ -57,6 +57,12 @@ type Status struct {
 	Zone        Zone   `json:"zone,omitempty"`
 	OcrReady    bool   `json:"ocrReady"`
 	DevMode     bool   `json:"devMode,omitempty"`
+
+	CaptureVia  string      `json:"captureVia,omitempty"`  // "obs" | "screen" (last frame source)
+	WinOCRLangs []string    `json:"winOcrLangs,omitempty"` // empty until the game first runs
+	WinOCRError string      `json:"winOcrError,omitempty"`
+	LastResult  *AutoResult `json:"lastResult,omitempty"`
+	LastRead    *BannerRead `json:"lastRead,omitempty"` // dev: last frame analysis
 }
 
 type Tracker struct {
@@ -95,6 +101,21 @@ type Tracker struct {
 	endScreen endScreenWatch
 	bannerStable bannerStability
 	autoLearn    *mlAutoStore
+
+	// Production detector: Windows OCR + once-per-match flow (autorun.go).
+	ocr        *winOCR
+	autoMu     sync.Mutex
+	flow       autoFlow
+	lastRead   BannerRead
+	lastReadAt time.Time
+	lastResult *AutoResult
+	// nextFullRead throttles stage-2 OCR when the strip fires on scenery.
+	nextFullRead time.Time
+	cnn          *BannerCNN // embedded banner classifier (nil = auto unavailable)
+	vote         cnnVote
+	frameSrc     FrameSource  // OBS frames (primary); guarded by autoMu
+	obsRetryAt   time.Time    // after an OBS failure, use screen capture until then
+	captureVia   atomic.Value // string: "obs" | "screen" | ""
 }
 
 func New(dataDir string, onResult func(Outcome)) *Tracker {
@@ -104,6 +125,13 @@ func New(dataDir string, onResult func(Outcome)) *Tracker {
 	t.debug = newDebugLog(dataDir)
 	ml.InitText(dataDir)
 	t.autoLearn = newMLAutoStore(dataDir)
+	t.ocr = newWinOCR(dataDir)
+	if m, err := loadEmbeddedBannerCNN(); err != nil {
+		log.Printf("owtracker: banner model: %v", err)
+	} else {
+		t.cnn = m
+	}
+	t.enabled.Store(loadAutoEnabled(dataDir))
 	t.captureSource.Store(CaptureWindow)
 	t.applyDebugSettings(loadDebugSettings(dataDir))
 	if !DevMode() {
@@ -213,10 +241,12 @@ func (t *Tracker) SetMatchThreshold(v int) {
 
 func (t *Tracker) SetEnabled(v bool) {
 	t.enabled.Store(v)
+	saveAutoEnabled(t.dataDir, v)
 	if !v {
 		t.state.Store(StateInactive)
 		t.endScreen.reset()
 		t.bannerStable.reset()
+		t.ocr.Close()
 	}
 }
 
@@ -227,10 +257,12 @@ func (t *Tracker) Toggle() bool {
 		cur := t.enabled.Load()
 		next := !cur
 		if t.enabled.CompareAndSwap(cur, next) {
+			saveAutoEnabled(t.dataDir, next)
 			if !next {
 				t.state.Store(StateInactive)
 				t.endScreen.reset()
 				t.bannerStable.reset()
+				t.ocr.Close()
 			}
 			return next
 		}
@@ -253,7 +285,21 @@ func (t *Tracker) Status() Status {
 	saved := effectiveConfig(normalizeSaved(loadSavedHashes(t.dataDir)))
 	title := activeWindowTitle()
 	t.lastTitle.Store(title)
+	t.autoMu.Lock()
+	lastResult := t.lastResult
+	var lastRead *BannerRead
+	if !t.lastReadAt.IsZero() && time.Since(t.lastReadAt) < 10*time.Second {
+		r := t.lastRead
+		lastRead = &r
+	}
+	t.autoMu.Unlock()
+	via, _ := t.captureVia.Load().(string)
 	return Status{
+		CaptureVia:  via,
+		WinOCRLangs: t.ocr.Langs(),
+		WinOCRError: t.ocr.LastError(),
+		LastResult:  lastResult,
+		LastRead:    lastRead,
 		Enabled:     t.Enabled(),
 		State:       t.StateName(),
 		WindowTitle: title,
@@ -498,6 +544,7 @@ func (t *Tracker) Run(ctx context.Context) {
 
 		if !overwatchProcessRunning() {
 			t.state.Store(StateInactive)
+			t.ocr.Close() // free the OCR process until the game starts again
 			if !sleep(ctx, pollNoGame) {
 				return
 			}
@@ -506,7 +553,18 @@ func (t *Tracker) Run(ctx context.Context) {
 
 		title := activeWindowTitle()
 		t.lastTitle.Store(title)
-		if !isOverwatchForeground() {
+		foreground := isOverwatchForeground()
+
+		// OBS frames work whether or not the game window has focus; the screen
+		// capture fallback inside autoTick needs the game in the foreground.
+		if !legacyDetector() {
+			if !sleep(ctx, t.autoTick(foreground)) {
+				return
+			}
+			continue
+		}
+
+		if !foreground {
 			t.state.Store(StateInactive)
 			if !sleep(ctx, pollInactive) {
 				return
