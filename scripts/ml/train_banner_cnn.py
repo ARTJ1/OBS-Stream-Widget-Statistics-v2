@@ -9,6 +9,7 @@ color / brightness / occlusion augmentation so it learns the WORD SHAPE, not col
 Pure numpy (no torch). Exports weights JSON for the Go inference (internal/owtracker).
 
   python scripts/ml/train_banner_cnn.py --data <prefix> --labels truth.csv --out model.json
+  (several videos: --data a b --labels a.csv b.csv; unseen check: --test-data c --test-labels c.csv)
 """
 from __future__ import annotations
 
@@ -189,8 +190,10 @@ def predict(p, x, bs=512):
 # ---------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", required=True)
-    ap.add_argument("--labels", required=True)
+    ap.add_argument("--data", nargs="+", required=True, help="owdump prefixes (one per video)")
+    ap.add_argument("--labels", nargs="+", required=True, help="labels CSV per --data, same order")
+    ap.add_argument("--test-data", nargs="*", default=[], help="videos used only for the final check")
+    ap.add_argument("--test-labels", nargs="*", default=[])
     ap.add_argument("--out", required=True)
     ap.add_argument("--split", type=float, default=0, help="seconds: train before, test after")
     ap.add_argument("--epochs", type=int, default=12)
@@ -199,12 +202,26 @@ def main():
     ap.add_argument("--mine-epochs", type=int, default=4)
     args = ap.parse_args()
 
-    frames, times = load(args.data)
-    y, keep = label_frames(times, args.labels)
-    small = np.concatenate([resize_batch(frames[i : i + 2048]) for i in range(0, len(frames), 2048)])
-    train_m = keep & ((times < args.split) if args.split else np.ones_like(keep))
-    test_m = keep & (times >= args.split) if args.split else np.zeros_like(keep)
-    print(f"frames {len(times)}  train {train_m.sum()}  test {test_m.sum()}  "
+    if len(args.data) != len(args.labels) or len(args.test_data) != len(args.test_labels):
+        ap.error("--data/--labels (and --test-data/--test-labels) must pair up")
+    parts = []  # (small, y, train mask, test mask)
+    for i, (prefix, lab) in enumerate(zip(args.data + args.test_data, args.labels + args.test_labels)):
+        frames, times = load(prefix)
+        yi, keep = label_frames(times, lab)
+        si = np.concatenate([resize_batch(frames[j : j + 2048]) for j in range(0, len(frames), 2048)])
+        del frames
+        if i >= len(args.data):
+            tr, te = np.zeros_like(keep), keep
+        else:
+            tr = keep & ((times < args.split) if args.split else np.ones_like(keep))
+            te = keep & (times >= args.split) if args.split else np.zeros_like(keep)
+        print(f"{prefix}: frames {len(times)}  win={(yi == 1).sum()} loss={(yi == 2).sum()}"
+              f"{'  (test only)' if i >= len(args.data) else ''}")
+        parts.append((si, yi, tr, te))
+    small = np.concatenate([q[0] for q in parts]); y = np.concatenate([q[1] for q in parts])
+    train_m = np.concatenate([q[2] for q in parts]); test_m = np.concatenate([q[3] for q in parts])
+    del parts
+    print(f"frames {len(y)}  train {train_m.sum()}  test {test_m.sum()}  "
           f"pos train win={((y == 1) & train_m).sum()} loss={((y == 2) & train_m).sum()}")
 
     xtr, ytr = small[train_m], y[train_m]
@@ -271,7 +288,7 @@ def main():
         print(f"\n{name} confusion (rows=true none/win/loss, cols=pred):\n{cm}")
 
     report("TRAIN", train_m)
-    report("TEST (unseen part of the video)", test_m)
+    report("TEST (unseen video / part)", test_m)
 
     model = {"w": W, "h": H, "classes": CLASSES, "arch": ARCH, "fc_hidden": FC_HIDDEN,
              "params": {k: v_.ravel().tolist() for k, v_ in p.items()},
