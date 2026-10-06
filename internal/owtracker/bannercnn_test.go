@@ -16,7 +16,9 @@ func TestEmbeddedBannerCNNSamples(t *testing.T) {
 		t.Fatal(err)
 	}
 	files, _ := filepath.Glob("testdata/banners/*.png")
-	for _, f := range files {
+	// banners_cnn: CNN-only samples (other languages / colours the legacy reader can't do).
+	cnnOnly, _ := filepath.Glob("testdata/banners_cnn/*.png")
+	for _, f := range append(files, cnnOnly...) {
 		name := filepath.Base(f)
 		n, w, l := m.Classify(loadSample(t, f))
 		got := Outcome("")

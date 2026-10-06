@@ -36,8 +36,14 @@ func main() {
 	thumbs := flag.String("thumbs", "", "save a JPEG of every stage-2 frame here (for review)")
 	truth := flag.Int("truth", 0, "ground-truth mode: stage-1 threshold %% (e.g. 8), no flow, OCR every candidate")
 	cnn := flag.String("cnn", "", "production mode: banner CNN (model path, or \"embedded\") at -fps (live widget: 4) on 480 px frames")
-	endorse := flag.Bool("endorse", false, "ground-truth mode: list \"КОГО ВЫ ХОТИТЕ ПОХВАЛИТЬ\" screens (one after every match)")
+	endorse := flag.Bool("endorse", false, "ground-truth mode: list endorse screens (ПОХВАЛИТЬ / ENDORSE) (one after every match)")
+	find := flag.String("find", "", "ground-truth mode: comma-separated banner words to list (e.g. VICTORY,DEFEAT)")
+	findZone := flag.String("findzone", "0.25,0.15,0.50,0.40", "-find plain-OCR region x,y,w,h (fractions)")
 	flag.Parse()
+	var zone [4]float64
+	if _, err := fmt.Sscanf(*findZone, "%g,%g,%g,%g", &zone[0], &zone[1], &zone[2], &zone[3]); err != nil {
+		log.Fatalf("-findzone: %v", err)
+	}
 	if *video == "" {
 		flag.Usage()
 		os.Exit(2)
@@ -62,7 +68,7 @@ func main() {
 		args = append(args, "-t", fmt.Sprint(limit.Seconds()))
 	}
 	fw, fh := probeW, probeH
-	if *endorse {
+	if *endorse || *find != "" {
 		fw, fh = 1280, 720
 	}
 	var cs *owtracker.CNNScanner
@@ -116,8 +122,25 @@ func main() {
 			}
 			continue
 		}
+		if *find != "" {
+			// Banner reader first (mask + deskew handles the stylised words), then plain OCR.
+			if res, err := sc.ReadOnly(small); err == nil && res.Outcome != "" {
+				fmt.Printf("%s FIND %-8s %q\n", clockMs(vt), res.Outcome, res.Text)
+				continue
+			}
+			if txt, err := sc.TextAt(small, zone[0], zone[1], zone[2], zone[3]); err == nil {
+				up := strings.ToUpper(txt)
+				for _, w := range strings.Split(strings.ToUpper(*find), ",") {
+					if w != "" && strings.Contains(up, w) {
+						fmt.Printf("%s FIND %-8s %q\n", clockMs(vt), w, txt)
+						break
+					}
+				}
+			}
+			continue
+		}
 		if *endorse {
-			if txt, err := sc.TextAt(small, 0.15, 0.80, 0.70, 0.12); err == nil && strings.Contains(strings.ToUpper(txt), "ПОХВАЛ") {
+			if txt, err := sc.TextAt(small, 0.15, 0.80, 0.70, 0.12); err == nil && (strings.Contains(strings.ToUpper(txt), "ПОХВАЛ") || strings.Contains(strings.ToUpper(txt), "ENDORSE")) {
 				fmt.Printf("%s ENDORSE %q\n", clock(vt), txt)
 			}
 			continue
@@ -191,6 +214,10 @@ func saveThumb(path string, img image.Image) {
 	}
 	defer f.Close()
 	_ = jpeg.Encode(f, img, &jpeg.Options{Quality: 70})
+}
+
+func clockMs(d time.Duration) string {
+	return fmt.Sprintf("%.2f", d.Seconds())
 }
 
 func clock(d time.Duration) string {
