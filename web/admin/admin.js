@@ -354,6 +354,7 @@ function fillMotion(settings) {
   }
   motionForm.vesselWave.checked = settings.vesselWave !== false;
   motionForm.idlePulse.checked = settings.idlePulse !== false;
+  motionForm.alwaysVisible.checked = !!settings.alwaysVisible;
 }
 
 function readMotion() {
@@ -367,6 +368,7 @@ function readMotion() {
     rankFx: motionForm.rankFx?.value || 'classic',
     vesselWave: !!motionForm.vesselWave.checked,
     idlePulse: !!motionForm.idlePulse.checked,
+    alwaysVisible: !!motionForm.alwaysVisible.checked,
   };
 }
 

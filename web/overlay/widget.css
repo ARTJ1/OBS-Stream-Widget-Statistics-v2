@@ -171,6 +171,13 @@ body.mode-roles_rotate .role-badge {
 .widget.appear-zoom.visible { opacity: 1; transform: scale(1); }
 .widget.appear-zoom.hide { opacity: 0; transform: scale(0.85); }
 
+/* Always visible: no appear/hide motion at all */
+body.always-visible .widget {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
 /* Legacy direction helpers kept for hide scheduling */
 .widget.from-left.hide { }
 .widget.hide {

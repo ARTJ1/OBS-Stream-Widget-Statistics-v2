@@ -115,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let animDurationOut = 0.5;
   let reappearDelayMs = 8000;
   let animDirection = 'left';
+  let alwaysVisible = false;
   let waveRaf = 0;
   let waveTime = 0;
 
@@ -259,6 +260,8 @@ document.addEventListener('DOMContentLoaded', () => {
     animDurationOut = (merged.animDurationOut || 500) / 1000;
     reappearDelayMs = merged.hiddenTime || 0;
     animDirection = merged.animDirection || 'left';
+    alwaysVisible = !!merged.alwaysVisible;
+    document.body.classList.toggle('always-visible', alwaysVisible);
     fillLimit = merged.fillLimit || 10;
     fillDurationMs = merged.fillDurationMs || 650;
     emptyDurationMs = merged.emptyDurationMs || 1600;
@@ -1662,7 +1665,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(hideWidgetTimeout);
     clearTimeout(reappearTimeout);
     // Preview stays always visible so streamers can tweak look live.
-    if (isPreview || animStayTime <= 0) return;
+    if (isPreview || alwaysVisible || animStayTime <= 0) return;
     hideWidgetTimeout = setTimeout(() => {
       dom.widget.classList.remove('visible');
       dom.widget.classList.add('hide', `from-${animDirection}`);
@@ -1740,6 +1743,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const { animate = true, settingsOnly = false } = opts;
     if (snap.settings) applySettings(snap.settings);
     if (settingsOnly) {
+      if (alwaysVisible) {
+        clearTimeout(hideWidgetTimeout);
+        clearTimeout(reappearTimeout);
+        if (!dom.widget.classList.contains('visible')) showWidget(false);
+      }
       if (dom.widget.classList.contains('visible') || isPreview) setRankIdle(idlePulse);
       return;
     }

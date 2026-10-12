@@ -92,6 +92,7 @@ type Settings struct {
 	AnimStayTime    int    `json:"animStayTime"`
 	AnimDurationOut int    `json:"animDurationOut"`
 	HiddenTime      int    `json:"hiddenTime"`
+	AlwaysVisible   bool   `json:"alwaysVisible"` // skip the show/hide cycle
 
 	IconColor      string `json:"iconColor"`
 	VesselStyle    string `json:"vesselStyle"` // classic|royal|rage|inferno|toxic|nova|fang|hard|grim|solid|sharp|award|medal
