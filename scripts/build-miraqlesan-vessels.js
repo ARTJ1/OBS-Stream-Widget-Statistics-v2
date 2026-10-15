@@ -154,6 +154,7 @@ async function main() {
   const pair = {
     label: 'miraqlesan',
     labelRu: 'miraqlesan',
+    author: { name: 'miraqlesan', url: 'https://www.twitch.tv/miraqlesan' },
     wins: await build('miraqlesan-happy.webp', 'miraqlesan-happy', 1.3),
     losses: await build('miraqlesan-melt.webp', 'miraqlesan-melt', 1.45),
   };
