@@ -28,9 +28,19 @@ const (
 // Handler runs for each dropped action.
 type Handler func(Action)
 
+// emptyGrace is how long an empty drop may stay before it is treated as junk.
+// The Lua script renames a finished temp file into place, so an empty .wreq is
+// only seen from older scripts that write in place; give them time to finish.
+const emptyGrace = 2 * time.Second
+
 // Start polls dataDir for hk_*.wreq files written by the OBS script.
 // Extension is .wreq (not .cmd) so Windows never treats drops as shell scripts.
-func Start(ctx context.Context, dataDir string, handle Handler) {
+//
+// Drops older than since (the process start) are discarded unapplied: they were
+// written while no server was running — e.g. a "quit" from closing OBS after the
+// server had already exited — and replaying them would shut the fresh server down
+// or apply stale W/L presses in a burst.
+func Start(ctx context.Context, dataDir string, since time.Time, handle Handler) {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		log.Printf("hotkeydrop: mkdir: %v", err)
 		return
@@ -43,13 +53,15 @@ func Start(ctx context.Context, dataDir string, handle Handler) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				drain(dataDir, handle)
+				drain(dataDir, since, time.Now(), handle)
 			}
 		}
 	}()
 }
 
-func drain(dir string, handle Handler) {
+// drain applies every pending drop in name order (the script zero-pads time and
+// sequence, so name order is press order).
+func drain(dir string, since, now time.Time, handle Handler) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
@@ -67,12 +79,30 @@ func drain(dir string, handle Handler) {
 			continue
 		}
 		path := filepath.Join(dir, name)
-		b, err := os.ReadFile(path)
-		_ = os.Remove(path)
+		info, err := e.Info()
 		if err != nil {
 			continue
 		}
-		action := parse(strings.TrimSpace(string(b)))
+		if info.ModTime().Before(since) {
+			if os.Remove(path) == nil {
+				log.Printf("hotkeydrop: discarded stale %s (written before start)", name)
+			}
+			continue
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			continue // still locked by the writer or antivirus; retry next tick
+		}
+		text := strings.TrimSpace(string(b))
+		if text == "" && now.Sub(info.ModTime()) < emptyGrace {
+			continue // writer may not have flushed yet
+		}
+		// Claim by deleting: if the file cannot be removed it is not applied, so a
+		// locked drop is retried later instead of firing on every tick.
+		if err := os.Remove(path); err != nil {
+			continue
+		}
+		action := parse(text)
 		if action == "" || handle == nil {
 			continue
 		}

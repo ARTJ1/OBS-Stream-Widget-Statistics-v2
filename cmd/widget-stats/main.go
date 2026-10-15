@@ -28,6 +28,7 @@ import (
 )
 
 func main() {
+	started := time.Now()
 	dataDir := dataDirPath()
 	lock, err := runtimeinfo.AcquireLockWait(dataDir, 15*time.Second)
 	if err != nil {
@@ -101,7 +102,7 @@ func main() {
 
 	go srv.Auto.Run(ctx)
 
-	hotkeydrop.Start(ctx, dataDir, func(a hotkeydrop.Action) {
+	hotkeydrop.Start(ctx, dataDir, started, func(a hotkeydrop.Action) {
 		if a == hotkeydrop.Quit {
 			stop()
 			return

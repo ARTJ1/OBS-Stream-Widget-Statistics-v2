@@ -143,24 +143,78 @@ local function open_admin()
   open_url_hidden(rt.admin or (config.base_url .. "/admin/"))
 end
 
+local function has_non_ascii(s)
+  return s ~= nil and s:find("[\128-\255]") ~= nil
+end
+
+-- Why hotkeys can't reach widget-stats.exe, or nil when they can.
+-- Lua opens files with the ANSI codepage while OBS hands paths over as UTF-8,
+-- so a folder with non-Latin letters fails even though it exists.
+local function diagnose(skip_write_check)
+  local exe = resolve_exe()
+  if not exe then
+    local wanted = config.exe_path ~= "" and config.exe_path or script_dir()
+    if has_non_ascii(wanted) then
+      return "Путь содержит не латинские буквы — Lua не может его открыть. " ..
+        "Перенеси папку с widget-stats.exe в путь только из латиницы (например C:\\WidgetStats): " .. wanted
+    end
+    if config.exe_path ~= "" then
+      return "Файл не найден: " .. config.exe_path .. ". Укажи верный путь к widget-stats.exe."
+    end
+    return "widget-stats.exe не найден рядом со скриптом (" .. script_dir() ..
+      "). Укажи путь к widget-stats.exe ниже — без этого хоткеи не работают."
+  end
+  if skip_write_check then return nil end
+  local data = data_dir_for_exe(exe)
+  local probe = data .."\\hk_probe.tmp"
+  local f = io.open(probe, "w")
+  if not f then
+    return "Нет записи в папку " .. data .. ". Запусти сервер один раз (кнопка ниже), " ..
+      "проверь права на папку и «Контролируемый доступ к папкам» в Защитнике Windows."
+  end
+  f:close()
+  os.remove(probe)
+  return nil
+end
+
+local last_queue_warning = 0
+
+local function warn_queue_failed(reason)
+  -- One log line per press is fine, but don't flood when a key is held.
+  local now = os.time()
+  if now == last_queue_warning then return end
+  last_queue_warning = now
+  obs.script_log(obs.LOG_WARNING, "Хоткей не отправлен: " .. reason)
+end
+
 -- Hotkeys / quit: ONLY write a file. Zero os.execute — no console windows.
+-- The file is written under a .tmp name and renamed into place, so the server
+-- never sees a half-written drop.
 local function queue_action(action)
   local exe = resolve_exe()
   local data = data_dir_for_exe(exe)
   if not data then
-    obs.script_log(obs.LOG_WARNING, "queue: set path to widget-stats.exe")
+    warn_queue_failed(diagnose() or "widget-stats.exe не найден")
     return false
   end
   hotkey_seq = hotkey_seq + 1
-  local name = string.format("hk_%d_%d_%d.wreq", os.time(), hotkey_seq, math.random(1000, 9999))
-  local path = data .. "\\" .. name
-  local f = io.open(path, "w")
+  -- Zero-padded so name order (what the server sorts by) is press order.
+  local name = string.format("hk_%010d_%06d_%04d", os.time(), hotkey_seq, math.random(1000, 9999))
+  local tmp = data .. "\\" .. name .. ".tmp"
+  local path = data .. "\\" .. name .. ".wreq"
+  local f = io.open(tmp, "w")
   if not f then
-    obs.script_log(obs.LOG_WARNING, "queue: cannot write " .. path)
+    warn_queue_failed(diagnose() or ("нет записи в " .. data))
     return false
   end
   f:write(action)
   f:close()
+  local ok, err = os.rename(tmp, path)
+  if not ok then
+    os.remove(tmp)
+    warn_queue_failed("не удалось создать " .. path .. ": " .. tostring(err))
+    return false
+  end
   return true
 end
 
@@ -192,11 +246,38 @@ function script_description()
 Сцену настраивай в админке.]]
 end
 
+local function status_text()
+  local problem = diagnose()
+  if problem then
+    return "⚠ Хоткеи не работают: " .. problem, true
+  end
+  return "✔ Хоткеи готовы: " .. resolve_exe(), false
+end
+
+-- Shows the diagnosis at the top of the script settings. OBS 28+ renders an
+-- info line with a warning colour; older OBS shows it as a plain text field label.
+local function update_status(props)
+  local p = obs.obs_properties_get(props, "status")
+  if not p then return end
+  local text, bad = status_text()
+  obs.obs_property_set_description(p, text)
+  if obs.obs_property_text_set_info_type and obs.OBS_TEXT_INFO_WARNING then
+    obs.obs_property_text_set_info_type(p, bad and obs.OBS_TEXT_INFO_WARNING or obs.OBS_TEXT_INFO_NORMAL)
+  end
+end
+
 function script_properties()
   local props = obs.obs_properties_create()
+  obs.obs_properties_add_text(props, "status", "", obs.OBS_TEXT_INFO or obs.OBS_TEXT_DEFAULT)
+  update_status(props)
   obs.obs_properties_add_bool(props, "auto_start", "Автозапуск widget-stats.exe")
   obs.obs_properties_add_bool(props, "stop_on_unload", "Выключать сервер при закрытии OBS")
-  obs.obs_properties_add_path(props, "exe_path", "Путь к widget-stats.exe", obs.OBS_PATH_FILE, "Executable (*.exe)", nil)
+  local exe_prop = obs.obs_properties_add_path(props, "exe_path", "Путь к widget-stats.exe", obs.OBS_PATH_FILE, "Executable (*.exe)", nil)
+  obs.obs_property_set_modified_callback(exe_prop, function(ps, _, settings)
+    config.exe_path = obs.obs_data_get_string(settings, "exe_path")
+    update_status(ps)
+    return true
+  end)
   obs.obs_properties_add_text(props, "base_url", "Base URL (fallback)", obs.OBS_TEXT_DEFAULT)
   obs.obs_properties_add_button(props, "open_admin", "Открыть админку", function()
     open_admin()
@@ -277,6 +358,12 @@ function script_load(settings)
     ensure_server()
   end
   write_lua_path()
+  -- No write probe here: the exe was only just launched and may not have
+  -- created data/ yet on a first run.
+  local problem = diagnose(true)
+  if problem then
+    obs.script_log(obs.LOG_WARNING, "Хоткеи не работают: " .. problem)
+  end
 end
 
 function script_save(settings)
