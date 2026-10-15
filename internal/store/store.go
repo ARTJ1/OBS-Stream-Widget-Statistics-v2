@@ -95,7 +95,7 @@ type Settings struct {
 	AlwaysVisible   bool   `json:"alwaysVisible"` // skip the show/hide cycle
 
 	IconColor      string `json:"iconColor"`
-	VesselStyle    string `json:"vesselStyle"` // classic|royal|rage|inferno|toxic|nova|fang|hard|grim|solid|sharp|award|medal
+	VesselStyle    string `json:"vesselStyle"` // classic|royal|rage|inferno|toxic|nova|fang|hard|grim|solid|sharp|award|medal|miraqlesan
 	SeparatorColor string `json:"separatorColor"`
 	AppearEffect   string `json:"appearEffect"` // slide | fade | bounce | zoom
 	FillStyle      string `json:"fillStyle"`    // liquid | solid | glow | bubble
@@ -398,8 +398,10 @@ func (s *Store) clamp() {
 	}
 	switch s.settings.VesselStyle {
 	case "classic", "royal", "rage", "inferno", "toxic", "nova",
-		"fang", "hard", "grim", "solid", "sharp", "award", "medal":
+		"fang", "hard", "grim", "solid", "sharp", "award", "medal", "miraqlesan":
 		// ok
+	case "mascot": // pre-release name of the miraqlesan pair
+		s.settings.VesselStyle = "miraqlesan"
 	case "brutal", "emoji":
 		s.settings.VesselStyle = "fang"
 	case "spike", "simple":

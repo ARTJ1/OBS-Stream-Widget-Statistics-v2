@@ -221,8 +221,9 @@ body.always-visible .widget {
 
 .icon-fill-container {
   position: relative;
-  width: 38px;
-  height: 38px;
+  /* --vessel-scale: per-icon size boost (detailed art needs more pixels). */
+  width: calc(38px * var(--vessel-scale, 1));
+  height: calc(38px * var(--vessel-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -240,6 +241,13 @@ body.always-visible .widget {
 .vessel-shell {
   opacity: 0.55;
   fill: currentColor;
+}
+
+.vessel-detail {
+  /* Line art drawn over the liquid so detailed icons stay readable. */
+  fill: #140f24;
+  opacity: 0.85;
+  pointer-events: none;
 }
 
 .vessel-outline {

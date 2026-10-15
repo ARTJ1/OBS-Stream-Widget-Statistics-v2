@@ -1254,6 +1254,54 @@ input, select {
   border: 0;
   background: transparent;
 }
+.vessel-credit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(145, 70, 255, 0.45);
+  background: linear-gradient(135deg, rgba(145, 70, 255, 0.18), rgba(145, 70, 255, 0.05));
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.vessel-credit[hidden] { display: none; }
+.vessel-credit:hover,
+.vessel-credit:focus-visible {
+  border-color: #9146ff;
+  background: linear-gradient(135deg, rgba(145, 70, 255, 0.3), rgba(145, 70, 255, 0.1));
+  transform: translateY(-1px);
+}
+.vessel-credit-logo {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: #9146ff;
+}
+.vessel-credit-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.vessel-credit-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.vessel-credit-name {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vessel-credit-go {
+  margin-left: auto;
+  flex: none;
+  color: #b98cff;
+  font-size: 13px;
+  font-weight: 600;
+}
 .preview-stage.tall {
   height: clamp(260px, 42vh, 440px);
   min-height: 260px;

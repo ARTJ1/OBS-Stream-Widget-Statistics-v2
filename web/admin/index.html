@@ -373,6 +373,7 @@
                   <option value="sharp">Sharp — sharp cup / simple skull</option>
                   <option value="award">Award — award cup / tech skull</option>
                   <option value="medal">Medal — medal / skull2</option>
+                  <option value="miraqlesan">miraqlesan — happy / melted</option>
                 </select>
               </label>
               <label class="color-field">
@@ -431,6 +432,14 @@
             <div class="preview-stage">
               <iframe class="widget-preview" id="previewFrame" title="Widget preview" src="/overlay/?preview=1"></iframe>
             </div>
+            <a class="vessel-credit" id="vesselCredit" target="_blank" rel="noopener noreferrer" hidden>
+              <svg class="vessel-credit-logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0 1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
+              <span class="vessel-credit-text">
+                <span class="vessel-credit-label" data-i18n="look.iconAuthor">Автор этих иконок</span>
+                <strong class="vessel-credit-name" id="vesselCreditName"></strong>
+              </span>
+              <span class="vessel-credit-go" data-i18n="look.iconAuthorGo">Twitch ↗</span>
+            </a>
           </aside>
         </div>
       </section>
@@ -627,6 +636,7 @@
 
   <script src="i18n.js"></script>
   <script src="fonts.js"></script>
+  <script src="/overlay/vessel-shapes.js"></script>
   <script src="skins.js"></script>
   <script src="faq.js"></script>
   <script src="admin.js"></script>

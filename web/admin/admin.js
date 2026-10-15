@@ -382,6 +382,7 @@ function fillAppearance(settings) {
   if (settings.rankTextColor?.startsWith('#')) form.rankTextColor.value = settings.rankTextColor;
   if (form.iconColor && settings.iconColor?.startsWith('#')) form.iconColor.value = settings.iconColor;
   if (form.vesselStyle) form.vesselStyle.value = settings.vesselStyle || 'classic';
+  updateVesselCredit();
   fillSeparatorColor(settings.separatorColor || 'rgba(255,255,255,0.55)');
   if (form.appearEffect) form.appearEffect.value = settings.appearEffect || 'slide';
   if (settings.font) {
@@ -951,7 +952,20 @@ copyList.addEventListener('click', async (e) => {
 });
 copyOverlayBtn.addEventListener('click', () => copyText(overlayUrl));
 
+/** Credit the artist under the preview when the chosen icon pair has one. */
+function updateVesselCredit() {
+  const card = document.getElementById('vesselCredit');
+  if (!card) return;
+  const pair = window.VesselShapes?.PAIRS?.[form.vesselStyle?.value];
+  const author = pair && pair.author;
+  card.hidden = !author;
+  if (!author) return;
+  card.href = author.url;
+  document.getElementById('vesselCreditName').textContent = author.name;
+}
+
 form.addEventListener('input', schedulePreviewPush);
+form.vesselStyle?.addEventListener('change', updateVesselCredit);
 form.addEventListener('change', schedulePreviewPush);
 motionForm.addEventListener('input', schedulePreviewPush);
 motionForm.addEventListener('change', schedulePreviewPush);
