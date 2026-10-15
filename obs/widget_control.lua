@@ -70,6 +70,21 @@ local function open_url_hidden(url)
   os.execute('wscript //nologo //B "' .. vbs .. '"')
 end
 
+-- "G:\w\obs\..\widget-stats.exe" -> "G:\w\widget-stats.exe"
+local function clean_path(p)
+  local out = {}
+  for part in p:gmatch("[^\\]+") do
+    if part == ".." and #out > 1 and out[#out] ~= ".." then
+      table.remove(out)
+    elseif part ~= "." then
+      table.insert(out, part)
+    end
+  end
+  local s = table.concat(out, "\\")
+  if p:sub(1, 2) == "\\\\" then s = "\\\\" .. s end
+  return s
+end
+
 local function resolve_exe()
   if config.exe_path and config.exe_path ~= "" and file_exists(config.exe_path) then
     return config.exe_path
@@ -83,10 +98,23 @@ local function resolve_exe()
   for _, p in ipairs(candidates) do
     local norm = p:gsub("/", "\\")
     if file_exists(norm) or file_exists(p) then
-      return norm
+      return clean_path(norm)
     end
   end
   return nil
+end
+
+local settings_ref = nil
+
+-- Fill the path field with the exe found next to the script, so the settings
+-- show what is actually used. Also replaces a saved path that no longer exists.
+local function autofill_exe_path()
+  if not settings_ref then return end
+  if config.exe_path ~= "" and file_exists(config.exe_path) then return end
+  local exe = resolve_exe()
+  if not exe then return end
+  config.exe_path = exe
+  obs.obs_data_set_string(settings_ref, "exe_path", exe)
 end
 
 local function data_dir_for_exe(exe)
@@ -246,27 +274,23 @@ function script_description()
 Сцену настраивай в админке.]]
 end
 
-local function status_text()
-  local problem = diagnose()
-  if problem then
-    return "⚠ Хоткеи не работают: " .. problem, true
-  end
-  return "✔ Хоткеи готовы: " .. resolve_exe(), false
-end
-
--- Shows the diagnosis at the top of the script settings. OBS 28+ renders an
--- info line with a warning colour; older OBS shows it as a plain text field label.
+-- Shows a warning at the top of the script settings only when hotkeys can't
+-- reach the exe; when all is well the path field already shows the exe.
+-- OBS 28+ renders it as a warning-coloured info line; older OBS as a text field label.
 local function update_status(props)
   local p = obs.obs_properties_get(props, "status")
   if not p then return end
-  local text, bad = status_text()
-  obs.obs_property_set_description(p, text)
+  local problem = diagnose()
+  obs.obs_property_set_visible(p, problem ~= nil)
+  if not problem then return end
+  obs.obs_property_set_description(p, "⚠ Хоткеи не работают: " .. problem)
   if obs.obs_property_text_set_info_type and obs.OBS_TEXT_INFO_WARNING then
-    obs.obs_property_text_set_info_type(p, bad and obs.OBS_TEXT_INFO_WARNING or obs.OBS_TEXT_INFO_NORMAL)
+    obs.obs_property_text_set_info_type(p, obs.OBS_TEXT_INFO_WARNING)
   end
 end
 
 function script_properties()
+  autofill_exe_path()
   local props = obs.obs_properties_create()
   obs.obs_properties_add_text(props, "status", "", obs.OBS_TEXT_INFO or obs.OBS_TEXT_DEFAULT)
   update_status(props)
@@ -312,7 +336,9 @@ function script_update(settings)
 end
 
 function script_load(settings)
+  settings_ref = settings
   script_update(settings)
+  autofill_exe_path()
   math.randomseed(os.time())
 
   hotkey_win = obs.obs_hotkey_register_frontend("v2_widget_win", "V2 Виджет: +1 Победа", on_hotkey("win"))
