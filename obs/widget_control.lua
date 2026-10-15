@@ -30,7 +30,8 @@ local function script_path()
   local info = debug.getinfo(1, "S")
   local src = info and info.source or ""
   src = src:gsub("^@", "")
-  return src:gsub("/", "\\")
+  -- Parentheses: gsub also returns the match count, which f:write() would append.
+  return (src:gsub("/", "\\"))
 end
 
 local function script_dir()
