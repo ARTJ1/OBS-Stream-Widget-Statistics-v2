@@ -191,6 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
     container.querySelectorAll('.vessel-shell').forEach((el) => {
       el.setAttribute('fill-rule', rule);
     });
+    const detail = document.getElementById(isWins ? 'winsDetail' : 'lossesDetail');
+    if (detail) detail.setAttribute('d', shape.detail || '');
+    if (shape.scale) container.style.setProperty('--vessel-scale', String(shape.scale));
+    else container.style.removeProperty('--vessel-scale');
     const parts = String(viewBox).trim().split(/\s+/).map(Number);
     const vbX = parts[0] || 0;
     const vbY = parts[1] || 0;
