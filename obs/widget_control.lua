@@ -43,15 +43,128 @@ local function temp_dir()
   return (os.getenv("TEMP") or os.getenv("TMP") or "."):gsub("/", "\\")
 end
 
+-- Paths from OBS are UTF-8, but Lua's io/os functions use the ANSI codepage,
+-- so a folder with Cyrillic (or any non-Latin) letters can't be opened by them.
+-- On Windows go through the wide-char API via LuaJIT FFI instead; io/os stay
+-- as the fallback when FFI is unavailable.
+local wfs = nil
+do
+  local ok, ffi = pcall(require, "ffi")
+  if ok and ffi.os == "Windows" then
+    pcall(ffi.cdef, [[
+      int MultiByteToWideChar(unsigned int cp, unsigned long flags, const char *s, int n, wchar_t *w, int wn);
+      unsigned long GetFileAttributesW(const wchar_t *path);
+      void *CreateFileW(const wchar_t *path, unsigned long access, unsigned long share, void *sa,
+                        unsigned long disposition, unsigned long flags, void *tmpl);
+      int WriteFile(void *h, const void *buf, unsigned long n, unsigned long *written, void *ov);
+      int ReadFile(void *h, void *buf, unsigned long n, unsigned long *got, void *ov);
+      int CloseHandle(void *h);
+      int MoveFileExW(const wchar_t *from, const wchar_t *to, unsigned long flags);
+      int DeleteFileW(const wchar_t *path);
+      void *ShellExecuteW(void *hwnd, const wchar_t *op, const wchar_t *file, const wchar_t *params,
+                          const wchar_t *dir, int show);
+    ]])
+    local k32 = ffi.C
+    local okShell, shell32 = pcall(ffi.load, "shell32")
+    local INVALID = ffi.cast("void *", -1)
+
+    local function w(s)
+      local n = k32.MultiByteToWideChar(65001, 0, s, #s, nil, 0)
+      local buf = ffi.new("wchar_t[?]", n + 1)
+      k32.MultiByteToWideChar(65001, 0, s, #s, buf, n)
+      buf[n] = 0
+      return buf
+    end
+
+    local function open(path, write)
+      -- GENERIC_WRITE + CREATE_ALWAYS or GENERIC_READ + OPEN_EXISTING; share read/write/delete.
+      local h = k32.CreateFileW(w(path), write and 0x40000000 or 0x80000000, 7, nil,
+        write and 2 or 3, 0x80, nil)
+      if h == INVALID then return nil end
+      return h
+    end
+
+    wfs = {
+      exists = function(path)
+        local a = k32.GetFileAttributesW(w(path))
+        return a ~= 0xFFFFFFFF and bit.band(a, 0x10) == 0
+      end,
+      write = function(path, content)
+        local h = open(path, true)
+        if not h then return false end
+        local n = ffi.new("unsigned long[1]")
+        local done = k32.WriteFile(h, content, #content, n, nil) ~= 0 and n[0] == #content
+        k32.CloseHandle(h)
+        return done
+      end,
+      read = function(path)
+        local h = open(path, false)
+        if not h then return nil end
+        local parts, buf, n = {}, ffi.new("char[4096]"), ffi.new("unsigned long[1]")
+        while k32.ReadFile(h, buf, 4096, n, nil) ~= 0 and n[0] > 0 do
+          parts[#parts + 1] = ffi.string(buf, n[0])
+        end
+        k32.CloseHandle(h)
+        return table.concat(parts)
+      end,
+      move = function(from, to)
+        return k32.MoveFileExW(w(from), w(to), 1) ~= 0 -- MOVEFILE_REPLACE_EXISTING
+      end,
+      remove = function(path)
+        return k32.DeleteFileW(w(path)) ~= 0
+      end,
+      shell_open = okShell and function(file, show)
+        -- ShellExecute returns a value > 32 on success.
+        local r = shell32.ShellExecuteW(nil, w("open"), w(file), nil, nil, show)
+        return tonumber(ffi.cast("intptr_t", r)) > 32
+      end or nil,
+    }
+  end
+end
+
 local function file_exists(path)
+  if wfs then return wfs.exists(path) end
   local f = io.open(path, "r")
   if not f then return false end
   f:close()
   return true
 end
 
+local function read_file(path)
+  if wfs then return wfs.read(path) end
+  local f = io.open(path, "r")
+  if not f then return nil end
+  local content = f:read("*a")
+  f:close()
+  return content
+end
+
+local function write_file(path, content)
+  if wfs then return wfs.write(path, content) end
+  local f = io.open(path, "w")
+  if not f then return false end
+  f:write(content)
+  f:close()
+  return true
+end
+
+local function move_file(from, to)
+  if wfs then
+    if wfs.move(from, to) then return true end
+    return false, "MoveFileExW failed"
+  end
+  return os.rename(from, to)
+end
+
+local function remove_file(path)
+  if wfs then return wfs.remove(path) end
+  return os.remove(path)
+end
+
 -- ONLY for start / open-admin. Never call from hotkeys or unload.
 local function start_exe_hidden(exe)
+  -- SW_HIDE; the exe is a GUI app, so no window shows either way.
+  if wfs and wfs.shell_open and wfs.shell_open(exe, 0) then return end
   local vbs = temp_dir() .. "\\widget_stats_start.vbs"
   local f = io.open(vbs, "w")
   if not f then return end
@@ -62,6 +175,7 @@ local function start_exe_hidden(exe)
 end
 
 local function open_url_hidden(url)
+  if wfs and wfs.shell_open and wfs.shell_open(url, 1) then return end
   local vbs = temp_dir() .. "\\widget_stats_open.vbs"
   local f = io.open(vbs, "w")
   if not f then return end
@@ -134,11 +248,8 @@ local function read_runtime()
     pid = nil,
   }
   if not data then return result end
-  local path = data .. "\\runtime.json"
-  local f = io.open(path, "r")
-  if not f then return result end
-  local content = f:read("*a")
-  f:close()
+  local content = read_file(data .. "\\runtime.json")
+  if not content then return result end
   local base = content:match('"baseUrl"%s*:%s*"(.-)"')
   local admin = content:match('"adminUrl"%s*:%s*"(.-)"')
   local pid = content:match('"pid"%s*:%s*(%d+)')
@@ -177,13 +288,13 @@ local function has_non_ascii(s)
 end
 
 -- Why hotkeys can't reach widget-stats.exe, or nil when they can.
--- Lua opens files with the ANSI codepage while OBS hands paths over as UTF-8,
--- so a folder with non-Latin letters fails even though it exists.
+-- Without FFI, Lua opens files with the ANSI codepage while OBS hands paths over
+-- as UTF-8, so a folder with non-Latin letters fails even though it exists.
 local function diagnose(skip_write_check)
   local exe = resolve_exe()
   if not exe then
     local wanted = config.exe_path ~= "" and config.exe_path or script_dir()
-    if has_non_ascii(wanted) then
+    if has_non_ascii(wanted) and not wfs then
       return "Путь содержит не латинские буквы — Lua не может его открыть. " ..
         "Перенеси папку с widget-stats.exe в путь только из латиницы (например C:\\WidgetStats): " .. wanted
     end
@@ -196,13 +307,11 @@ local function diagnose(skip_write_check)
   if skip_write_check then return nil end
   local data = data_dir_for_exe(exe)
   local probe = data .."\\hk_probe.tmp"
-  local f = io.open(probe, "w")
-  if not f then
+  if not write_file(probe, "") then
     return "Нет записи в папку " .. data .. ". Запусти сервер один раз (кнопка ниже), " ..
       "проверь права на папку и «Контролируемый доступ к папкам» в Защитнике Windows."
   end
-  f:close()
-  os.remove(probe)
+  remove_file(probe)
   return nil
 end
 
@@ -231,16 +340,13 @@ local function queue_action(action)
   local name = string.format("hk_%010d_%06d_%04d", os.time(), hotkey_seq, math.random(1000, 9999))
   local tmp = data .. "\\" .. name .. ".tmp"
   local path = data .. "\\" .. name .. ".wreq"
-  local f = io.open(tmp, "w")
-  if not f then
+  if not write_file(tmp, action) then
     warn_queue_failed(diagnose() or ("нет записи в " .. data))
     return false
   end
-  f:write(action)
-  f:close()
-  local ok, err = os.rename(tmp, path)
+  local ok, err = move_file(tmp, path)
   if not ok then
-    os.remove(tmp)
+    remove_file(tmp)
     warn_queue_failed("не удалось создать " .. path .. ": " .. tostring(err))
     return false
   end
@@ -261,10 +367,7 @@ local function write_lua_path()
   local exe = resolve_exe()
   local data = data_dir_for_exe(exe)
   if not data then return end
-  local f = io.open(data .. "\\lua_path.txt", "w")
-  if not f then return end
-  f:write(script_path())
-  f:close()
+  write_file(data .. "\\lua_path.txt", script_path())
 end
 
 function script_description()
