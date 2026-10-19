@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/internal/deck"
@@ -36,6 +37,12 @@ type Server struct {
 	OnQuit  func()
 	Auto    *owtracker.Tracker
 	mux     *http.ServeMux
+
+	// Last auto win/loss, so auto rank can move it to the role actually played.
+	autoMu      sync.Mutex
+	autoOutcome string
+	autoRole    string
+	autoAt      time.Time
 }
 
 func New(st *store.Store, skinStore *skins.Store, h *hub.Hub, obs *obsbridge.Bridge, info runtimeinfo.Info, webFS fs.FS, updater *update.Checker) *Server {
@@ -114,6 +121,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/update/check", s.updateCheck)
 	s.mux.HandleFunc("/api/update/apply", s.updateApply)
 	s.mux.HandleFunc("/api/automation/toggle", s.automationToggle)
+	s.mux.HandleFunc("/api/automation/rank", s.automationRank)
 	s.mux.HandleFunc("/api/automation/status", s.automationStatus)
 	s.mux.HandleFunc("/api/automation/capture", s.automationCapture)
 	s.mux.HandleFunc("/api/automation/zone", s.automationZone)
@@ -186,7 +194,42 @@ func (s *Server) ApplyHotkey(name string) {
 
 // ApplyHotkeyFromAuto is used by owtracker automation (no manual ML learn — auto path already saved).
 func (s *Server) ApplyHotkeyFromAuto(name string) {
+	s.autoMu.Lock()
+	s.autoOutcome, s.autoRole, s.autoAt = name, s.Store.State().Role, time.Now()
+	s.autoMu.Unlock()
 	s.applyHotkey(name, false)
+}
+
+// autoRankResultAge: a rank read this soon after an auto win/loss belongs to that match.
+const autoRankResultAge = 5 * time.Minute
+
+// ApplyAutoRank stores a rank read from the post-match screen (auto rank, alpha).
+func (s *Server) ApplyAutoRank(r owtracker.RankRead) {
+	if s.Store.State().Game != store.GameOverwatch {
+		return
+	}
+	s.autoMu.Lock()
+	outcome, from, at := s.autoOutcome, s.autoRole, s.autoAt
+	s.autoOutcome = "" // move a result at most once
+	s.autoMu.Unlock()
+	if outcome != "" && time.Since(at) < autoRankResultAge {
+		if _, moved, err := s.Store.MoveRoleResult(from, r.Role, outcome); err != nil {
+			log.Printf("auto rank: move %s %s->%s: %v", outcome, from, r.Role, err)
+		} else if moved {
+			log.Printf("auto rank: moved %s from %s to %s (role played)", outcome, from, r.Role)
+		}
+	}
+	snap, old, applied, err := s.Store.SetAutoRank(r.Role, r.Rank)
+	if err != nil {
+		log.Printf("auto rank: %v", err)
+		return
+	}
+	if !applied {
+		log.Printf("auto rank: %s %s %d not used in mode %s", r.Role, r.Tier, r.Division, snap.State.Mode)
+		return
+	}
+	log.Printf("auto rank: %s %s %d (rank %d -> %d)", r.Role, r.Tier, r.Division, old, r.Rank)
+	s.Hub.Broadcast("rank", snap)
 }
 
 func (s *Server) applyHotkey(name string, learnManual bool) {

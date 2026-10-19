@@ -34,6 +34,25 @@ func (s *Server) automationToggle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// automationRank switches auto rank (alpha): POST ?enabled=1|0.
+func (s *Server) automationRank(w http.ResponseWriter, r *http.Request) {
+	if s.Auto == nil {
+		http.Error(w, "automation unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	if r.Method != http.MethodPost && r.Method != http.MethodPut {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("enabled"))
+	if q == "" {
+		s.Auto.SetRankAuto(!s.Auto.RankAuto())
+	} else {
+		s.Auto.SetRankAuto(q == "1" || strings.EqualFold(q, "true") || q == "on")
+	}
+	writeJSON(w, http.StatusOK, s.Auto.Status())
+}
+
 func (s *Server) automationStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

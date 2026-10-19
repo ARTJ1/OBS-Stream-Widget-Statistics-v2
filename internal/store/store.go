@@ -795,6 +795,79 @@ func (s *Store) SetRank(rank int) (Snapshot, error) {
 	return s.snapLocked(), nil
 }
 
+// AutoRole names for SetAutoRank: the role queue roles plus open queue.
+const AutoRoleOpen = "open"
+
+// SetAutoRank stores a rank read from the game (auto rank, alpha). The role is the
+// one actually played, not the selected one: role modes update that role's rank
+// (open queue is ignored there), classic mode keeps one rank for everything.
+// applied is false when the mode has nowhere to put it; old is the previous rank.
+func (s *Store) SetAutoRank(role string, rank int) (snap Snapshot, old int, applied bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.Game != GameOverwatch {
+		return s.snapLocked(), 0, false, nil
+	}
+	rank = clampRankFor(s.state.Game, rank)
+	switch s.state.Mode {
+	case ModeRolesShared, ModeRolesSplit, ModeRolesRotate:
+		if !isValidRole(role) {
+			return s.snapLocked(), 0, false, nil
+		}
+		rs := s.getRole(role)
+		old = rs.Rank
+		rs.Rank = rank
+		s.setRole(role, rs)
+		// Shared/split show one role: follow the one being played.
+		if s.state.Mode != ModeRolesRotate {
+			s.state.Role = role
+		}
+	default:
+		if role != AutoRoleOpen && !isValidRole(role) {
+			return s.snapLocked(), 0, false, nil
+		}
+		old = s.state.Rank
+		s.state.Rank = rank
+	}
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, old, false, err
+	}
+	return s.snapLocked(), old, true, nil
+}
+
+// MoveRoleResult moves one win or loss between roles (split mode only): the auto
+// result was counted on the selected role before the game showed the role played.
+func (s *Store) MoveRoleResult(from, to, outcome string) (Snapshot, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.Mode != ModeRolesSplit || from == to || !isValidRole(from) || !isValidRole(to) {
+		return s.snapLocked(), false, nil
+	}
+	src, dst := s.getRole(from), s.getRole(to)
+	switch outcome {
+	case "win":
+		if src.Wins <= 0 {
+			return s.snapLocked(), false, nil
+		}
+		src.Wins--
+		dst.Wins++
+	case "loss":
+		if src.Losses <= 0 {
+			return s.snapLocked(), false, nil
+		}
+		src.Losses--
+		dst.Losses++
+	default:
+		return s.snapLocked(), false, nil
+	}
+	s.setRole(from, src)
+	s.setRole(to, dst)
+	if err := s.persistState(); err != nil {
+		return Snapshot{}, false, err
+	}
+	return s.snapLocked(), true, nil
+}
+
 func (s *Store) CycleMode() (Snapshot, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -94,9 +94,22 @@ func (t *Tracker) autoTick(gameForeground bool) time.Duration {
 	cooling := !t.flow.armed() && now.Sub(t.flow.lastCount) < flowMinMatchGap
 	t.autoMu.Unlock()
 	if cooling {
-		// Just counted a match: no new one can end this soon, capture nothing.
+		// Just counted a match: no new one can end this soon. Only the auto rank
+		// reader looks at frames now (for the post-match progress screen).
 		t.state.Store(StateMenu)
+		if t.rank.active() && t.rankOn.Load() {
+			return t.rankTick(gameForeground, now)
+		}
+		t.setRankWatching(false)
 		return 5 * time.Second
+	}
+	if t.rank.active() {
+		// Cooldown over: commit a lone read, or give up on this match.
+		if t.rankOn.Load() {
+			t.feedRank(now.Add(rankWatchFor), RankRead{})
+		}
+		t.rank.stop()
+		t.setRankWatching(false)
 	}
 	if t.cnn == nil {
 		t.state.Store(StateInactive)
@@ -167,6 +180,10 @@ func (t *Tracker) handleRead(read BannerRead) {
 		if t.onResult != nil && !t.dryRun.Load() {
 			t.onResult(outcome)
 		}
+		if t.rankOn.Load() {
+			t.rank.start(now)
+			t.setRankWatching(true)
+		}
 	}
 }
 
@@ -174,20 +191,24 @@ func (t *Tracker) handleRead(read BannerRead) {
 
 func autoConfigPath(dataDir string) string { return filepath.Join(dataDir, "auto.json") }
 
-func loadAutoEnabled(dataDir string) bool {
-	b, err := os.ReadFile(autoConfigPath(dataDir))
-	if err != nil {
-		return false
-	}
-	var v struct {
-		Enabled bool `json:"enabled"`
-	}
-	return json.Unmarshal(b, &v) == nil && v.Enabled
+// autoConfig is auto.json: auto win/loss and auto rank (alpha) switches.
+type autoConfig struct {
+	Enabled bool `json:"enabled"`
+	Rank    bool `json:"rank,omitempty"`
 }
 
-func saveAutoEnabled(dataDir string, on bool) {
-	b, _ := json.Marshal(map[string]bool{"enabled": on})
-	if err := os.WriteFile(autoConfigPath(dataDir), b, 0o644); err != nil {
+func loadAutoConfig(dataDir string) autoConfig {
+	var v autoConfig
+	b, err := os.ReadFile(autoConfigPath(dataDir))
+	if err != nil || json.Unmarshal(b, &v) != nil {
+		return autoConfig{}
+	}
+	return v
+}
+
+func (t *Tracker) saveAutoConfig() {
+	b, _ := json.Marshal(autoConfig{Enabled: t.enabled.Load(), Rank: t.rankOn.Load()})
+	if err := os.WriteFile(autoConfigPath(t.dataDir), b, 0o644); err != nil {
 		log.Printf("owtracker: save auto.json: %v", err)
 	}
 }

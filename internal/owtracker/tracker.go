@@ -63,6 +63,9 @@ type Status struct {
 	WinOCRError string      `json:"winOcrError,omitempty"`
 	LastResult  *AutoResult `json:"lastResult,omitempty"`
 	LastRead    *BannerRead `json:"lastRead,omitempty"` // dev: last frame analysis
+	RankAuto    bool        `json:"rankAuto"`           // auto rank (alpha) switch
+	RankWatch   bool        `json:"rankWatch,omitempty"` // looking for the progress screen now
+	LastRank    *RankResult `json:"lastRank,omitempty"`
 }
 
 type Tracker struct {
@@ -116,6 +119,14 @@ type Tracker struct {
 	frameSrc     FrameSource  // OBS frames (primary); guarded by autoMu
 	obsRetryAt   time.Time    // after an OBS failure, use screen capture until then
 	captureVia   atomic.Value // string: "obs" | "screen" | ""
+
+	// Auto rank (alpha, rank_*.go): read the post-match progress screen.
+	rankOn   atomic.Bool
+	rank     rankWatch // Run goroutine only
+	onRank   func(RankRead)
+	lastRank *RankResult // guarded by autoMu
+	rankWatching bool // guarded by autoMu
+	rankReader   func(image.Image) (RankRead, error) // test hook; nil = Windows OCR
 }
 
 func New(dataDir string, onResult func(Outcome)) *Tracker {
@@ -131,7 +142,9 @@ func New(dataDir string, onResult func(Outcome)) *Tracker {
 	} else {
 		t.cnn = m
 	}
-	t.enabled.Store(loadAutoEnabled(dataDir))
+	cfg := loadAutoConfig(dataDir)
+	t.enabled.Store(cfg.Enabled)
+	t.rankOn.Store(cfg.Rank)
 	t.captureSource.Store(CaptureWindow)
 	t.applyDebugSettings(loadDebugSettings(dataDir))
 	if !DevMode() {
@@ -241,7 +254,7 @@ func (t *Tracker) SetMatchThreshold(v int) {
 
 func (t *Tracker) SetEnabled(v bool) {
 	t.enabled.Store(v)
-	saveAutoEnabled(t.dataDir, v)
+	t.saveAutoConfig()
 	if !v {
 		t.state.Store(StateInactive)
 		t.endScreen.reset()
@@ -257,7 +270,7 @@ func (t *Tracker) Toggle() bool {
 		cur := t.enabled.Load()
 		next := !cur
 		if t.enabled.CompareAndSwap(cur, next) {
-			saveAutoEnabled(t.dataDir, next)
+			t.saveAutoConfig()
 			if !next {
 				t.state.Store(StateInactive)
 				t.endScreen.reset()
@@ -287,6 +300,8 @@ func (t *Tracker) Status() Status {
 	t.lastTitle.Store(title)
 	t.autoMu.Lock()
 	lastResult := t.lastResult
+	lastRank := t.lastRank
+	rankWatching := t.rankWatching
 	var lastRead *BannerRead
 	if !t.lastReadAt.IsZero() && time.Since(t.lastReadAt) < 10*time.Second {
 		r := t.lastRead
@@ -300,6 +315,9 @@ func (t *Tracker) Status() Status {
 		WinOCRError: t.ocr.LastError(),
 		LastResult:  lastResult,
 		LastRead:    lastRead,
+		RankAuto:    t.rankOn.Load(),
+		RankWatch:   rankWatching,
+		LastRank:    lastRank,
 		Enabled:     t.Enabled(),
 		State:       t.StateName(),
 		WindowTitle: title,

@@ -251,6 +251,21 @@
         </div>
         <p class="auto-ready" id="autoLastResult" hidden></p>
 
+        <div class="auto-switch-row auto-rank-row">
+          <label class="switch" title="">
+            <input type="checkbox" id="autoRankToggle" role="switch">
+            <span class="switch-ui" aria-hidden="true"></span>
+          </label>
+          <div class="auto-switch-copy">
+            <strong>
+              <span data-i18n="auto.rank.title">Автоматический ранг</span>
+              <span class="auto-beta auto-alpha" data-i18n="auto.alpha">Альфа</span>
+            </strong>
+            <span class="setup-note" id="autoRankText"></span>
+          </div>
+        </div>
+        <p class="auto-ready" id="autoLastRank" hidden></p>
+
         <details class="auto-debug" id="autoDebugPanel" hidden>
           <summary data-i18n="auto.debug.title">Тест и отладка (без игры)</summary>
           <p class="setup-note" data-i18n="auto.debug.note">Для проверки стрима/ролика: включите «Тестовый режим» ниже. Для реальной игры — выключите его и включите переключатель автозачёта. Счёт не меняется, пока включён «Только лог».</p>

@@ -335,6 +335,16 @@ h2 { font-size: 18px; margin-bottom: 16px; }
   flex-wrap: wrap;
   gap: 8px 10px;
 }
+.auto-alpha {
+  color: #ffc28a;
+  background: color-mix(in srgb, #f97316 18%, var(--surface));
+  border-color: color-mix(in srgb, #f97316 40%, var(--line));
+}
+
+.auto-rank-row {
+  margin-top: 10px;
+}
+
 .auto-beta {
   display: inline-flex;
   align-items: center;
