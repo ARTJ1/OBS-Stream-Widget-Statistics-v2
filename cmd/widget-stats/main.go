@@ -68,6 +68,7 @@ func main() {
 		}
 		srv.ApplyHotkeyFromAuto(string(outcome))
 	})
+	srv.Auto.SetRankHandler(srv.ApplyAutoRank)
 	// Auto win/loss reads frames from OBS (it already captures the game).
 	srv.Auto.SetFrameSource(func(width int) (image.Image, error) {
 		source, err := obs.GameSource()

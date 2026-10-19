@@ -1703,6 +1703,8 @@ function renderAutoStatus(st) {
     }
   }
 
+  renderAutoRank();
+
   applyDevAutomationUI();
   const previewWrap = document.getElementById('autoZonePreviewWrap');
   if (previewWrap) previewWrap.hidden = !lastAuto.devMode || !lastAuto.zoneReady;
@@ -1710,6 +1712,46 @@ function renderAutoStatus(st) {
   else stopAutoPreviewPoll();
   if (lastAuto.devMode && lastDebug) renderAutoModeBanner(lastDebug);
 }
+
+// Auto rank (alpha): its own switch; it only runs after auto win/loss counts a match.
+function renderAutoRank() {
+  const toggle = document.getElementById('autoRankToggle');
+  const on = !!lastAuto.rankAuto;
+  if (toggle) toggle.checked = on;
+  document.querySelector('.auto-rank-row')?.classList.toggle('is-on', on);
+  const text = document.getElementById('autoRankText');
+  if (text) {
+    if (!on) text.textContent = t('auto.rank.off');
+    else if (!lastAuto.enabled) text.textContent = t('auto.rank.needAuto');
+    else if (lastAuto.rankWatch) text.textContent = t('auto.rank.watching');
+    else text.textContent = t('auto.rank.on');
+  }
+  const lastEl = document.getElementById('autoLastRank');
+  if (lastEl) {
+    const r = on ? lastAuto.lastRank : null;
+    lastEl.hidden = !r;
+    if (r) {
+      const when = new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const role = r.role === 'open' ? t('auto.rank.open') : t(`role.${r.role}`);
+      lastEl.textContent = t('auto.rank.last')
+        .replace('{role}', role)
+        .replace('{rank}', `${r.tier} ${r.division}`)
+        .replace('{time}', when);
+      lastEl.classList.add('is-ok');
+    }
+  }
+}
+
+document.getElementById('autoRankToggle')?.addEventListener('change', async (e) => {
+  const on = !!e.target.checked;
+  try {
+    const st = await api(`/api/automation/rank?enabled=${on ? '1' : '0'}`, { method: 'POST' });
+    renderAutoStatus(st);
+  } catch (err) {
+    e.target.checked = !on;
+    setAutoFeedback('bad', String(err.message || err), '');
+  }
+});
 
 async function refreshAutoStatus() {
   try {
