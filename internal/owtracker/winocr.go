@@ -151,6 +151,11 @@ func (o *winOCR) Close() {
 
 // Recognize returns OCR text per language for a PNG file.
 func (o *winOCR) Recognize(pngPath string) (map[string]string, error) {
+	return o.RecognizeLang(pngPath, "")
+}
+
+// RecognizeLang runs only the given OCR language ("" or an unknown one: all).
+func (o *winOCR) RecognizeLang(pngPath, lang string) (map[string]string, error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if err := o.start(); err != nil {
@@ -163,7 +168,11 @@ func (o *winOCR) Recognize(pngPath string) (map[string]string, error) {
 	}
 	o.nextID++
 	id := strconv.Itoa(o.nextID)
-	if _, err := fmt.Fprintf(o.stdin, "REQ %s %s\n", id, abs); err != nil {
+	req := fmt.Sprintf("REQ %s %s\n", id, abs)
+	if lang != "" && !strings.ContainsAny(lang, " \n") {
+		req = fmt.Sprintf("REQL %s %s %s\n", id, lang, abs)
+	}
+	if _, err := io.WriteString(o.stdin, req); err != nil {
 		o.stop()
 		o.err = err.Error()
 		return nil, err

@@ -72,13 +72,17 @@ func readBanner(ocr *winOCR, workDir string, img image.Image) (BannerRead, error
 	return r, nil
 }
 
+// ocrPNG: the OCR temp files are read once and deleted, so skip compression
+// (it took ~30 ms of a ~120 ms rank read).
+var ocrPNG = png.Encoder{CompressionLevel: png.NoCompression}
+
 func writePNG(path string, img image.Image) error {
 	tmp := path + ".tmp"
 	f, err := os.Create(tmp)
 	if err != nil {
 		return err
 	}
-	if err := png.Encode(f, img); err != nil {
+	if err := ocrPNG.Encode(f, img); err != nil {
 		f.Close()
 		return err
 	}

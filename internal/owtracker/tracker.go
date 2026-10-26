@@ -20,17 +20,17 @@ const (
 )
 
 const (
-	pollDisabled   = 15 * time.Second // auto off — minimal wakeups
-	pollNoGame     = 12 * time.Second // auto on, Overwatch not running
-	pollInactive   = 3 * time.Second  // game running, not focused
-	pollMenu       = 1500 * time.Millisecond
-	pollMatch      = 1000 * time.Millisecond
-	pollEndScreen  = 400 * time.Millisecond
-	pollTest       = 800 * time.Millisecond
-	pollTestSlow   = 1200 * time.Millisecond
-	pollTestFast   = 400 * time.Millisecond
-	antiBlink      = 1 * time.Second
-	cooldown       = 40 * time.Second
+	pollDisabled  = 15 * time.Second // auto off — minimal wakeups
+	pollNoGame    = 12 * time.Second // auto on, Overwatch not running
+	pollInactive  = 3 * time.Second  // game running, not focused
+	pollMenu      = 1500 * time.Millisecond
+	pollMatch     = 1000 * time.Millisecond
+	pollEndScreen = 400 * time.Millisecond
+	pollTest      = 800 * time.Millisecond
+	pollTestSlow  = 1200 * time.Millisecond
+	pollTestFast  = 400 * time.Millisecond
+	antiBlink     = 1 * time.Second
+	cooldown      = 40 * time.Second
 )
 
 type Outcome string
@@ -62,10 +62,11 @@ type Status struct {
 	WinOCRLangs []string    `json:"winOcrLangs,omitempty"` // empty until the game first runs
 	WinOCRError string      `json:"winOcrError,omitempty"`
 	LastResult  *AutoResult `json:"lastResult,omitempty"`
-	LastRead    *BannerRead `json:"lastRead,omitempty"` // dev: last frame analysis
-	RankAuto    bool        `json:"rankAuto"`           // auto rank (alpha) switch
+	LastRead    *BannerRead `json:"lastRead,omitempty"`  // dev: last frame analysis
+	RankAuto    bool        `json:"rankAuto"`            // auto rank (alpha) switch
 	RankWatch   bool        `json:"rankWatch,omitempty"` // looking for the progress screen now
 	LastRank    *RankResult `json:"lastRank,omitempty"`
+	RankMiss    *RankResult `json:"rankMiss,omitempty"` // screen seen, rank unreadable (after LastRank)
 }
 
 type Tracker struct {
@@ -79,9 +80,9 @@ type Tracker struct {
 	winQ      atomic.Int32
 	lossQ     atomic.Int32
 
-	testMode       atomic.Bool
-	debugLogOn     atomic.Bool
-	dryRun         atomic.Bool
+	testMode          atomic.Bool
+	debugLogOn        atomic.Bool
+	dryRun            atomic.Bool
 	matchThresholdVal atomic.Int32
 	captureSource     atomic.Value // string
 	debug             *debugLog
@@ -101,7 +102,7 @@ type Tracker struct {
 	lastProbeImgMu sync.Mutex
 	lastProbeImg   image.Image
 
-	endScreen endScreenWatch
+	endScreen    endScreenWatch
 	bannerStable bannerStability
 	autoLearn    *mlAutoStore
 
@@ -121,12 +122,18 @@ type Tracker struct {
 	captureVia   atomic.Value // string: "obs" | "screen" | ""
 
 	// Auto rank (alpha, rank_*.go): read the post-match progress screen.
-	rankOn   atomic.Bool
-	rank     rankWatch // Run goroutine only
-	onRank   func(RankRead)
-	lastRank *RankResult // guarded by autoMu
-	rankWatching bool // guarded by autoMu
-	rankReader   func(image.Image) (RankRead, error) // test hook; nil = Windows OCR
+	rankOn         atomic.Bool
+	rank           rankWatch // Run goroutine only
+	onRank         func(RankRead)
+	lastRank       *RankResult                         // guarded by autoMu
+	lastRankMiss   *RankResult                         // guarded by autoMu
+	rankSeen       RankRead                            // Run goroutine only: last role read in this watch
+	rankByGate     bool                                // Run goroutine only: watch opened by the gate, not a count
+	rankGateQuiet  time.Time                           // Run goroutine only
+	rankGateNext   time.Time                           // Run goroutine only
+	rankGateMisses int                                 // Run goroutine only
+	rankWatching   bool                                // guarded by autoMu
+	rankReader     func(image.Image) (RankRead, error) // test hook; nil = Windows OCR
 }
 
 func New(dataDir string, onResult func(Outcome)) *Tracker {
@@ -301,6 +308,7 @@ func (t *Tracker) Status() Status {
 	t.autoMu.Lock()
 	lastResult := t.lastResult
 	lastRank := t.lastRank
+	rankMiss := t.lastRankMiss
 	rankWatching := t.rankWatching
 	var lastRead *BannerRead
 	if !t.lastReadAt.IsZero() && time.Since(t.lastReadAt) < 10*time.Second {
@@ -318,6 +326,7 @@ func (t *Tracker) Status() Status {
 		RankAuto:    t.rankOn.Load(),
 		RankWatch:   rankWatching,
 		LastRank:    lastRank,
+		RankMiss:    rankMiss,
 		Enabled:     t.Enabled(),
 		State:       t.StateName(),
 		WindowTitle: title,

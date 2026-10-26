@@ -14,7 +14,16 @@ const (
 	rankWatchFor     = 150 * time.Second
 	rankConfirmReads = 2
 	rankGoneFrames   = 3
-	rankPoll         = 300 * time.Millisecond
+	rankPoll         = 250 * time.Millisecond // one frame per rankPoll, work included
+	rankMinPause     = 40 * time.Millisecond  // breather when a read takes longer
+)
+
+// Outside the post-match watch (rank_gate.go): the gate opens a short watch.
+const (
+	rankGateWatchFor  = 8 * time.Second         // the screen it found shows its rank at once
+	rankGateQuietFor  = 60 * time.Second        // after a gate watch: the same screen again
+	rankGateMaxMisses = 3                       // gate passes with no role header read …
+	rankGateBackoff   = 1500 * time.Millisecond // … then at most one read this often
 )
 
 type rankWatch struct {
@@ -24,8 +33,10 @@ type rankWatch struct {
 	gone  int
 }
 
-func (w *rankWatch) start(now time.Time) {
-	*w = rankWatch{until: now.Add(rankWatchFor), votes: map[RankRead]int{}}
+func (w *rankWatch) start(now time.Time) { w.startFor(now, rankWatchFor) }
+
+func (w *rankWatch) startFor(now time.Time, d time.Duration) {
+	*w = rankWatch{until: now.Add(d), votes: map[RankRead]int{}}
 }
 
 // active stays true until observe has run past the deadline (so a lone read is

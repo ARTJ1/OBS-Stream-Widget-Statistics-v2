@@ -82,6 +82,29 @@ func RankIndex(tier string, division int) int {
 
 // matchRankRole finds the role word in the OCR text of the role header.
 func matchRankRole(text string) string {
+	role, _ := matchRankRoleBest(text)
+	return role
+}
+
+// matchRankRoleBest is matchRankRole with a score (lower is better): an exact
+// word in its own alphabet beats a misread letter, which beats look-alikes.
+func matchRankRoleBest(text string) (string, int) {
+	if role, d := matchRankRoleIn(text, false); role != "" {
+		return role, d
+	}
+	if role, d := matchRankRoleIn(text, true); role != "" {
+		return role, 10 + d
+	}
+	return "", 99
+}
+
+// matchRankRoleIn matches as read, or with look-alike letters folded ("ypoH" is
+// УРОН read by the English OCR: a match, but not the client's language).
+func matchRankRoleIn(text string, fold bool) (string, int) {
+	conv := func(rs []rune) []rune { return rs }
+	if fold {
+		conv = foldRankGlyphs
+	}
 	toks := strings.Fields(text)
 	// Single words, then neighbour pairs ("OPEN QUEUE").
 	cands := make([]string, 0, len(toks)*2)
@@ -93,37 +116,72 @@ func matchRankRole(text string) string {
 	}
 	best, bestDist := "", 99
 	for _, c := range cands {
-		got := []rune(c)
+		got := conv([]rune(c))
 		if len(got) < 2 {
 			continue
 		}
 		for role, words := range rankRoleWords {
 			for _, w := range words {
-				wr := []rune(w)
+				wr := conv([]rune(w))
 				if abs(len(got)-len(wr)) > 2 {
 					continue
 				}
 				d := runeLevenshtein(got, wr)
-				if d <= maxWordDistance(wr) && d < bestDist {
+				if d <= rankWordDistance(got, wr) && d < bestDist {
 					best, bestDist = role, d
 				}
 			}
 		}
 	}
-	return best
+	return best, bestDist
 }
 
-// matchRankLabel parses "EMERALD 3" / "ИЗУМРУД 2" / "DIRMOND5" into tier + division.
+// rankWordDistance is maxWordDistance, except that a 4-letter word ("GOLD",
+// "TANK") may have one misread letter when the length matches ("G0LD", "TAMK").
+// The first letter must match: "nano" (gameplay text) is not "DANO".
+func rankWordDistance(got, word []rune) int {
+	if len(word) == 4 && len(got) == 4 && got[0] == word[0] {
+		return 1
+	}
+	return maxWordDistance(word)
+}
+
+// matchRankLabel parses "EMERALD 3" / "ИЗУМРУД 2" / "DIRMOND5" / "GOLD I" /
+// "GOLDI" into tier + division.
 func matchRankLabel(text string) (string, int) {
-	letters := []rune(normalizeBannerText(text))
+	div, body := rankDivision(text)
+	// Digits inside the word are letters ("G0LD 3", "АЛМА3 2"), and Л may come
+	// back as two Latin strokes ("AJlMA3 2").
+	letters := foldRankGlyphs([]rune(normalizeBannerText(rankBodyFix.Replace(body))))
 	if len(letters) < 2 || len(letters) > 16 {
 		return "", 0
 	}
-	div := rankDivision(text)
-	if div == 0 {
+	if div > 0 {
+		tier, _ := matchRankTier(letters)
+		if tier == "" {
+			return "", 0
+		}
+		return tier, div
+	}
+	// No digit: the division may be glued on as a look-alike letter ("GOLDI",
+	// "ИЗУМРУДЗ"). Only when the word without it is exact and the whole text is
+	// itself a tier ("АЛМАЗ" with no division).
+	d, ok := rankGluedGlyphs[letters[len(letters)-1]]
+	if !ok || len(letters) < 4 {
 		return "", 0
 	}
-	letters = foldRankGlyphs(letters)
+	tier, dist := matchRankTier(letters[:len(letters)-1])
+	if tier == "" || dist != 0 {
+		return "", 0
+	}
+	if whole, wd := matchRankTier(letters); whole != "" && wd == 0 {
+		return "", 0
+	}
+	return tier, d
+}
+
+// matchRankTier returns the closest tier to the (folded) letters and the distance.
+func matchRankTier(letters []rune) (string, int) {
 	best, bestDist := "", 99
 	for _, t := range rankTiers {
 		for _, w := range t.Words {
@@ -132,20 +190,25 @@ func matchRankLabel(text string) (string, int) {
 				continue
 			}
 			d := runeLevenshtein(letters, wr)
-			if d <= maxWordDistance(wr) && d < bestDist {
+			if d <= rankWordDistance(letters, wr) && d < bestDist {
 				best, bestDist = t.Name, d
 			}
 		}
 	}
-	if best == "" {
-		return "", 0
-	}
-	return best, div
+	return best, bestDist
 }
 
+var rankBodyFix = strings.NewReplacer("0", "O", "3", "З", "Jl", "Л", "JI", "Л", "J|", "Л")
+
 // rankGlyphFold merges letters Windows OCR swaps in the italic rank font
-// (ПЛАТИНА -> ППЯТИНЯ, EMERALD -> FMFRALD); applied to both sides of a match.
-var rankGlyphFold = map[rune]rune{'Л': 'П', 'Я': 'А', 'F': 'E'}
+// (ПЛАТИНА -> ППЯТИНЯ, EMERALD -> FMFRALD), and Cyrillic letters with their Latin
+// look-alikes, since either OCR language may read either alphabet ("ТАНК" as
+// "TAHK"); applied to both sides of a match.
+var rankGlyphFold = map[rune]rune{
+	'Л': 'П', 'Я': 'A', 'F': 'E',
+	'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O',
+	'Р': 'P', 'С': 'C', 'Т': 'T', 'Х': 'X', 'У': 'Y',
+}
 
 func foldRankGlyphs(rs []rune) []rune {
 	out := make([]rune, len(rs))
@@ -159,27 +222,36 @@ func foldRankGlyphs(rs []rune) []rune {
 }
 
 // rankDivisionGlyphs: letters Windows OCR returns for a division digit.
-var rankDivisionGlyphs = map[string]int{"З": 3, "з": 3, "I": 1, "l": 1, "|": 1}
+var rankDivisionGlyphs = map[string]int{
+	"I": 1, "i": 1, "l": 1, "|": 1, "!": 1,
+	"З": 3, "з": 3,
+	"a": 4, "A": 4, "а": 4, "А": 4, "Ч": 4, "ч": 4, // the italic 4
+	"S": 5, "s": 5,
+}
 
-// rankDivision is the last 1–5 digit of the label (OCR sometimes glues it on).
-func rankDivision(text string) int {
-	// A lone last token that only looks like a digit ("ИЗУМРУД З").
+// rankGluedGlyphs: the same look-alikes glued to the word (after normalizing).
+var rankGluedGlyphs = map[rune]int{'З': 3, 'I': 1}
+
+// rankDivision is the last 1–5 digit of the label (OCR sometimes glues it on)
+// and the rest of the text, the tier word.
+func rankDivision(text string) (int, string) {
+	// A lone last token that only looks like a digit ("ИЗУМРУД З", "GOLD I").
 	if toks := strings.Fields(text); len(toks) > 1 {
 		if d, ok := rankDivisionGlyphs[toks[len(toks)-1]]; ok {
-			return d
+			return d, strings.Join(toks[:len(toks)-1], " ")
 		}
 	}
 	rs := []rune(strings.TrimSpace(text))
 	for i := len(rs) - 1; i >= 0; i-- {
 		r := rs[i]
 		if r >= '1' && r <= '5' {
-			return int(r - '0')
+			return int(r - '0'), string(rs[:i])
 		}
-		if unicode.IsDigit(r) {
-			return 0 // 0, 6–9: not a division
+		if r != '0' && unicode.IsDigit(r) {
+			return 0, text // 6–9: not a division
 		}
 	}
-	return 0
+	return 0, text
 }
 
 // rankCrop cuts a crop (fractions of the 16:9 area) and scales it for OCR.
@@ -240,6 +312,42 @@ func whiteTextGray(src image.Image) *image.Gray {
 	return g
 }
 
+// brightTextGray is whiteTextGray relative to the crop: the label is the
+// brightest near-gray thing in it whatever the tint (OBS color correction, a
+// blue-tinted white over the Diamond glow, a dimmed screen). Black on white.
+func brightTextGray(src image.Image) *image.Gray {
+	b := src.Bounds()
+	var hist [256]int
+	n := 0
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			r, gg, bb, _ := src.At(x, y).RGBA()
+			hist[min(r, gg, bb)>>8]++
+			n++
+		}
+	}
+	// The 99th percentile of the darkest channel is the text's own level.
+	top, acc := 255, 0
+	for top > 0 && acc+hist[top] < n/100 {
+		acc += hist[top]
+		top--
+	}
+	thr := max(60, top*4/5)
+	g := image.NewGray(b)
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			r, gg, bb, _ := src.At(x, y).RGBA()
+			mx, mn := int(max(r, gg, bb)>>8), int(min(r, gg, bb)>>8)
+			v := uint8(255)
+			if mn >= thr && (mx-mn)*100 <= 35*mx {
+				v = 0
+			}
+			g.SetGray(x, y, color.Gray{Y: v})
+		}
+	}
+	return g
+}
+
 // rankOCR is the OCR step of ReadRankScreen (a Windows OCR process in production).
 type rankOCR interface {
 	Recognize(pngPath string) (map[string]string, error)
@@ -254,9 +362,12 @@ func ReadRankScreen(ocr rankOCR, workDir string, frame image.Image) (RankRead, e
 	}
 	path := filepath.Join(workDir, "rank_ocr.png")
 	defer os.Remove(path)
-	read := func(img image.Image) (map[string]string, error) {
+	read := func(img image.Image, lang string) (map[string]string, error) {
 		if err := writePNG(path, img); err != nil {
 			return nil, err
+		}
+		if lo, ok := ocr.(rankLangOCR); ok && lang != "" {
+			return lo.RecognizeLang(path, lang)
 		}
 		return ocr.Recognize(path)
 	}
@@ -265,14 +376,17 @@ func ReadRankScreen(ocr rankOCR, workDir string, frame image.Image) (RankRead, e
 	if role == nil {
 		return r, nil
 	}
-	texts, err := read(role)
+	texts, err := read(role, "")
 	if err != nil {
 		return r, err
 	}
+	// The language that reads the word best (in its own alphabet) is the
+	// client's: the label is read in it below. "ТАНК" read by the English OCR is
+	// "TAHK", one letter off "TANK"; the Russian one reads it exactly.
+	bestScore := 99
 	for _, lang := range sortedLangs(texts) {
-		if id := matchRankRole(texts[lang]); id != "" {
-			r.Role, r.RoleText = id, strings.TrimSpace(texts[lang])
-			break
+		if id, score := matchRankRoleBest(texts[lang]); id != "" && score < bestScore {
+			r.Role, r.RoleText, r.Lang, bestScore = id, strings.TrimSpace(texts[lang]), lang, score
 		}
 	}
 	if r.Role == "" {
@@ -283,12 +397,28 @@ func ReadRankScreen(ocr rankOCR, workDir string, frame image.Image) (RankRead, e
 	if label == nil {
 		return r, nil
 	}
-	for _, img := range []image.Image{deskew(label, rankLabelShear), label, whiteTextGray(label)} {
-		texts, err := read(img)
+	// The label is in the language the role was read in: one OCR language per
+	// try (about half the time with two languages installed). The other
+	// languages get one last try.
+	type try struct {
+		img  image.Image
+		lang string
+	}
+	upright := deskew(label, rankLabelShear)
+	tries := []try{{upright, r.Lang}, {label, r.Lang}, {whiteTextGray(label), r.Lang},
+		{brightTextGray(upright), r.Lang}}
+	if lo, ok := ocr.(rankLangOCR); ok && len(lo.Langs()) > 1 {
+		tries = append(tries, try{upright, ""})
+	}
+	for _, t := range tries {
+		texts, err := read(t.img, t.lang)
 		if err != nil {
 			return r, err
 		}
 		for _, lang := range sortedLangs(texts) {
+			if t.lang == "" && lang == r.Lang {
+				continue // already read above
+			}
 			txt := strings.TrimSpace(texts[lang])
 			if txt != "" && r.RankText == "" {
 				r.RankText = txt
@@ -301,6 +431,12 @@ func ReadRankScreen(ocr rankOCR, workDir string, frame image.Image) (RankRead, e
 		}
 	}
 	return r, nil
+}
+
+// rankLangOCR runs a single OCR language (the Windows OCR process does).
+type rankLangOCR interface {
+	RecognizeLang(pngPath, lang string) (map[string]string, error)
+	Langs() []string
 }
 
 // sortedLangs gives a stable order (map iteration is random).
