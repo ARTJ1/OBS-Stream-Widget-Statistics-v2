@@ -60,10 +60,6 @@ func (t *Tracker) rankTick(gameForeground bool, now time.Time) time.Duration {
 	t.feedRank(now, r)
 	if !t.rank.active() {
 		t.setRankWatching(false)
-		if t.rankByGate {
-			t.rankByGate, t.rankSeen = false, RankRead{}
-			t.rankGateQuiet = now.Add(rankGateQuietFor)
-		}
 	}
 	// A fixed frame rate, not a fixed pause: players who click Continue at once
 	// leave the screen up for a second or two.
@@ -71,65 +67,6 @@ func (t *Tracker) rankTick(gameForeground bool, now time.Time) time.Duration {
 		return wait
 	}
 	return rankMinPause
-}
-
-// rankGateCheck runs outside the post-match watch: when the cheap gate sees what
-// may be the progress screen, one full read confirms it and opens a short watch
-// (a draw, a missed banner, a quick leave). full is the OBS banner frame (nil
-// with screen capture).
-func (t *Tracker) rankGateCheck(full image.Image, gameForeground bool, now time.Time) {
-	if now.Before(t.rankGateQuiet) {
-		return
-	}
-	var band image.Image
-	if full != nil {
-		band = cropRankGate(full)
-	} else if gameForeground {
-		band = screenRankGate()
-	}
-	if !rankGate(band) {
-		return
-	}
-	// Something else keeps passing the gate (a menu, a bright map): back off.
-	if t.rankGateMisses >= rankGateMaxMisses && now.Before(t.rankGateNext) {
-		return
-	}
-	var r RankRead
-	img, _, err := t.fullFrame(gameForeground, now)
-	if err == nil {
-		r, err = t.readRankFrame(img)
-		if err != nil {
-			log.Printf("owtracker: rank read: %v", err)
-		}
-	}
-	if r.Role == "" {
-		t.rankGateMisses++
-		if t.rankGateMisses >= rankGateMaxMisses {
-			t.rankGateNext = now.Add(rankGateBackoff)
-		}
-		return
-	}
-	t.rankGateMisses = 0
-	log.Printf("owtracker: rank screen without a counted match role=%s tier=%s div=%d text=%q", r.Role, r.Tier, r.Division, r.RankText)
-	t.rank.startFor(now, rankGateWatchFor)
-	t.rankByGate = true
-	t.rankSeen = RankRead{}
-	t.setRankWatching(true)
-	t.feedRank(now, r)
-}
-
-// screenRankGate captures the gate band from the game window (no OBS).
-func screenRankGate() image.Image {
-	x, y, w, h, ok := overwatchClientBounds()
-	if !ok {
-		return nil
-	}
-	r := rankGateRect(w, h)
-	img, err := captureRegion(x+r.Min.X, y+r.Min.Y, r.Dx(), r.Dy())
-	if err != nil {
-		return nil
-	}
-	return img
 }
 
 // readRankFrame runs the reader (tests swap in a fake through t.rankReader).
@@ -147,9 +84,8 @@ func (t *Tracker) feedRank(now time.Time, r RankRead) {
 	}
 	conf, ok := t.rank.observe(now, r)
 	if !ok {
-		if !t.rank.active() && t.rankSeen.Role != "" && !t.rankByGate {
-			// The screen was there but the rank never read: show what OCR saw (not for
-			// a gate watch, which may have been something else).
+		if !t.rank.active() && t.rankSeen.Role != "" {
+			// The screen was there but the rank never read: show what OCR saw.
 			log.Printf("owtracker: rank unreadable role=%q label=%q", t.rankSeen.RoleText, t.rankSeen.RankText)
 			t.autoMu.Lock()
 			t.lastRankMiss = &RankResult{RankRead: t.rankSeen, At: now}

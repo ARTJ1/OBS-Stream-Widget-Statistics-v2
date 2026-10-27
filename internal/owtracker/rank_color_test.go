@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/nfnt/resize"
 )
 
 // Color changes the reader must survive, on the real progress screens of both
@@ -76,9 +74,6 @@ func TestReadRankScreenColors(t *testing.T) {
 				img = recolor(src, v.fn)
 			}
 			total++
-			if !rankGate(cropRankGate(resize.Resize(480, 270, img, resize.Bilinear))) {
-				t.Errorf("%s/%s: gate missed the screen", name, v.name)
-			}
 			r, err := ReadRankScreen(ocr, t.TempDir(), img)
 			if err != nil {
 				t.Fatal(err)

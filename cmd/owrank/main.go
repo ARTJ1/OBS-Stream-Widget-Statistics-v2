@@ -6,10 +6,6 @@
 //
 // -all reads every frame (no banner needed) to list every progress screen in the
 // video: the ground truth to compare the production mode against.
-//
-// -gate also runs the live fallback: outside the post-match watch, a cheap check
-// on the small frame opens a short watch when it sees the progress screen (draws,
-// missed banners).
 package main
 
 import (
@@ -39,7 +35,6 @@ func main() {
 	start := flag.Duration("start", 0, "skip to this video time")
 	limit := flag.Duration("limit", 0, "scan only this much video (0 = all)")
 	all := flag.Bool("all", false, "ground truth: read every frame, no banner needed")
-	gate := flag.Bool("gate", false, "also open a watch from the cheap progress-screen check (live fallback)")
 	thumbs := flag.String("thumbs", "", "save a JPEG of every frame with a role read here")
 	flag.Parse()
 	if *video == "" {
@@ -84,9 +79,7 @@ func main() {
 
 	base := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	buf := make([]byte, frameW*frameH*4)
-	var matches, ranks, ocrN, gateN int
-	var gateQuiet time.Time
-	byGate := false
+	var matches, ranks, ocrN int
 	var ocrTime time.Duration
 	var countedAt time.Duration
 	began := time.Now()
@@ -131,9 +124,6 @@ func main() {
 			} else if !rs.Active() {
 				fmt.Printf("%s RANK none (watch ended)\n", clock(vt))
 			}
-			if !rs.Active() && byGate {
-				byGate, gateQuiet = false, at.Add(60*time.Second)
-			}
 			continue
 		}
 		if cs.Cooling(at) {
@@ -145,22 +135,6 @@ func main() {
 			countedAt = vt
 			fmt.Printf("%s COUNTED %s\n", clock(vt), outcome)
 			rs.Start(at)
-		} else if *gate && !at.Before(gateQuiet) && rs.Gate(small) {
-			gateN++
-			t0 := time.Now()
-			r, err := rs.Read(frame)
-			ocrTime += time.Since(t0)
-			ocrN++
-			if err != nil {
-				log.Fatalf("ocr: %v", err)
-			}
-			if r.Role != "" {
-				// Live: the watch opens and this read is its first vote.
-				fmt.Printf("%s GATE role=%-7s rank=%-14s label=%q\n", clock(vt), r.Role, rankName(r), r.RankText)
-				countedAt, byGate = vt, true
-				rs.StartGate(at)
-				rs.Observe(at, r)
-			}
 		}
 	}
 	_ = cmd.Wait()
@@ -168,8 +142,8 @@ func main() {
 	if ocrN > 0 {
 		avg = ocrTime / time.Duration(ocrN)
 	}
-	fmt.Printf("\nscanned in %s: %d matches, %d ranks read, %d reader calls (avg %s), %d gate passes\n",
-		time.Since(began).Round(time.Second), matches, ranks, ocrN, avg.Round(time.Millisecond), gateN)
+	fmt.Printf("\nscanned in %s: %d matches, %d ranks read, %d reader calls (avg %s)\n",
+		time.Since(began).Round(time.Second), matches, ranks, ocrN, avg.Round(time.Millisecond))
 }
 
 func rankName(r owtracker.RankRead) string {

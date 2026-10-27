@@ -23,16 +23,7 @@ func (s *RankScanner) Close() { s.ocr.Close() }
 // Start opens the post-match watch (call when a win/loss is counted).
 func (s *RankScanner) Start(at time.Time) { s.w.start(at) }
 
-// StartGate opens the short watch the live gate opens (no counted match).
-func (s *RankScanner) StartGate(at time.Time) { s.w.startFor(at, rankGateWatchFor) }
-
-// Gate is the live cheap check for the progress screen on a small frame.
-func (s *RankScanner) Gate(small image.Image) bool { return rankGate(cropRankGate(small)) }
-
 func (s *RankScanner) Active() bool { return s.w.active() }
-
-// Observe feeds a read made with Read to the watch (the gate's first vote).
-func (s *RankScanner) Observe(at time.Time, r RankRead) (RankRead, bool) { return s.w.observe(at, r) }
 
 // Read is one frame through the reader, without the watch.
 func (s *RankScanner) Read(frame image.Image) (RankRead, error) {

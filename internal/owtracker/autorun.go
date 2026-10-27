@@ -103,17 +103,12 @@ func (t *Tracker) autoTick(gameForeground bool) time.Duration {
 		t.setRankWatching(false)
 		return 5 * time.Second
 	}
-	if t.rank.active() && t.rankByGate && t.rankOn.Load() {
-		// The progress screen showed up without a counted match: read it.
-		return t.rankTick(gameForeground, now)
-	}
 	if t.rank.active() {
 		// Cooldown over: commit a lone read, or give up on this match.
 		if t.rankOn.Load() {
 			t.feedRank(now.Add(rankWatchFor), RankRead{})
 		}
 		t.rank.stop()
-		t.rankByGate = false
 		t.setRankWatching(false)
 	}
 	if t.cnn == nil {
@@ -124,7 +119,7 @@ func (t *Tracker) autoTick(gameForeground bool) time.Duration {
 	if !zone.Valid() {
 		zone = defaultZone
 	}
-	full, img, via, err := t.zoneFrame(zone, gameForeground, now)
+	img, via, err := t.zoneFrame(zone, gameForeground, now)
 	if err != nil {
 		t.captureVia.Store("")
 		t.state.Store(StateInactive)
@@ -133,33 +128,29 @@ func (t *Tracker) autoTick(gameForeground bool) time.Duration {
 	t.captureVia.Store(via)
 	_, win, loss := t.cnn.Classify(img)
 	t.handleRead(t.vote.add(now, win, loss))
-	if t.rankOn.Load() && !t.rank.active() {
-		t.rankGateCheck(full, gameForeground, now)
-	}
 	return pollCNN
 }
 
 // zoneFrame returns the banner zone: from OBS (preferred) or the game window.
-// full is the whole OBS frame (nil with screen capture).
-func (t *Tracker) zoneFrame(zone Zone, gameForeground bool, now time.Time) (full, img image.Image, via string, err error) {
+func (t *Tracker) zoneFrame(zone Zone, gameForeground bool, now time.Time) (image.Image, string, error) {
 	if fs := t.getFrameSource(); fs != nil && !now.Before(t.obsRetryAt) {
 		img, err := fs(obsCNNWidth)
 		if err == nil {
-			return img, cropBannerZone(img, zone), "obs", nil
+			return cropBannerZone(img, zone), "obs", nil
 		}
 		// OBS closed, not connected, or no game source on the live scene:
 		// use the screen fallback and try OBS again a bit later.
 		t.obsRetryAt = now.Add(15 * time.Second)
 	}
 	if !gameForeground {
-		return nil, nil, "", ErrGameNotVisible
+		return nil, "", ErrGameNotVisible
 	}
 	x, y, w, h, err := bannerScreenRect(zone)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, "", err
 	}
-	img, err = captureRegion(x, y, w, h)
-	return nil, img, "screen", err
+	img, err := captureRegion(x, y, w, h)
+	return img, "screen", err
 }
 
 // handleRead feeds the once-per-match flow and applies a counted result.
@@ -191,7 +182,6 @@ func (t *Tracker) handleRead(read BannerRead) {
 		}
 		if t.rankOn.Load() {
 			t.rank.start(now)
-			t.rankByGate = false
 			t.rankSeen = RankRead{}
 			t.setRankWatching(true)
 		}
