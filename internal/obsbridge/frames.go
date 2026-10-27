@@ -94,6 +94,10 @@ func (b *Bridge) SourceFrame(sourceName string, width int) (image.Image, error) 
 		// Small frames (auto win/loss runs ~4 per second): JPEG is much cheaper for
 		// OBS to encode than PNG, and the classifier was trained on stream video.
 		params = params.WithImageFormat("jpg").WithImageCompressionQuality(90)
+	} else if width > 0 && width <= 1280 {
+		// Auto rank frames (several per second right after a match): a high quality
+		// JPEG reads the same as PNG and is several times faster to encode and send.
+		params = params.WithImageFormat("jpg").WithImageCompressionQuality(95)
 	} else {
 		params = params.WithImageFormat("png")
 	}

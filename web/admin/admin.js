@@ -1729,15 +1729,25 @@ function renderAutoRank() {
   const lastEl = document.getElementById('autoLastRank');
   if (lastEl) {
     const r = on ? lastAuto.lastRank : null;
-    lastEl.hidden = !r;
-    if (r) {
-      const when = new Date(r.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const role = r.role === 'open' ? t('auto.rank.open') : t(`role.${r.role}`);
+    // The progress screen was seen after the last good read, but the rank on it
+    // did not read: say so, with the text OCR saw (helps tell a bad crop from a font issue).
+    const miss = on ? lastAuto.rankMiss : null;
+    const showMiss = miss && (!r || new Date(miss.at) > new Date(r.at));
+    const when = (at) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const roleName = (id) => (id === 'open' ? t('auto.rank.open') : t(`role.${id}`));
+    lastEl.hidden = !r && !showMiss;
+    lastEl.classList.toggle('is-ok', !showMiss && !!r);
+    lastEl.classList.toggle('is-warn', !!showMiss);
+    if (showMiss) {
+      lastEl.textContent = t('auto.rank.miss')
+        .replace('{role}', roleName(miss.role))
+        .replace('{text}', miss.rankText ? `«${miss.rankText}»` : '—')
+        .replace('{time}', when(miss.at));
+    } else if (r) {
       lastEl.textContent = t('auto.rank.last')
-        .replace('{role}', role)
+        .replace('{role}', roleName(r.role))
         .replace('{rank}', `${r.tier} ${r.division}`)
-        .replace('{time}', when);
-      lastEl.classList.add('is-ok');
+        .replace('{time}', when(r.at));
     }
   }
 }

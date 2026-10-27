@@ -63,8 +63,8 @@ func TestAutoRankFlowConfirms(t *testing.T) {
 		t.Fatal("watch not started after a counted match")
 	}
 	for i := 0; i < 10 && len(ft.applied) == 0; i++ {
-		if d := ft.autoTick(false); d != rankPoll {
-			t.Fatalf("tick %d during the watch returned %s, want %s", i, d, rankPoll)
+		if d := ft.autoTick(false); d < rankMinPause || d > rankPoll {
+			t.Fatalf("tick %d during the watch returned %s, want up to %s", i, d, rankPoll)
 		}
 	}
 	if len(ft.applied) != 1 || ft.applied[0] != em2 {
@@ -135,6 +135,35 @@ func TestAutoRankFlowLoneReadAtCooldownEnd(t *testing.T) {
 	}
 	if ft.rank.active() || ft.Status().RankWatch {
 		t.Error("watch still active after the cooldown")
+	}
+}
+
+func TestAutoRankFlowUnreadableLabel(t *testing.T) {
+	// The screen shows, but the label never reads: the panel gets what OCR saw.
+	seen := RankRead{Role: "damage", RoleText: "DAMAGE", RankText: "EMEPALO ?"}
+	ft := newRankFlowTracker(t, true, seen, seen)
+	ft.countMatch()
+	for i := 0; i < 3; i++ {
+		ft.autoTick(false)
+	}
+	ft.endCooldown()
+	ft.autoTick(false)
+	if len(ft.applied) != 0 {
+		t.Fatalf("applied %+v", ft.applied)
+	}
+	st := ft.Status()
+	if st.RankMiss == nil || st.RankMiss.RankText != seen.RankText {
+		t.Fatalf("miss not reported: %+v", st.RankMiss)
+	}
+	// The next match reads fine: the miss is cleared.
+	ft.script, ft.calls = []RankRead{em2, em2}, 0
+	ft.flow.reset()
+	ft.countMatch()
+	for i := 0; i < 3; i++ {
+		ft.autoTick(false)
+	}
+	if st := ft.Status(); st.RankMiss != nil || st.LastRank == nil {
+		t.Errorf("after a good read: miss=%+v last=%+v", st.RankMiss, st.LastRank)
 	}
 }
 

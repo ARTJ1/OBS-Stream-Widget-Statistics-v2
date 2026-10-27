@@ -34,13 +34,34 @@ foreach ($l in [Windows.Media.Ocr.OcrEngine]::AvailableRecognizerLanguages) {
   $e = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($l)
   if ($e) { $engines[$base] = $e }
 }
+# None of them installed (e.g. a Ukrainian or Turkish Windows): the profile language
+# still reads the Latin rank and role words of an English client.
+if ($engines.Count -eq 0) {
+  $e = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
+  if (-not $e) {
+    foreach ($l in [Windows.Media.Ocr.OcrEngine]::AvailableRecognizerLanguages) {
+      $e = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($l)
+      if ($e) { break }
+    }
+  }
+  if ($e) { $engines[$e.RecognizerLanguage.LanguageTag.Split('-')[0].ToLower()] = $e }
+}
 [Console]::Out.WriteLine('LANGS ' + ($engines.Keys -join ','))
 [Console]::Out.Flush()
 
 while ($true) {
   $line = [Console]::In.ReadLine()
   if ($null -eq $line) { break }
-  $parts = $line.Split(' ', 3)
+  # REQL <id> <lang> <path>: one language only (faster once the client language is known).
+  $only = $null
+  if ($line.StartsWith('REQL ')) {
+    $p4 = $line.Split(' ', 4)
+    if ($p4.Count -lt 4) { continue }
+    $only = $p4[2]
+    $parts = @('REQ', $p4[1], $p4[3])
+  } else {
+    $parts = $line.Split(' ', 3)
+  }
   if ($parts.Count -lt 3 -or $parts[0] -ne 'REQ') { continue }
   $id = $parts[1]
   $stream = $null
@@ -50,7 +71,8 @@ while ($true) {
     $dec = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
     $bmp = Await ($dec.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
     foreach ($k in $engines.Keys) {
-      $r = Await ($engines[$k].RecognizeAsync($bmp)) ([Windows.Media.Ocr.OcrResult])
+      if ($only -and $engines.Contains($only) -and $k -ne $only) { continue }
+      $r =Await ($engines[$k].RecognizeAsync($bmp)) ([Windows.Media.Ocr.OcrResult])
       [Console]::Out.WriteLine("RES $id $k " + (B64 $r.Text))
     }
   } catch {

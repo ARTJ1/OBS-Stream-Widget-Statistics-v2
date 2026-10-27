@@ -66,6 +66,7 @@ type Status struct {
 	RankAuto    bool        `json:"rankAuto"`           // auto rank (alpha) switch
 	RankWatch   bool        `json:"rankWatch,omitempty"` // looking for the progress screen now
 	LastRank    *RankResult `json:"lastRank,omitempty"`
+	RankMiss    *RankResult `json:"rankMiss,omitempty"` // screen seen, rank unreadable
 }
 
 type Tracker struct {
@@ -125,6 +126,8 @@ type Tracker struct {
 	rank     rankWatch // Run goroutine only
 	onRank   func(RankRead)
 	lastRank *RankResult // guarded by autoMu
+	lastRankMiss *RankResult // guarded by autoMu
+	rankSeen     RankRead  // Run goroutine only: last role read in this watch
 	rankWatching bool // guarded by autoMu
 	rankReader   func(image.Image) (RankRead, error) // test hook; nil = Windows OCR
 }
@@ -301,6 +304,7 @@ func (t *Tracker) Status() Status {
 	t.autoMu.Lock()
 	lastResult := t.lastResult
 	lastRank := t.lastRank
+	rankMiss := t.lastRankMiss
 	rankWatching := t.rankWatching
 	var lastRead *BannerRead
 	if !t.lastReadAt.IsZero() && time.Since(t.lastReadAt) < 10*time.Second {
@@ -318,6 +322,7 @@ func (t *Tracker) Status() Status {
 		RankAuto:    t.rankOn.Load(),
 		RankWatch:   rankWatching,
 		LastRank:    lastRank,
+		RankMiss:    rankMiss,
 		Enabled:     t.Enabled(),
 		State:       t.StateName(),
 		WindowTitle: title,

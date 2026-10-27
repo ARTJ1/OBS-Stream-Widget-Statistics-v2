@@ -14,6 +14,12 @@ func TestMatchRankRole(t *testing.T) {
 		"+ SUPPORT":        "support",
 		"ПОДДЕРЖКА":        "support",
 		"ТАНК":             "tank",
+		"TANK":             "tank",
+		"TAMK":             "tank", // one misread letter in a 4-letter word
+		"TAHK":             "tank", // ТАНК read in Latin look-alikes
+		"YPOH":             "damage",
+		"n ano nonuuo":     "", // gameplay text: "nano" is not DANO
+		"* TANK":           "tank",
 		"OPEN QUEUE":       RankRoleOpen,
 		"DAMAGE MITIGATED": "damage", // matched word; the label check rejects the frame
 		"COMPETITIVE":      "",
@@ -52,6 +58,28 @@ func TestMatchRankLabel(t *testing.T) {
 		{"muon 5", "", 0},    // too far from any tier
 		{"DIAMOND 7", "", 0}, // no such division
 		{"RANK PROGRESS: 7%", "", 0},
+		// EN client: 4-letter GOLD and the division 1 read as a letter.
+		{"GOLD I", "Gold", 1},
+		{"GOLDI", "Gold", 1},
+		{"GOLD 1", "Gold", 1},
+		{"G0LD 2", "Gold", 2},
+		{"COLD 4", "", 0}, // a wrong first letter is too loose for a 4-letter word
+		{"SILVER l", "Silver", 1},
+		{"PLATINUM S", "Platinum", 5},
+		{"BRONZE 5", "Bronze", 5},
+		{"ИЗУМРУДЗ", "Emerald", 3},
+		{"АЛМАЗ", "", 0}, // ends in a З-like letter but has no division
+		{"GOLD", "", 0},
+		{"TOP 500", "", 0},
+		{"EMERALD 3%", "Emerald", 3},
+		// The italic 4 read as a letter, Latin look-alikes, Л as two strokes.
+		{"ГРАНДМАСТЕР а", "Grandmaster", 4},
+		{"EMERALD a", "Emerald", 4},
+		{"ПЛАТИНА Ч", "Platinum", 4},
+		{"AJlMA32", "Diamond", 2},
+		{"3OЛOTO 5", "Gold", 5}, // Latin O and a digit 3 in a Cyrillic word
+		{"ПЛАТИНА", "", 0},      // the division was not read: no guess
+		{"SILVER L", "", 0},     // an L is not a safe 1 (this was a dark "SILVER 4")
 	}
 	for _, c := range cases {
 		tier, div := matchRankLabel(c.in)

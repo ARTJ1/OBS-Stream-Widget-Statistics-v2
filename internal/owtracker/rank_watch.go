@@ -14,7 +14,8 @@ const (
 	rankWatchFor     = 150 * time.Second
 	rankConfirmReads = 2
 	rankGoneFrames   = 3
-	rankPoll         = 300 * time.Millisecond
+	rankPoll         = 250 * time.Millisecond // one frame per rankPoll, work included
+	rankMinPause     = 40 * time.Millisecond  // breather when a read takes longer
 )
 
 type rankWatch struct {

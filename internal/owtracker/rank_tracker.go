@@ -61,7 +61,12 @@ func (t *Tracker) rankTick(gameForeground bool, now time.Time) time.Duration {
 	if !t.rank.active() {
 		t.setRankWatching(false)
 	}
-	return rankPoll
+	// A fixed frame rate, not a fixed pause: players who click Continue at once
+	// leave the screen up for a second or two.
+	if wait := rankPoll - time.Since(now); wait > rankMinPause {
+		return wait
+	}
+	return rankMinPause
 }
 
 // readRankFrame runs the reader (tests swap in a fake through t.rankReader).
@@ -74,12 +79,25 @@ func (t *Tracker) readRankFrame(img image.Image) (RankRead, error) {
 
 // feedRank passes a read to the watch and applies a confirmed rank.
 func (t *Tracker) feedRank(now time.Time, r RankRead) {
+	if r.Role != "" && t.rank.active() {
+		t.rankSeen = r
+	}
 	conf, ok := t.rank.observe(now, r)
 	if !ok {
+		if !t.rank.active() && t.rankSeen.Role != "" {
+			// The screen was there but the rank never read: show what OCR saw.
+			log.Printf("owtracker: rank unreadable role=%q label=%q", t.rankSeen.RoleText, t.rankSeen.RankText)
+			t.autoMu.Lock()
+			t.lastRankMiss = &RankResult{RankRead: t.rankSeen, At: now}
+			t.autoMu.Unlock()
+			t.rankSeen = RankRead{}
+		}
 		return
 	}
+	t.rankSeen = RankRead{}
 	log.Printf("owtracker: RANK %s %s %d", conf.Role, conf.Tier, conf.Division)
 	t.autoMu.Lock()
+	t.lastRankMiss = nil
 	t.lastRank = &RankResult{RankRead: conf, At: now}
 	fn := t.onRank
 	t.autoMu.Unlock()
