@@ -1,96 +1,59 @@
 /**
- * Admin FAQ / help tab — accordion + live preview demos.
+ * Admin Help page: quick start, searchable topics in plain language, and a
+ * "contact the developer" block. Texts live in i18n.js (help.*).
  * Expects window.AdminI18n.t and callbacks from admin.js.
  */
 (function (global) {
-  const ITEMS = [
-    {
-      id: 'start',
-      icon: '1',
-      titleKey: 'faq.start.title',
-      bodyKey: 'faq.start.body',
-      demo: 'fullCycle',
-      demoLabelKey: 'faq.demo.full',
-    },
-    {
-      id: 'obs',
-      icon: '2',
-      titleKey: 'faq.obs.title',
-      bodyKey: 'faq.obs.body',
-    },
-    {
-      id: 'games',
-      icon: '3',
-      titleKey: 'faq.games.title',
-      bodyKey: 'faq.games.body',
-    },
-    {
-      id: 'look',
-      icon: '4',
-      titleKey: 'faq.look.title',
-      bodyKey: 'faq.look.body',
-      demo: 'fullCycle',
-      demoLabelKey: 'faq.demo.look',
-    },
-    {
-      id: 'vessels',
-      icon: '5',
-      titleKey: 'faq.vessels.title',
-      bodyKey: 'faq.vessels.body',
-      demo: 'fillCycle',
-      demoLabelKey: 'faq.demo.fill',
-    },
-    {
-      id: 'motion',
-      icon: '6',
-      titleKey: 'faq.motion.title',
-      bodyKey: 'faq.motion.body',
-      demos: [
-        { action: 'win', labelKey: 'faq.demo.win' },
-        { action: 'loss', labelKey: 'faq.demo.loss' },
-        { action: 'fillCycle', labelKey: 'faq.demo.fill' },
-      ],
-    },
-    {
-      id: 'rankfx',
-      icon: '7',
-      titleKey: 'faq.rankfx.title',
-      bodyKey: 'faq.rankfx.body',
-      demo: 'rankShowcase',
-      demoLabelKey: 'faq.demo.rank',
-    },
-    {
-      id: 'skins',
-      icon: '8',
-      titleKey: 'faq.skins.title',
-      bodyKey: 'faq.skins.body',
-      demo: 'fullCycle',
-      demoLabelKey: 'faq.demo.skin',
-    },
-    {
-      id: 'deck',
-      icon: '9',
-      titleKey: 'faq.deck.title',
-      bodyKey: 'faq.deck.body',
-    },
-    {
-      id: 'tips',
-      icon: 'i',
-      titleKey: 'faq.tips.title',
-      bodyKey: 'faq.tips.body',
-    },
+  // Where questions and bug reports go. Empty discord hides that button.
+  const DEV_CONTACT = {
+    // Developer's Discord profile (opens a DM from the profile page).
+    discord: 'https://discord.com/users/407943409618255883',
+    issues: 'https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/issues',
+  };
+
+  const START = [
+    { key: 'help.start.obs', goto: 'connections' },
+    { key: 'help.start.game', goto: 'main' },
+    { key: 'help.start.look', goto: 'layout' },
+    { key: 'help.start.test', demo: 'fullCycle' },
+  ];
+
+  // group → topics; each topic: id, actions (goto page / preview demo).
+  const GROUPS = [
+    { key: 'help.g.start', items: [
+      { id: 'show', goto: 'connections' },
+      { id: 'obs', goto: 'connections' },
+      { id: 'saving' },
+    ] },
+    { key: 'help.g.stream', items: [
+      { id: 'count', goto: 'main', demo: 'win' },
+      { id: 'rank', goto: 'main', demo: 'rankShowcase' },
+      { id: 'session', goto: 'main' },
+      { id: 'showhide', goto: 'look' },
+    ] },
+    { key: 'help.g.look', items: [
+      { id: 'layouts', goto: 'layout', demo: 'fullCycle' },
+      { id: 'skins', goto: 'skins' },
+      { id: 'vessels', goto: 'motion', demo: 'fillCycle' },
+      { id: 'card', goto: 'layout' },
+    ] },
+    { key: 'help.g.auto', items: [
+      { id: 'auto', goto: 'auto' },
+      { id: 'autorank', goto: 'auto' },
+    ] },
+    { key: 'help.g.deck', items: [
+      { id: 'deck', goto: 'connections' },
+    ] },
+    { key: 'help.g.trouble', items: [
+      { id: 'empty', goto: 'connections' },
+      { id: 'hides', goto: 'look' },
+      { id: 'wrong', goto: 'main' },
+      { id: 'update' },
+    ] },
   ];
 
   function t(key) {
     return (global.AdminI18n && global.AdminI18n.t) ? global.AdminI18n.t(key) : key;
-  }
-
-  function renderBody(text) {
-    // Allow simple paragraphs separated by \n\n
-    return String(text || '')
-      .split(/\n\n+/)
-      .map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
-      .join('');
   }
 
   function escapeHtml(s) {
@@ -101,94 +64,138 @@
       .replace(/"/g, '&quot;');
   }
 
-  function buildList(listEl) {
-    listEl.innerHTML = '';
-    ITEMS.forEach((item, idx) => {
-      const details = document.createElement('details');
-      details.className = 'faq-item';
-      details.dataset.faqId = item.id;
-      if (idx === 0) details.open = true;
-
-      const summary = document.createElement('summary');
-      summary.innerHTML = `<span class="faq-num">${item.icon}</span><span class="faq-title" data-i18n="${item.titleKey}">${t(item.titleKey)}</span>`;
-      details.appendChild(summary);
-
-      const body = document.createElement('div');
-      body.className = 'faq-body';
-      body.innerHTML = `<div class="faq-text" data-i18n-html="${item.bodyKey}">${renderBody(t(item.bodyKey))}</div>`;
-
-      const actions = document.createElement('div');
-      actions.className = 'faq-actions';
-      const demos = item.demos || (item.demo ? [{ action: item.demo, labelKey: item.demoLabelKey || 'faq.demo.run' }] : []);
-      demos.forEach((d) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'ghost faq-demo-btn';
-        btn.dataset.demo = d.action;
-        btn.setAttribute('data-i18n', d.labelKey);
-        btn.textContent = t(d.labelKey);
-        actions.appendChild(btn);
-      });
-      if (demos.length) body.appendChild(actions);
-      details.appendChild(body);
-      listEl.appendChild(details);
-    });
+  // Paragraphs split by a blank line; lines starting with "• " become a list.
+  function renderBody(text) {
+    return String(text || '').split(/\n\n+/).map((block) => {
+      const lines = block.split('\n');
+      if (lines.every((l) => l.startsWith('• '))) {
+        return `<ul>${lines.map((l) => `<li>${escapeHtml(l.slice(2))}</li>`).join('')}</ul>`;
+      }
+      return `<p>${escapeHtml(block).replace(/\n/g, '<br>')}</p>`;
+    }).join('');
   }
 
-  function refreshI18n(listEl) {
-    if (!listEl) return;
-    listEl.querySelectorAll('[data-i18n]').forEach((el) => {
-      el.textContent = t(el.getAttribute('data-i18n'));
+  function actionsHtml(item) {
+    const out = [];
+    if (item.goto) out.push(`<button type="button" class="ghost help-go" data-goto="${item.goto}">${t('help.open')} →</button>`);
+    if (item.demo) out.push(`<button type="button" class="ghost help-demo" data-demo="${item.demo}">${t('help.showMe')}</button>`);
+    return out.length ? `<div class="faq-actions">${out.join('')}</div>` : '';
+  }
+
+  function render(listEl) {
+    const start = document.getElementById('helpStart');
+    if (start) {
+      start.innerHTML = `<h3>${escapeHtml(t('help.startTitle'))}</h3><ol class="help-steps">${START.map((s, i) => `
+        <li><span class="help-step-n">${i + 1}</span><span class="help-step-text">${escapeHtml(t(s.key))}</span>
+        ${s.goto ? `<button type="button" class="ghost help-go" data-goto="${s.goto}">${t('help.open')} →</button>` : ''}
+        ${s.demo ? `<button type="button" class="ghost help-demo" data-demo="${s.demo}">${t('help.showMe')}</button>` : ''}</li>`).join('')}</ol>`;
+    }
+    listEl.innerHTML = GROUPS.map((g) => `
+      <div class="help-group" data-group="${g.key}">
+        <h3 class="help-group-title">${escapeHtml(t(g.key))}</h3>
+        ${g.items.map((item) => `
+        <details class="faq-item" data-faq-id="${item.id}">
+          <summary><span class="faq-title">${escapeHtml(t(`help.${item.id}.q`))}</span></summary>
+          <div class="faq-body"><div class="faq-text">${renderBody(t(`help.${item.id}.a`))}</div>${actionsHtml(item)}</div>
+        </details>`).join('')}
+      </div>`).join('');
+    const discord = document.getElementById('helpDiscord');
+    if (discord) {
+      discord.hidden = !DEV_CONTACT.discord;
+      if (DEV_CONTACT.discord) discord.href = DEV_CONTACT.discord;
+    }
+    const issues = document.getElementById('helpIssues');
+    if (issues) issues.href = DEV_CONTACT.issues;
+    applySearch();
+  }
+
+  function applySearch() {
+    const input = document.getElementById('helpSearch');
+    const listEl = document.getElementById('faqList');
+    if (!input || !listEl) return;
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    listEl.querySelectorAll('.help-group').forEach((group) => {
+      let groupShown = 0;
+      group.querySelectorAll('.faq-item').forEach((item) => {
+        const hit = !q || item.textContent.toLowerCase().includes(q);
+        item.hidden = !hit;
+        if (hit) groupShown++;
+        // While searching, open the matches so the answer is visible.
+        if (q) item.open = hit;
+      });
+      group.hidden = groupShown === 0;
+      shown += groupShown;
     });
-    listEl.querySelectorAll('[data-i18n-html]').forEach((el) => {
-      el.innerHTML = renderBody(t(el.getAttribute('data-i18n-html')));
-    });
+    const empty = document.getElementById('helpEmpty');
+    if (empty) empty.hidden = shown > 0;
+  }
+
+  // Everything a bug report needs, in one paste.
+  function diagnostics() {
+    const snap = typeof lastSnap !== 'undefined' ? lastSnap : null;
+    const s = snap?.settings || {};
+    const v = snap?.view || {};
+    const obsOk = document.getElementById('pillObs')?.classList.contains('on');
+    const autoOn = document.getElementById('autoToggle')?.checked;
+    return [
+      `Widget Stats ${document.getElementById('appVersion')?.textContent || '?'}`,
+      `Game: ${v.game || '?'} · mode: ${v.mode || '?'} · role: ${v.role || '-'}`,
+      `Layout: ${s.layout || '?'} · skin: ${s.skinId || '?'} · rank FX: ${s.rankFx || '?'}`,
+      `OBS connected: ${obsOk ? 'yes' : 'no'} · Auto W/L: ${autoOn ? 'on' : 'off'}`,
+      `Browser: ${navigator.userAgent}`,
+    ].join('\n');
   }
 
   function init(opts = {}) {
     const listEl = document.getElementById('faqList');
-    const hintEl = document.getElementById('faqDemoHint');
     if (!listEl) return;
-
-    buildList(listEl);
+    render(listEl);
 
     const runDemo = (action) => {
-      if (typeof opts.sendPreviewDemo === 'function') {
-        opts.sendPreviewDemo(action);
-      } else if (typeof global.sendPreviewDemo === 'function') {
-        global.sendPreviewDemo(action);
-      }
-      if (hintEl) {
-        hintEl.textContent = t('faq.preview.playing');
-        setTimeout(() => { hintEl.textContent = t('faq.preview.hint'); }, 2200);
-      }
+      if (typeof opts.sendPreviewDemo === 'function') opts.sendPreviewDemo(action);
+      else if (typeof global.sendPreviewDemo === 'function') global.sendPreviewDemo(action);
       if (typeof opts.onDemo === 'function') opts.onDemo(action);
     };
 
-    listEl.addEventListener('click', (e) => {
-      const btn = e.target.closest('.faq-demo-btn');
-      if (!btn) return;
-      e.preventDefault();
-      e.stopPropagation();
-      runDemo(btn.dataset.demo);
+    const panel = listEl.closest('[data-panel]') || document;
+    panel.addEventListener('click', async (e) => {
+      const demo = e.target.closest('.help-demo');
+      if (demo) {
+        e.preventDefault();
+        runDemo(demo.dataset.demo);
+        return;
+      }
+      const go = e.target.closest('.help-go');
+      if (go) {
+        e.preventDefault();
+        document.querySelector(`.tab[data-tab="${go.dataset.goto}"]`)?.click();
+        return;
+      }
+      if (e.target.closest('#helpCopyInfo')) {
+        const btn = e.target.closest('#helpCopyInfo');
+        try {
+          await navigator.clipboard.writeText(diagnostics());
+          btn.textContent = t('help.copied');
+        } catch {
+          btn.textContent = t('help.copyFailed');
+        }
+        setTimeout(() => { btn.textContent = t('help.copyInfo'); }, 2500);
+      }
     });
 
     listEl.addEventListener('toggle', (e) => {
       const item = e.target;
       if (!(item instanceof HTMLDetailsElement) || !item.open) return;
-      // Accordion: close siblings
-      listEl.querySelectorAll('details.faq-item').forEach((d) => {
-        if (d !== item) d.open = false;
-      });
-    });
+      if (document.getElementById('helpSearch')?.value.trim()) return;
+      // Accordion when browsing: one answer open at a time.
+      listEl.querySelectorAll('details.faq-item').forEach((d) => { if (d !== item) d.open = false; });
+    }, true);
 
-    document.getElementById('faqReplayDemoBtn')?.addEventListener('click', () => {
-      runDemo('fullCycle');
-    });
+    document.getElementById('helpSearch')?.addEventListener('input', applySearch);
 
-    global.AdminFAQ = global.AdminFAQ || {};
-    global.AdminFAQ.refreshI18n = () => refreshI18n(listEl);
+    global.AdminFAQ.refreshI18n = () => render(listEl);
   }
 
-  global.AdminFAQ = { ITEMS, init, refreshI18n: () => {} };
+  global.AdminFAQ = { init, refreshI18n: () => {}, contact: DEV_CONTACT };
 })(typeof window !== 'undefined' ? window : globalThis);

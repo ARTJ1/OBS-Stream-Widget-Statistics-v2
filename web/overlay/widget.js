@@ -15,6 +15,18 @@ const OW_RANKS = [
   })),
 ];
 
+const LAYOUTS = [
+  'detailed', 'mini', 'card', 'badge', 'strip', 'minimal', 'column',
+  'ring', 'slant', 'scoreboard', 'session', 'form', 'ladder', 'roles', 'hex',
+  'feed', 'tug', 'flip', 'tcard',
+];
+// Layouts with little room use abbreviated tier names ("Dia 3", "GM 1").
+const SHORT_NAME_LAYOUTS = new Set(['mini', 'column', 'scoreboard']);
+const RANK_SHORT = {
+  Rookie: 'Rook', Bronze: 'Bro', Silver: 'Sil', Gold: 'Gold', Platinum: 'Plat', Emerald: 'Em',
+  Diamond: 'Dia', Master: 'Mas', Grandmaster: 'GM', Champion: 'Champ',
+};
+
 const APEX_ROMAN = { 4: 'IV', 3: 'III', 2: 'II', 1: 'I' };
 const APEX_RANKS = [
   ...generateApexTier('Rookie'),
@@ -75,6 +87,22 @@ document.addEventListener('DOMContentLoaded', () => {
     rankValue: document.getElementById('rankValue'),
     roleBadge: document.getElementById('roleBadge'),
     roleIcon: document.getElementById('roleIcon'),
+    wrFill: document.getElementById('wrFill'),
+    wrRingWin: document.getElementById('wrRingWin'),
+    stats: document.getElementById('stats'),
+    rankDelta: document.getElementById('rankDelta'),
+    formPips: document.getElementById('formPips'),
+    ladderSteps: document.getElementById('ladderSteps'),
+    ladderNext: document.getElementById('ladderNext'),
+    rolesList: document.getElementById('rolesList'),
+    feedList: document.getElementById('feedList'),
+    tugKnot: document.getElementById('tugKnot'),
+    tugNet: document.getElementById('tugNet'),
+    flipDigits: document.getElementById('flipDigits'),
+    tcardStars: document.getElementById('tcardStars'),
+    tcardBack: document.getElementById('tcardBack'),
+    tcardShine: document.getElementById('tcardShine'),
+    wrValue: document.getElementById('wrValue'),
   };
 
   const ROLE_ICONS = {
@@ -107,7 +135,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let fillStyle = 'liquid';
   let rankFx = 'classic';
   let vesselStyleId = 'classic';
+  let layout = 'detailed';
   let isRankTransitionAnimating = false;
+  let showToken = 0;
   let hideWidgetTimeout;
   let reappearTimeout;
   let animDurationIn = 0.5;
@@ -139,16 +169,328 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rank.type === 'Top' || rank.type === 'Predator') {
       return { ...rank, display: `#${rank.level}` };
     }
+    const name = SHORT_NAME_LAYOUTS.has(layout) ? (RANK_SHORT[rank.type] || rank.type) : rank.type;
     if (rank.roman) {
-      return { ...rank, display: `${rank.type} ${rank.roman}` };
+      return { ...rank, display: `${name} ${rank.roman}` };
     }
-    return { ...rank, display: `${rank.type} ${rank.level}` };
+    return { ...rank, display: `${name} ${rank.level}` };
   }
 
   function setLiquidPaint(liquidEl, color) {
     if (!liquidEl) return;
     liquidEl.querySelectorAll('.liquid-body, .liquid-meniscus').forEach((el) => {
       el.setAttribute('fill', color);
+    });
+  }
+
+  // Opaque copy of the panel colour (cards and flip tiles need a solid face) and a
+  // light/dark flag, so layout details adapt to light skins.
+  function applySkinTone(bgColor) {
+    const probe = document.createElement('span');
+    probe.style.color = bgColor;
+    document.body.appendChild(probe);
+    const m = (getComputedStyle(probe).color.match(/[\d.]+/g) || ['0', '0', '0']).map(Number);
+    probe.remove();
+    const [r, g, b] = m;
+    document.documentElement.style.setProperty('--bg-solid', `rgb(${r}, ${g}, ${b})`);
+    const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    document.body.classList.toggle('skin-light', lum > 0.4);
+  }
+
+  // Fixed-size layouts (hex, card, badge) shrink a long rank name to fit
+  // instead of letting wide fonts run past the edge.
+  const FIT_NAME_LAYOUTS = { hex: 0.8, tcard: 0.9 };
+  // Hex narrows towards the bottom: the score row may use about half the width.
+  const FIT_STATS_LAYOUTS = { hex: 0.5 };
+  function fitToWidth(el, share) {
+    el.style.fontSize = '';
+    if (!share || !el.textContent) return;
+    const room = dom.widget.clientWidth * share;
+    const need = el.scrollWidth;
+    if (need > room) {
+      const base = parseFloat(getComputedStyle(el).fontSize);
+      el.style.fontSize = `${Math.max(4, (base * room) / need).toFixed(2)}px`;
+    }
+  }
+  function fitRankName() {
+    fitToWidth(dom.rankValue, FIT_NAME_LAYOUTS[layout]);
+    if (dom.stats) fitToWidth(dom.stats, FIT_STATS_LAYOUTS[layout]);
+  }
+
+  function applyLayout() {
+    document.body.classList.remove(...LAYOUTS.map((id) => `layout-${id}`));
+    document.body.classList.add(`layout-${layout}`);
+    // Short/full rank names differ per layout; a running rank animation sets its own text.
+    if (!isRankTransitionAnimating) dom.rankValue.textContent = getRankInfo(currentState.rank).display;
+    renderLayoutExtras();
+  }
+
+  // Win rate follows whatever numbers are on screen (including demo/animation steps).
+  function updateWinRate() {
+    const w = parseInt(dom.wins.textContent, 10) || 0;
+    const l = parseInt(dom.losses.textContent, 10) || 0;
+    const pct = w + l > 0 ? Math.round((100 * w) / (w + l)) : 0;
+    // No games yet: a dash, not "0%" (which reads as a losing record).
+    const label = w + l > 0 ? `${pct}%` : '–';
+    if (dom.wrValue) dom.wrValue.textContent = label;
+    if (dom.wrFill) dom.wrFill.style.width = `${w + l > 0 ? pct : 50}%`;
+    if (dom.stats) dom.stats.dataset.wr = label;
+    if (dom.wrRingWin) {
+      const c = 2 * Math.PI * 33;
+      const share = w + l > 0 ? w / (w + l) : 0.5;
+      dom.wrRingWin.setAttribute('stroke-dasharray', `${(c * share).toFixed(1)} ${c.toFixed(1)}`);
+    }
+  }
+
+  // Divisions gained/lost since the session started (app launch or W/L reset).
+  function updateRankDelta() {
+    if (!dom.rankDelta) return;
+    const start = Number.isFinite(currentState.startRank) ? currentState.startRank : currentState.rank;
+    const d = (currentState.rank || 0) - start;
+    dom.rankDelta.textContent = d > 0 ? `▲ +${d}` : d < 0 ? `▼ ${d}` : '±0';
+    dom.rankDelta.classList.toggle('up', d > 0);
+    dom.rankDelta.classList.toggle('down', d < 0);
+  }
+
+  // Last 5 results as tiles, newest last, plus the current streak.
+  function renderFormPips() {
+    if (!dom.formPips || layout !== 'form') return;
+    const recent = (currentState.recent || []).slice(-5);
+    const pips = [];
+    for (let i = 0; i < 5 - recent.length; i++) pips.push('<span class="pip"></span>');
+    recent.forEach((r, i) => {
+      const last = i === recent.length - 1 ? ' last' : '';
+      pips.push(`<span class="pip ${r === 'w' ? 'w' : 'l'}${last}">${r === 'w' ? 'W' : 'L'}</span>`);
+    });
+    const all = currentState.recent || [];
+    let streak = 0;
+    for (let i = all.length - 1; i >= 0 && all[i] === all[all.length - 1]; i--) streak++;
+    const label = streak >= 2 ? `<span class="streak ${all[all.length - 1]}">${streak}${all[all.length - 1] === 'w' ? 'W' : 'L'} streak</span>` : '';
+    dom.formPips.innerHTML = pips.join('') + label;
+  }
+
+  // Division steps inside the current tier, and the next tier's icon.
+  function renderLadder() {
+    if (!dom.ladderSteps || layout !== 'ladder') return;
+    const ranks = activeRanks();
+    const idx = currentState.rank || 0;
+    const rank = ranks[idx];
+    const top = !rank || rank.type === 'Top' || rank.type === 'Predator';
+    dom.ladderSteps.hidden = top;
+    dom.ladderNext.hidden = top;
+    if (top) return;
+    const size = currentState.game === 'apex' ? 4 : 5;
+    const steps = [];
+    for (let d = size; d >= 1; d--) {
+      steps.push(`<span class="step${d > rank.level ? ' on' : d === rank.level ? ' cur' : ''}"></span>`);
+    }
+    dom.ladderSteps.innerHTML = steps.join('');
+    const next = ranks[idx + rank.level];
+    dom.ladderNext.hidden = !next;
+    if (next) dom.ladderNext.src = next.img;
+  }
+
+  // Roles layout: the played role uses the real (animated) rank block; the other
+  // two roles are drawn here as static rows. Rows keep the in-game order.
+  const ROLES_ROWS = ['tank', 'damage', 'support'];
+  function renderRolesList() {
+    if (!dom.rolesList || layout !== 'roles') return;
+    const roles = currentState.roles;
+    const byRole = currentState.game !== 'apex' && currentState.mode !== 'classic' && roles;
+    const active = ROLES_ROWS.indexOf(currentState.role);
+    dom.widget.style.setProperty('--active-row', String(byRole && active >= 0 ? active + 1 : 1));
+    if (!byRole) {
+      dom.rolesList.innerHTML = '';
+      return;
+    }
+    const split = currentState.mode === 'roles_split';
+    dom.rolesList.innerHTML = '<span class="roles-hl"></span>' + ROLES_ROWS.map((id, i) => {
+      if (id === currentState.role) return '';
+      const r = roles[id] || {};
+      const info = getRankInfo(r.rank || 0);
+      const wl = split ? `<span class="wl-cell"><span class="w">${r.wins || 0}</span>–<span class="l">${r.losses || 0}</span></span>` : '';
+      return `<span class="role-row" style="--row:${i + 1}">`
+        + `<span class="role-icon role-cell" style="--role-icon-url:url('${ROLE_ICONS[id]}')"></span>`
+        + `<img class="rank-cell" src="${info.img}" alt="">`
+        + `<span class="name-cell">${info.display}</span>${wl}</span>`;
+    }).join('');
+  }
+
+  // Kill feed: newest result on top (next to the live rank), two older ones below.
+  function renderFeed() {
+    if (!dom.feedList || layout !== 'feed') return;
+    const recent = (currentState.recent || []).slice(-3).reverse();
+    const rows = recent.length ? recent : [''];
+    dom.feedList.innerHTML = rows.map((r, i) => {
+      const cls = r === 'w' ? 'w' : r === 'l' ? 'l' : 'none';
+      const tag = r === 'w' ? 'VICTORY' : r === 'l' ? 'DEFEAT' : 'NO GAMES YET';
+      return `<span class="feed-bg ${cls}" style="--row:${i + 1}"></span>`
+        + `<span class="feed-tag ${cls}" style="--row:${i + 1}">${tag}</span>`;
+    }).join('');
+  }
+
+  // Tug of war: the knot sits toward whichever side is ahead.
+  function renderTug() {
+    if (!dom.tugKnot || layout !== 'tug') return;
+    const w = parseInt(dom.wins.textContent, 10) || 0;
+    const l = parseInt(dom.losses.textContent, 10) || 0;
+    const total = w + l;
+    dom.tugKnot.style.left = `${total ? 50 + (50 * (w - l)) / total : 50}%`;
+    const net = w - l;
+    dom.tugNet.textContent = net > 0 ? `+${net} AHEAD` : net < 0 ? `${net} BEHIND` : 'EVEN';
+  }
+
+  // Flip clock: split-flap tiles. Tiles persist between renders and only a digit
+  // that actually changed flips: numbers are rewritten every frame while they count
+  // up, so rebuilding the tiles would cancel the animation one frame in.
+  const flipHalf = (cls, d) => `<span class="h ${cls}"><b>${d}</b></span>`;
+  function flipTile(tile, d) {
+    const old = tile.dataset.d;
+    if (old === d) return;
+    tile.dataset.d = d;
+    if (old === undefined) {
+      tile.innerHTML = flipHalf('t', d) + flipHalf('b', d);
+      return;
+    }
+    // New top shows behind the falling old top; old bottom waits under the landing flap.
+    tile.innerHTML = flipHalf('t', d) + flipHalf('b', old) + flipHalf('t ft', old) + flipHalf('b fb', d);
+    // Settle on the new digit when the flip ends, and also after its 0.4s run in
+    // case animations are paused (hidden OBS source, background tab) and never end.
+    const settle = () => {
+      if (tile.dataset.d === d && tile.querySelector('.fb')) tile.innerHTML = flipHalf('t', d) + flipHalf('b', d);
+    };
+    tile.querySelector('.fb').addEventListener('animationend', settle, { once: true });
+    setTimeout(settle, 500);
+  }
+  function renderFlipSide(kind, value) {
+    let side = dom.flipDigits.querySelector(`.flip-side.${kind}`);
+    if (!side) {
+      dom.flipDigits.innerHTML = '<span class="flip-side w"></span><span class="flip-colon">:</span><span class="flip-side l"></span>';
+      side = dom.flipDigits.querySelector(`.flip-side.${kind}`);
+    }
+    const digits = String(value).padStart(2, '0').split('');
+    while (side.children.length < digits.length) side.insertAdjacentHTML('afterbegin', `<span class="flip-d ${kind}"></span>`);
+    while (side.children.length > digits.length) side.firstElementChild.remove();
+    digits.forEach((d, i) => flipTile(side.children[i], d));
+  }
+  function renderFlip() {
+    if (!dom.flipDigits || layout !== 'flip') return;
+    renderFlipSide('w', parseInt(dom.wins.textContent, 10) || 0);
+    renderFlipSide('l', parseInt(dom.losses.textContent, 10) || 0);
+  }
+
+  // Trading card: 1-5 stars by tier, spread over the game's tier ladder. A star
+  // gained since the last render pops in.
+  let cardStarsShown = 0;
+  function renderCardStars() {
+    if (!dom.tcardStars || layout !== 'tcard') return;
+    const ranks = activeRanks();
+    const tiers = [...new Set(ranks.map((r) => r.type))];
+    const rank = ranks[currentState.rank || 0];
+    const tier = Math.max(0, tiers.indexOf(rank ? rank.type : tiers[0]));
+    const stars = Math.max(1, Math.ceil(((tier + 1) * 5) / tiers.length));
+    if (stars === cardStarsShown && dom.tcardStars.children.length) return;
+    const gained = cardFx.has('stars') && cardStarsShown > 0 && stars > cardStarsShown;
+    dom.tcardStars.innerHTML = [0, 1, 2, 3, 4].map((i) => {
+      const cls = i < stars ? 'on' : '';
+      const pop = gained && i >= cardStarsShown && i < stars ? ' pop' : '';
+      return `<span class="${cls}${pop}">★</span>`;
+    }).join('');
+    cardStarsShown = stars;
+  }
+
+  // Trading card: the foil heats up with a win streak (spins faster, glows).
+  function renderCardHeat() {
+    if (layout !== 'tcard') return;
+    const recent = currentState.recent || [];
+    let streak = 0;
+    for (let i = recent.length - 1; i >= 0 && recent[i] === 'w'; i--) streak++;
+    dom.widget.style.setProperty('--heat', String(cardFx.has('heat') ? Math.min(streak, 5) : 0));
+  }
+
+  // Trading card: a glare sweeps across after a result or rank change.
+  function playCardShine() {
+    if (layout !== 'tcard' || !cardFx.has('shine') || !dom.tcardShine) return;
+    dom.tcardShine.classList.remove('go');
+    void dom.tcardShine.offsetWidth;
+    dom.tcardShine.classList.add('go');
+  }
+
+  // Which card reactions are on (settings.cardFx); float is CSS-only via a body class.
+  const CARD_FX = ['stars', 'flip', 'heat', 'shine', 'float'];
+  let cardFx = new Set(['stars', 'flip', 'heat']);
+  function applyCardFx(value) {
+    const list = String(value || 'stars,flip,heat').split(',').map((s) => s.trim());
+    cardFx = new Set(list.filter((id) => CARD_FX.includes(id)));
+    CARD_FX.forEach((id) => document.body.classList.toggle(`card-fx-${id}`, cardFx.has(id)));
+  }
+
+  // Card back text shrinks to the card's width (wide and pixel fonts run long).
+  function fitCardBack() {
+    const room = dom.tcardBack.clientWidth * 0.86;
+    dom.tcardBack.querySelectorAll('b, small').forEach((el) => {
+      el.style.fontSize = '';
+      const need = el.scrollWidth;
+      if (room > 0 && need > room) {
+        const base = parseFloat(getComputedStyle(el).fontSize);
+        el.style.fontSize = `${Math.max(6, Math.floor((base * room) / need))}px`;
+      }
+    });
+  }
+
+  // Trading card: turn over to show the result, then turn back.
+  let cardFlipTimers = [];
+  function playCardFlip(kind) {
+    playCardShine();
+    if (layout !== 'tcard' || !cardFx.has('flip') || !dom.tcardBack) return;
+    cardFlipTimers.forEach(clearTimeout);
+    const recent = currentState.recent || [];
+    let streak = 0;
+    for (let i = recent.length - 1; i >= 0 && recent[i] === 'w'; i--) streak++;
+    dom.tcardBack.innerHTML = kind === 'w'
+      ? `<b class="w">+1 WIN</b><small>${streak >= 2 ? `${streak} IN A ROW` : 'NICE'}</small>`
+      : '<b class="l">LOSS</b><small>NEXT ONE</small>';
+    dom.widget.classList.remove('card-flip', 'card-back-on');
+    void dom.widget.offsetWidth;
+    dom.widget.classList.add('card-flip');
+    // Faces swap while the card is edge-on (12.5% and 87.5% of the 1.6s flip).
+    cardFlipTimers = [
+      setTimeout(() => {
+        dom.widget.classList.add('card-back-on');
+        fitCardBack();
+      }, 200),
+      setTimeout(() => dom.widget.classList.remove('card-back-on'), 1400),
+      setTimeout(() => dom.widget.classList.remove('card-flip'), 1600),
+    ];
+  }
+
+  function renderLayoutExtras() {
+    renderFormPips();
+    renderLadder();
+    renderRolesList();
+    renderFeed();
+    renderTug();
+    renderFlip();
+    renderCardStars();
+    renderCardHeat();
+    fitRankName();
+    fitPreviewWidget();
+  }
+
+  const wrObserver = new MutationObserver(() => {
+    updateWinRate();
+    updateRankDelta();
+    renderLayoutExtras();
+  });
+  [dom.wins, dom.losses, dom.rankValue].forEach((el) => wrObserver.observe(el, { childList: true, characterData: true, subtree: true }));
+  updateWinRate();
+  updateRankDelta();
+  // Web fonts arrive after the first layout: re-fit names and the preview zoom then.
+  if (document.fonts && document.fonts.addEventListener) {
+    document.fonts.addEventListener('loadingdone', () => {
+      fitRankName();
+      fitPreviewWidget();
     });
   }
 
@@ -229,21 +571,25 @@ document.addEventListener('DOMContentLoaded', () => {
     fixSvgClipRefs();
   }
 
-  let previewFitRaf = 0;
+  const PREVIEW_FILL_W = 0.82;
+  const PREVIEW_FILL_H = 0.7;
+  const PREVIEW_MAX_ZOOM = 2.6;
+  // Runs synchronously (no animation frame): browsers pause frames in covered,
+  // minimised or busy windows and throttle embedded frames, which left the
+  // preview unsized after a layout switch.
   function fitPreviewWidget() {
     if (!isPreview || !dom.widget) return;
-    cancelAnimationFrame(previewFitRaf);
-    previewFitRaf = requestAnimationFrame(() => {
-      document.documentElement.style.setProperty('--preview-zoom', '1');
-      // Natural size after zoom reset
-      const w = Math.max(1, dom.widget.offsetWidth);
-      const h = Math.max(1, dom.widget.offsetHeight);
-      const pad = 24;
-      const zx = (window.innerWidth - pad) / w;
-      const zy = (window.innerHeight - pad) / h;
-      const zoom = Math.min(1, zx, zy);
-      document.documentElement.style.setProperty('--preview-zoom', String(Number.isFinite(zoom) ? zoom : 1));
-    });
+    const root = document.documentElement;
+    root.style.setProperty('--preview-zoom', '1');
+    // Natural size after zoom reset
+    const w = Math.max(1, dom.widget.offsetWidth);
+    const h = Math.max(1, dom.widget.offsetHeight);
+    // Fill most of the preview box whatever the layout: compact layouts are
+    // scaled up, wide ones down. The margin leaves room for rank effects.
+    const zx = (window.innerWidth * PREVIEW_FILL_W) / w;
+    const zy = (window.innerHeight * PREVIEW_FILL_H) / h;
+    const zoom = Math.min(PREVIEW_MAX_ZOOM, zx, zy);
+    root.style.setProperty('--preview-zoom', String(Number.isFinite(zoom) && zoom > 0 ? zoom : 1));
   }
 
   function applySettings(next) {
@@ -277,6 +623,8 @@ document.addEventListener('DOMContentLoaded', () => {
     fillStyle = merged.fillStyle || 'liquid';
     rankFx = merged.rankFx || prev.rankFx || 'classic';
     vesselStyleId = merged.vesselStyle || 'classic';
+    layout = LAYOUTS.includes(merged.layout) ? merged.layout : 'detailed';
+    applyCardFx(merged.cardFx);
 
     if (typeof window.loadGoogleFont === 'function') {
       window.loadGoogleFont(merged.font || 'Arial, sans-serif');
@@ -288,6 +636,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sepColor = merged.separatorColor || 'rgba(255,255,255,0.55)';
 
     document.documentElement.style.setProperty('--bg-color', merged.bgColor || 'rgba(0,0,0,0.7)');
+    applySkinTone(merged.bgColor || 'rgba(0,0,0,0.7)');
     document.documentElement.style.setProperty('--wins-color', winsColor);
     document.documentElement.style.setProperty('--losses-color', lossesColor);
     document.documentElement.style.setProperty('--rank-text-color', merged.rankTextColor || '#ffffff');
@@ -304,6 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.dataset.rankFx = rankFx;
     if (dom.rankSection) dom.rankSection.dataset.rankFx = rankFx;
     if (dom.rankAnimationWrapper) dom.rankAnimationWrapper.dataset.rankFx = rankFx;
+    applyLayout();
     applyAppearEffect();
     applyFillStyleClass();
     applyVesselIcons();
@@ -332,6 +682,9 @@ document.addEventListener('DOMContentLoaded', () => {
         mode: snap.view.mode || snap.state?.mode || 'classic',
         role: snap.view.role || snap.state?.role || 'tank',
         game: snap.view.game || snap.state?.game || 'overwatch',
+        startRank: typeof snap.view.startRank === 'number' ? snap.view.startRank : (snap.view.rank || 0),
+        recent: Array.isArray(snap.view.recent) ? snap.view.recent : [],
+        roles: snap.state?.roles || null,
       };
     }
     const st = snap?.state || {};
@@ -359,6 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.remove('mode-classic', 'mode-roles_shared', 'mode-roles_split', 'mode-roles_rotate', 'game-overwatch', 'game-apex');
     document.body.classList.add(`mode-${mode}`);
     document.body.classList.add(`game-${game}`);
+    renderLayoutExtras(); // role/mode/game switches don't always change any text
     if (!dom.roleBadge || !dom.roleIcon) return;
     if (game === 'apex' || mode === 'classic') {
       dom.roleBadge.hidden = true;
@@ -541,15 +895,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function animateNumber(element, from, to) {
     if (from === to) {
+      element.dataset.animToken = String(Number(element.dataset.animToken || 0) + 1);
       element.textContent = to;
       return;
     }
     const isReset = to < from;
     const duration = isReset ? Math.max(numberAnimMs, 750) : numberAnimMs;
+    // A newer count on the same number cancels this one (steps and safety timer).
+    const token = (element.dataset.animToken = String(Number(element.dataset.animToken || 0) + 1));
+    const current = () => element.dataset.animToken === token;
     let start = null;
     element.classList.add('value-change');
     element.textContent = from;
     function step(timestamp) {
+      if (!current()) return;
       if (!start) start = timestamp;
       const progress = Math.min((timestamp - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
@@ -559,12 +918,18 @@ document.addEventListener('DOMContentLoaded', () => {
         element.textContent = Math.round(from + eased * (to - from));
       }
       if (progress < 1) requestAnimationFrame(step);
-      else {
-        element.textContent = to;
-        setTimeout(() => element.classList.remove('value-change'), 500);
-      }
+      else finish();
     }
+    // Always land on the final number, even if animation frames are paused.
+    let done = false;
+    const finish = () => {
+      if (done || !current()) return;
+      done = true;
+      element.textContent = to;
+      setTimeout(() => element.classList.remove('value-change'), 500);
+    };
     requestAnimationFrame(step);
+    setTimeout(finish, duration + 150);
   }
 
   function emptyEffectClass() {
@@ -1351,6 +1716,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Never leave a stuck lock — cancel in-flight FX and restart.
       if (isRankTransitionAnimating) {
         abortRankTransition(fromAbsoluteIndex);
+        // abort parks currentState on `from`; the target is still where we are going.
+        currentState = { ...currentState, rank: toAbsoluteIndex };
       }
       isRankTransitionAnimating = true;
       stopIdleSparks();
@@ -1705,10 +2072,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Retrigger CSS appear animation cleanly.
     void dom.widget.offsetWidth;
-    requestAnimationFrame(() => {
+    // Reveal on the next frame for a clean appear animation, but never later than
+    // 60ms: frames can be paused (covered window, hidden OBS source), and waiting
+    // on them left the widget invisible.
+    const revealToken = ++showToken;
+    const reveal = () => {
+      if (revealToken !== showToken || dom.widget.classList.contains('hide')) return;
       dom.widget.classList.add('visible');
       if (appearEffect === 'slide') dom.widget.classList.add(`from-${animDirection}`);
-    });
+    };
+    requestAnimationFrame(reveal);
+    setTimeout(reveal, 60);
     if (animateContent) {
       updateContentAnimations();
     } else {
@@ -1729,6 +2103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const shouldAnimateRank = previousState.rank !== currentState.rank;
     if (shouldAnimateRank) {
       animateRankTransition(previousState.rank, currentState.rank);
+      playCardShine();
     } else {
       const info = getRankInfo(currentState.rank);
       setRankImages(info.img);
@@ -1737,6 +2112,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     animateNumber(dom.wins, previousState.wins, currentState.wins);
     animateNumber(dom.losses, previousState.losses, currentState.losses);
+    if (currentState.wins > previousState.wins) playCardFlip('w');
+    else if (currentState.losses > previousState.losses) playCardFlip('l');
     await Promise.all([
       animateFill(dom.winsLiquid, dom.winsIconContainer, previousState.wins, currentState.wins),
       animateFill(dom.lossesLiquid, dom.lossesIconContainer, previousState.losses, currentState.losses),

@@ -8,6 +8,10 @@
   --separator-color: rgba(255, 255, 255, 0.55);
   --font: 'Arial', sans-serif;
   --font-size: 16px;
+  /* Opaque panel colour and flip-tile faces; JS sets --bg-solid from the skin. */
+  --bg-solid: rgb(0, 0, 0);
+  --tile-top: color-mix(in srgb, var(--rank-text-color) 14%, var(--bg-solid));
+  --tile-bottom: color-mix(in srgb, var(--rank-text-color) 9%, var(--bg-solid));
 
   /* Timings (JS will override these) */
   --animation-duration-in: 0.5s;
@@ -46,6 +50,8 @@ html.preview-mode body {
   justify-content: center;
 }
 html.preview-mode .widget {
+  /* Never squeeze below its content in the preview box; zoom handles the fit. */
+  flex-shrink: 0;
   position: relative;
   top: auto;
   left: auto;
@@ -174,9 +180,12 @@ body.mode-roles_rotate .role-badge {
 /* Always visible: no appear/hide motion at all */
 body.always-visible .widget {
   opacity: 1 !important;
-  transform: none !important;
   transition: none !important;
 }
+/* The trading card animates its own transform (flip, float), which an
+   !important transform would freeze; it gets a plain one instead. */
+body.always-visible:not(.layout-tcard) .widget { transform: none !important; }
+body.always-visible.layout-tcard .widget { transform: none; }
 
 /* Legacy direction helpers kept for hide scheduling */
 .widget.from-left.hide { }
@@ -2511,3 +2520,909 @@ body.no-idle-pulse #rank-animation-wrapper.rank-idle-pulse #rankValue {
     60% { transform: translateY(-8px); opacity: 1; }
     100% { transform: translateY(0); opacity: 1; }
 }
+
+/* ===== Layouts =====
+   body.layout-<id> rearranges the same widget markup. "detailed" is the base
+   styling above and needs no overrides. Sizes are in em so font size scales them. */
+/* Every layout except Detailed stacks text tightly; 'normal' line height varies
+   wildly between fonts (pixel and wide fonts glue rows together), so pin it. */
+body:not(.layout-detailed) .widget { line-height: 1.2; }
+
+.wr-block {
+  display: none;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+.wr-bar {
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--losses-color);
+  overflow: hidden;
+}
+.wr-bar i {
+  display: block;
+  width: 50%;
+  height: 100%;
+  background: var(--wins-color);
+  transition: width 0.5s ease;
+}
+.wr-text {
+  color: var(--rank-text-color);
+  font-weight: bold;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.wr-label {
+  font-size: 0.75em;
+  letter-spacing: 0.12em;
+  opacity: 0.7;
+}
+
+/* Mini: short text pill, no vessels. */
+body.layout-mini .widget {
+  padding: 0.25em 0.75em 0.25em 0.35em;
+  gap: 0.5em;
+  border-radius: 999px;
+}
+body.layout-mini .rank-section { order: -2; gap: 0.4em; }
+body.layout-mini #rank-animation-wrapper { width: 1.7em; height: 1.7em; }
+body.layout-mini #rankValue { font-size: 1em; padding-bottom: 0; }
+body.layout-mini .widget > .role-badge { order: -1; margin: 0; }
+body.layout-mini .role-icon { width: 1.1em; height: 1.1em; }
+body.layout-mini .icon-fill-container,
+body.layout-mini .stat-sep { display: none; }
+body.layout-mini .stats { gap: 0.45em; }
+body.layout-mini .stats::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--separator-color);
+}
+body.layout-mini .stat-value { font-size: 1em; }
+body.layout-mini #wins::after,
+body.layout-mini #losses::after {
+  font-size: 0.72em;
+  opacity: 0.8;
+  margin-left: 1px;
+}
+body.layout-mini #wins::after { content: 'W'; }
+body.layout-mini #losses::after { content: 'L'; }
+
+/* Card: vertical, rank on top, win-rate bar at the bottom. */
+body.layout-card .widget {
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.75em 1em;
+  border-radius: 14px;
+  min-width: 9.5em;
+}
+body.layout-card .rank-section { order: -1; flex-direction: column; gap: 0.25em; }
+body.layout-card #rank-animation-wrapper { width: 4em; height: 4em; }
+body.layout-card #rankValue { font-size: 1.1em; padding-bottom: 0; }
+body.layout-card .widget > .role-badge { position: absolute; top: 0.55em; left: 0.55em; margin: 0; }
+body.layout-card .role-icon { width: 1.3em; height: 1.3em; }
+body.layout-card .stats { gap: 1.1em; }
+body.layout-card .stat-item { gap: 0.4em; }
+body.layout-card .icon-fill-container {
+  width: calc(1.4em * var(--vessel-scale, 1));
+  height: calc(1.4em * var(--vessel-scale, 1));
+}
+body.layout-card .stat-sep { display: none; }
+body.layout-card .stat-value { font-size: 1.15em; }
+body.layout-card .wr-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+  width: 100%;
+}
+body.layout-card .wr-text { font-size: 0.72em; opacity: 0.85; }
+
+/* Badge: square rank tile with the score under it. */
+body.layout-badge .widget {
+  display: grid;
+  /* fr side columns absorb the rank's width, so role + score stay a centred pair */
+  grid-template-areas: "rank rank rank rank" ". role stats .";
+  grid-template-columns: 1fr auto auto 1fr;
+  align-content: center;
+  align-items: center;
+  gap: 0.3em 0.35em;
+  min-width: 6.75em;
+  height: 6.75em;
+  padding: 0.4em 0.6em;
+  border-radius: 18px;
+}
+body.layout-badge .rank-section { grid-area: rank; justify-self: center; }
+body.layout-badge .stats { grid-area: stats; }
+body.layout-badge #rank-animation-wrapper { width: 3.8em; height: 3.8em; }
+body.layout-badge #rankValue,
+body.layout-badge .icon-fill-container { display: none; }
+body.layout-badge .widget > .role-badge { grid-area: role; margin: 0; }
+/* No role shown (classic mode, Apex): one column, so the score stays centred. */
+body.layout-badge.mode-classic .widget,
+body.layout-badge.game-apex .widget { grid-template-areas: "rank" "stats"; grid-template-columns: auto; justify-items: center; }
+body.layout-badge .role-icon { width: 0.95em; height: 0.95em; }
+body.layout-badge .stats { gap: 0.3em; }
+body.layout-badge .stat-value { font-size: 1.05em; }
+
+/* Strip: flat broadcast ticker with labelled segments. */
+body.layout-strip .widget {
+  padding: 0;
+  gap: 0;
+  height: 2.5em;
+  align-items: stretch;
+  border-radius: 4px;
+}
+body.layout-strip .stats { gap: 0; align-items: stretch; }
+body.layout-strip .stat-item { padding: 0 0.9em; gap: 0.45em; }
+body.layout-strip .stat-item:first-child { box-shadow: inset 0 -3px 0 var(--wins-color); }
+body.layout-strip .stat-item:last-child { box-shadow: inset 0 -3px 0 var(--losses-color); }
+body.layout-strip .stat-item::before {
+  font-size: 0.62em;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  color: var(--rank-text-color);
+  opacity: 0.7;
+}
+body.layout-strip .stat-item:first-child::before { content: 'WINS'; }
+body.layout-strip .stat-item:last-child::before { content: 'LOSSES'; }
+body.layout-strip .icon-fill-container,
+body.layout-strip .stat-sep,
+body.layout-strip .wr-bar { display: none; }
+body.layout-strip .stat-value { font-size: 1.1em; }
+body.layout-strip .wr-block { order: 1; display: flex; align-items: center; padding: 0 0.9em; }
+body.layout-strip .wr-text { font-size: 1.1em; }
+body.layout-strip .widget > .role-badge {
+  order: 2;
+  margin: 0;
+  padding-left: 0.8em;
+  background: color-mix(in srgb, var(--rank-text-color) 12%, transparent);
+}
+body.layout-strip .role-icon { width: 1.15em; height: 1.15em; }
+body.layout-strip .rank-section {
+  order: 3;
+  gap: 0.45em;
+  padding: 0 0.9em;
+  background: color-mix(in srgb, var(--rank-text-color) 12%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+body.layout-strip .role-badge:not([hidden]) + .rank-section { padding-left: 0.5em; }
+body.layout-strip #rank-animation-wrapper { width: 1.9em; height: 1.9em; }
+body.layout-strip #rankValue { font-size: 1em; padding-bottom: 0; }
+
+/* Minimal: no panel, icons and numbers float over the game. */
+body.layout-minimal .widget {
+  background: none !important; /* beats the inline bg color/image */
+  box-shadow: none;
+  padding: 0.25em 0.5em;
+  gap: 0.9em;
+}
+body.layout-minimal .stats,
+body.layout-minimal .widget > .role-badge { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6)); }
+body.layout-minimal .stats { gap: 0.9em; }
+/* The rim/edge glow traces the panel box; without a panel it would outline empty space. */
+body.layout-minimal .widget-fx-layer,
+body.layout-slant .widget-fx-layer { display: none; }
+body.layout-minimal .stat-value,
+body.layout-minimal #rankValue { text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9), 0 0 2px #000; }
+
+/* Column: narrow vertical stack for a screen edge. */
+body.layout-column .widget {
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.65em;
+  border-radius: 12px;
+}
+body.layout-column .rank-section { order: -2; flex-direction: column; gap: 0.2em; }
+body.layout-column #rank-animation-wrapper { width: 2.9em; height: 2.9em; }
+body.layout-column #rankValue { font-size: 0.9em; padding-bottom: 0; }
+body.layout-column .widget > .role-badge { order: -1; margin: 0; }
+body.layout-column .role-icon { width: 1.25em; height: 1.25em; }
+body.layout-column .stats { flex-direction: column; gap: 0.4em; }
+body.layout-column .stats::before {
+  content: '';
+  width: 1.6em;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--separator-color);
+}
+body.layout-column .stat-item { flex-direction: column; gap: 0.1em; }
+body.layout-column .icon-fill-container {
+  width: calc(1.75em * var(--vessel-scale, 1));
+  height: calc(1.75em * var(--vessel-scale, 1));
+}
+body.layout-column .stat-sep { display: none; }
+body.layout-column .stat-value { font-size: 1.1em; }
+
+
+.wr-ring,
+.rank-delta { display: none; }
+
+/* Ring: rank icon inside a win-rate ring; name over the score. */
+body.layout-ring .widget {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  grid-template-areas: "dial role name" "dial stats stats";
+  align-items: center;
+  gap: 0.1em 0;
+  padding: 0.5em 1.2em 0.5em 0.5em;
+  border-radius: 999px;
+}
+body.layout-ring .rank-section { display: contents; }
+body.layout-ring #rank-animation-wrapper { grid-area: dial; width: 3.5em; height: 3.5em; margin: 0.3em 1.05em 0.3em 0.3em; }
+body.layout-ring .wr-ring {
+  display: block;
+  position: absolute;
+  inset: -0.3em;
+  width: calc(100% + 0.6em);
+  height: calc(100% + 0.6em);
+  transform: rotate(-90deg);
+  overflow: visible;
+  z-index: 0;
+  pointer-events: none;
+}
+.wr-ring circle { fill: none; stroke-width: 4.5; }
+.wr-ring-loss { stroke: var(--losses-color); opacity: 0.85; }
+.wr-ring-win { stroke: var(--wins-color); stroke-linecap: round; transition: stroke-dasharray 0.6s ease; }
+body.layout-ring #rankValue { grid-area: name; font-size: 1.05em; padding-bottom: 0; }
+body.layout-ring .widget > .role-badge { grid-area: role; margin: 0 0.35em 0 0; }
+body.layout-ring .role-icon { width: 1.15em; height: 1.15em; }
+body.layout-ring .stats { grid-area: stats; gap: 0.4em; }
+body.layout-ring .icon-fill-container,
+body.layout-ring .stat-sep { display: none; }
+body.layout-ring .stat-value { font-size: 0.95em; }
+body.layout-ring #wins::after { content: 'W'; }
+body.layout-ring #losses::after { content: 'L'; }
+body.layout-ring .stats::after {
+  content: attr(data-wr);
+  font-size: 0.8em;
+  color: var(--rank-text-color);
+  opacity: 0.75;
+  margin-left: 0.2em;
+}
+
+/* Slant: skewed panels like the Overwatch HUD. Panels are pseudo-elements so the
+   contents (and their own animations) stay upright. */
+body.layout-slant .widget {
+  background: none !important;
+  box-shadow: none;
+  padding: 0 0.6em;
+  gap: 0.3em;
+  align-items: stretch;
+  font-style: italic;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+}
+body.layout-slant .stats { gap: 0.3em; align-items: stretch; }
+body.layout-slant .stat-item,
+body.layout-slant .widget > .role-badge,
+body.layout-slant .rank-section {
+  position: relative;
+  isolation: isolate;
+  padding: 0.35em 1em;
+}
+body.layout-slant .stat-item::before,
+body.layout-slant .widget > .role-badge::before,
+body.layout-slant .rank-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: skewX(-14deg);
+  background: var(--bg-color);
+}
+body.layout-slant .stat-item:first-child::before { border-bottom: 3px solid var(--wins-color); }
+body.layout-slant .stat-item:last-child::before { border-bottom: 3px solid var(--losses-color); }
+body.layout-slant .widget > .role-badge { margin: 0; padding-right: 0.2em; }
+body.layout-slant .widget > .role-badge::before,
+body.layout-slant .rank-section::before { background: rgba(240, 240, 250, 0.92); }
+body.layout-slant .role-badge:not([hidden]) + .rank-section { margin-left: -0.3em; padding-left: 0.6em; }
+body.layout-slant .role-icon { width: 1.15em; height: 1.15em; background-color: #1a1a24; }
+body.layout-slant .stat-sep { display: none; }
+body.layout-slant .stat-item { gap: 0.45em; }
+body.layout-slant .icon-fill-container {
+  width: calc(1.4em * var(--vessel-scale, 1));
+  height: calc(1.4em * var(--vessel-scale, 1));
+}
+body.layout-slant .stat-value { font-size: 1.35em; font-weight: 900; }
+body.layout-slant .rank-section { gap: 0.45em; }
+body.layout-slant #rank-animation-wrapper { width: 2.1em; height: 2.1em; }
+body.layout-slant #rankValue {
+  color: #1a1a24;
+  font-size: 0.95em;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-bottom: 0;
+}
+
+/* Scoreboard: big match-style score with the rank in the middle. */
+body.layout-scoreboard .widget {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  align-items: center;
+  column-gap: 0.9em;
+  padding: 0.5em 1em;
+}
+body.layout-scoreboard .stats { display: contents; }
+body.layout-scoreboard .stat-item { grid-row: 1; flex-direction: column; gap: 0.1em; }
+body.layout-scoreboard .stat-item:first-child { grid-column: 1; }
+body.layout-scoreboard .stat-item:last-child { grid-column: 3; }
+body.layout-scoreboard .stat-item::after {
+  font-size: 0.62em;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  color: var(--rank-text-color);
+  opacity: 0.7;
+}
+body.layout-scoreboard .stat-item:first-child::after { content: 'WINS'; }
+body.layout-scoreboard .stat-item:last-child::after { content: 'LOSSES'; }
+body.layout-scoreboard .icon-fill-container,
+body.layout-scoreboard .stat-sep { display: none; }
+body.layout-scoreboard .stat-value { font-size: 2.1em; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+body.layout-scoreboard .rank-section { grid-row: 1; grid-column: 2; flex-direction: column; gap: 0.25em; }
+body.layout-scoreboard #rank-animation-wrapper { width: 2.9em; height: 2.9em; }
+body.layout-scoreboard #rankValue { font-size: 0.75em; padding-bottom: 0; }
+body.layout-scoreboard .widget > .role-badge { grid-row: 1; grid-column: 4; margin: 0; }
+body.layout-scoreboard .role-icon { width: 0.95em; height: 0.95em; }
+
+/* Session: rank with the change since the session started, plus session W/L. */
+body.layout-session .widget {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  grid-template-areas: "dial role name delta" "dial stats stats stats";
+  align-items: center;
+  gap: 0.2em 0;
+  padding: 0.6em 1em;
+}
+body.layout-session .rank-section { display: contents; }
+body.layout-session #rank-animation-wrapper { grid-area: dial; width: 2.9em; height: 2.9em; margin-right: 0.85em; }
+body.layout-session #rankValue { grid-area: name; font-size: 1.05em; padding-bottom: 0; }
+body.layout-session .rank-delta {
+  grid-area: delta;
+  justify-self: start;
+  display: inline-block;
+  margin-left: 0.5em;
+  padding: 0.1em 0.55em;
+  border-radius: 999px;
+  font-size: 0.72em;
+  font-weight: bold;
+  white-space: nowrap;
+  color: var(--rank-text-color);
+  background: color-mix(in srgb, var(--rank-text-color) 14%, transparent);
+}
+body.layout-session .rank-delta.up { color: var(--wins-color); background: color-mix(in srgb, var(--wins-color) 18%, transparent); }
+body.layout-session .rank-delta.down { color: var(--losses-color); background: color-mix(in srgb, var(--losses-color) 18%, transparent); }
+body.layout-session .widget > .role-badge { grid-area: role; margin: 0 0.35em 0 0; }
+body.layout-session .role-icon { width: 1.15em; height: 1.15em; }
+body.layout-session .stats { grid-area: stats; gap: 0.4em; }
+body.layout-session .stats::before {
+  content: 'SESSION';
+  font-size: 0.62em;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  color: var(--rank-text-color);
+  opacity: 0.7;
+}
+body.layout-session .icon-fill-container,
+body.layout-session .stat-sep { display: none; }
+body.layout-session .stat-value { font-size: 0.95em; }
+body.layout-session #wins::after { content: 'W'; }
+body.layout-session #losses::after { content: 'L'; }
+
+
+.form-pips,
+.ladder,
+.roles-list { display: none; }
+
+/* Form: last 5 results as tiles plus the current streak. */
+body.layout-form .widget {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  grid-template-areas: "dial role name" "dial form form";
+  align-items: center;
+  gap: 0.3em 0;
+  padding: 0.55em 0.9em 0.55em 0.55em;
+}
+body.layout-form .rank-section { display: contents; }
+body.layout-form #rank-animation-wrapper { grid-area: dial; width: 2.9em; height: 2.9em; margin-right: 0.75em; }
+body.layout-form #rankValue { grid-area: name; font-size: 1em; padding-bottom: 0; }
+body.layout-form .widget > .role-badge { grid-area: role; margin: 0 0.35em 0 0; }
+body.layout-form .role-icon { width: 1.1em; height: 1.1em; }
+body.layout-form .stats { display: none; }
+body.layout-form .form-pips {
+  grid-area: form;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  position: relative;
+  z-index: 1;
+}
+.form-pips .pip {
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 0.25em;
+  display: grid;
+  place-items: center;
+  font-size: 0.7em;
+  font-weight: 900;
+  color: #111;
+  background: color-mix(in srgb, var(--rank-text-color) 15%, transparent);
+}
+.form-pips .pip.w { background: var(--wins-color); }
+.form-pips .pip.l { background: var(--losses-color); }
+.form-pips .pip.last { outline: 2px solid var(--rank-text-color); outline-offset: 1px; }
+.form-pips .streak {
+  margin-left: 0.4em;
+  font-size: 0.72em;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.form-pips .streak.w { color: var(--wins-color); }
+.form-pips .streak.l { color: var(--losses-color); }
+
+/* Ladder: division steps inside the tier, next tier icon at the end. */
+body.layout-ladder .widget {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  grid-template-areas: "dial role name stats" "dial steps steps steps";
+  align-items: center;
+  gap: 0.35em 0;
+  padding: 0.55em 1em 0.6em 0.6em;
+}
+body.layout-ladder .rank-section { display: contents; }
+body.layout-ladder #rank-animation-wrapper { grid-area: dial; width: 3.1em; height: 3.1em; margin-right: 0.75em; }
+body.layout-ladder #rankValue { grid-area: name; font-size: 1em; padding-bottom: 0; }
+body.layout-ladder .widget > .role-badge { grid-area: role; margin: 0 0.35em 0 0; }
+body.layout-ladder .role-icon { width: 1.1em; height: 1.1em; }
+body.layout-ladder .stats { grid-area: stats; gap: 0.35em; margin-left: 0.7em; }
+body.layout-ladder .icon-fill-container,
+body.layout-ladder .stat-sep { display: none; }
+body.layout-ladder .stat-value { font-size: 0.85em; }
+body.layout-ladder #wins::after { content: 'W'; }
+body.layout-ladder #losses::after { content: 'L'; }
+body.layout-ladder .ladder {
+  grid-area: steps;
+  display: flex;
+  align-items: center;
+  gap: 0.2em;
+  position: relative;
+  z-index: 1;
+}
+.ladder-steps { display: flex; gap: 0.2em; }
+.ladder-steps[hidden],
+.ladder-next[hidden] { display: none; }
+.ladder-steps .step {
+  width: 1.6em;
+  height: 0.38em;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--rank-text-color) 20%, transparent);
+}
+.ladder-steps .step.on { background: color-mix(in srgb, var(--rank-text-color) 60%, transparent); }
+.ladder-steps .step.cur { background: var(--rank-text-color); box-shadow: 0 0 6px var(--rank-text-color); }
+.ladder-next { width: 1.15em; height: 1.15em; object-fit: contain; opacity: 0.55; margin-left: 0.3em; }
+
+/* Roles: all three roles; the played one is the live, animated row. */
+body.layout-roles .widget {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 0.25em 0.55em;
+  padding: 0.5em 0.7em;
+}
+body.layout-roles .rank-section,
+body.layout-roles .roles-list,
+.roles-list .role-row { display: contents; }
+body.layout-roles .widget > .role-badge { grid-column: 1; grid-row: var(--active-row, 1); margin: 0; }
+body.layout-roles .role-icon { width: 1.1em; height: 1.1em; }
+body.layout-roles #rank-animation-wrapper { grid-column: 2; grid-row: var(--active-row, 1); width: 1.9em; height: 1.9em; }
+body.layout-roles #rankValue { grid-column: 3; grid-row: var(--active-row, 1); font-size: 0.9em; padding-bottom: 0; }
+body.layout-roles .stats { grid-column: 4; grid-row: var(--active-row, 1); gap: 0.25em; }
+body.layout-roles .icon-fill-container { display: none; }
+body.layout-roles .stat-value { font-size: 0.85em; }
+.roles-list .roles-hl {
+  grid-column: 1 / -1;
+  grid-row: var(--active-row, 1);
+  align-self: stretch;
+  margin: -0.15em -0.35em;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, var(--rank-text-color) 11%, transparent);
+}
+.roles-list .role-row > * { grid-row: var(--row); opacity: 0.55; position: relative; z-index: 1; }
+.roles-list .role-cell { grid-column: 1; }
+.roles-list .rank-cell { grid-column: 2; width: 1.9em; height: 1.9em; object-fit: contain; justify-self: center; }
+.roles-list .name-cell {
+  grid-column: 3;
+  font-size: 0.9em;
+  font-weight: bold;
+  color: var(--rank-text-color);
+  white-space: nowrap;
+}
+.roles-list .wl-cell { grid-column: 4; font-size: 0.85em; font-weight: bold; color: var(--separator-color); }
+
+/* Hex: hexagon badge. The panel is a pseudo-element so rank FX are not clipped. */
+/* Rank on top, then role icon + score in one row; everything sits in the
+   hexagon's wide middle band so no corner pokes out of the shape. */
+body.layout-hex .widget {
+  display: grid;
+  /* fr side columns absorb the rank's width, so role + score stay a centred pair */
+  grid-template-areas: "rank rank rank rank" ". role stats .";
+  grid-template-columns: 1fr auto auto 1fr;
+  align-content: center;
+  align-items: center;
+  gap: 0.3em 0.35em;
+  width: 8em;
+  height: 9em;
+  padding: 0.6em 0.5em;
+  background: none !important;
+  box-shadow: none;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+}
+body.layout-hex.mode-classic .widget,
+body.layout-hex.game-apex .widget { grid-template-areas: "rank" "stats"; grid-template-columns: auto; justify-items: center; }
+body.layout-hex .widget::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg-color);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+body.layout-hex .widget-fx-layer { display: none; }
+body.layout-hex .rank-section { grid-area: rank; justify-self: center; flex-direction: column; gap: 0.25em; }
+body.layout-hex #rank-animation-wrapper { width: 3.3em; height: 3.3em; }
+body.layout-hex #rankValue {
+  font-size: 0.68em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding-bottom: 0;
+}
+body.layout-hex .widget > .role-badge { grid-area: role; margin: 0; }
+body.layout-hex .role-icon { width: 0.9em; height: 0.9em; }
+body.layout-hex .icon-fill-container { display: none; }
+body.layout-hex .stats { grid-area: stats; gap: 0.3em; }
+body.layout-hex .stat-value { font-size: 1em; font-weight: 900; }
+
+.feed-list,
+.tug,
+.flip-digits,
+.tcard-stars { display: none; }
+
+/* Kill feed: result rows like the in-game kill feed; the top row holds the live rank. */
+body.layout-feed .widget {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  align-items: center;
+  gap: 0.25em 0;
+  padding: 0;
+  background: none !important;
+  box-shadow: none;
+}
+body.layout-feed .widget-fx-layer,
+body.layout-feed .stats { display: none; }
+body.layout-feed .rank-section,
+body.layout-feed .feed-list { display: contents; }
+.feed-list .feed-bg {
+  grid-column: 1 / -1;
+  grid-row: var(--row);
+  align-self: stretch;
+  background: var(--bg-color);
+  border-right: 0.25em solid var(--separator-color);
+}
+.feed-list .feed-bg.w { border-right-color: var(--wins-color); }
+.feed-list .feed-bg.l { border-right-color: var(--losses-color); }
+.feed-list .feed-tag {
+  grid-column: 1;
+  grid-row: var(--row);
+  position: relative;
+  z-index: 1;
+  padding: 0.3em 0.7em;
+  font-size: 0.85em;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--rank-text-color);
+}
+.feed-list .feed-tag.w { color: var(--wins-color); }
+.feed-list .feed-tag.l { color: var(--losses-color); }
+.feed-list .feed-tag.none { opacity: 0.6; }
+.feed-list [style*="--row:2"] { opacity: 0.7; }
+.feed-list [style*="--row:3"] { opacity: 0.45; }
+body.layout-feed .widget > .role-badge { grid-column: 2; grid-row: 1; margin: 0 0.35em 0 0; }
+body.layout-feed .role-icon { width: 1em; height: 1em; }
+body.layout-feed #rank-animation-wrapper { grid-column: 3; grid-row: 1; width: 1.6em; height: 1.6em; margin: 0.15em 0.35em 0.15em 0; }
+body.layout-feed #rankValue { grid-column: 4; grid-row: 1; font-size: 0.9em; padding: 0 0.8em 0 0; }
+
+/* Tug of war: losses and wins pull a knot along one rope. */
+body.layout-tug .widget {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto 1fr auto;
+  grid-template-areas: "l . role dial name . w" "rope rope rope rope rope rope rope" "net net net net net net net";
+  align-items: center;
+  gap: 0.35em 0.5em;
+  padding: 0.6em 0.9em 0.5em;
+  min-width: 17em;
+}
+body.layout-tug .stats,
+body.layout-tug .rank-section,
+body.layout-tug .tug { display: contents; }
+body.layout-tug .stat-item:first-child { grid-area: w; }
+body.layout-tug .stat-item:last-child { grid-area: l; }
+body.layout-tug .icon-fill-container,
+body.layout-tug .stat-sep { display: none; }
+body.layout-tug .stat-value { font-size: 1.15em; font-weight: 900; }
+body.layout-tug .widget > .role-badge { grid-area: role; margin: 0 0.3em 0 0; }
+body.layout-tug .role-icon { width: 0.95em; height: 0.95em; }
+body.layout-tug #rank-animation-wrapper { grid-area: dial; width: 1.7em; height: 1.7em; margin-right: 0.35em; }
+body.layout-tug #rankValue { grid-area: name; font-size: 0.85em; padding-bottom: 0; }
+.tug-rope {
+  grid-area: rope;
+  position: relative;
+  z-index: 1;
+  height: 0.5em;
+  border-radius: 0.25em;
+  background: linear-gradient(90deg, var(--losses-color), color-mix(in srgb, var(--rank-text-color) 15%, transparent) 50%, var(--wins-color));
+}
+.tug-rope::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -0.2em;
+  bottom: -0.2em;
+  width: 2px;
+  background: color-mix(in srgb, var(--rank-text-color) 60%, transparent);
+}
+.tug-knot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  width: 1em;
+  height: 1em;
+  border-radius: 50%;
+  background: #fff;
+  border: 0.18em solid #222;
+  transform: translate(-50%, -50%);
+  transition: left 0.6s cubic-bezier(0.3, 1.5, 0.6, 1);
+}
+.tug-net {
+  grid-area: net;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  font-size: 0.68em;
+  letter-spacing: 0.06em;
+  color: var(--rank-text-color);
+  opacity: 0.75;
+}
+
+/* Flip clock: split-flap score tiles over the rank. */
+body.layout-flip .widget {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto 1fr;
+  grid-template-areas: "digits digits digits digits digits" ". role dial name .";
+  align-items: center;
+  gap: 0.4em 0;
+  padding: 0.6em 0.9em;
+}
+body.layout-flip .stats { display: none; }
+body.layout-flip .rank-section { display: contents; }
+body.layout-flip .widget > .role-badge { grid-area: role; margin: 0 0.3em 0 0; }
+body.layout-flip .role-icon { width: 0.9em; height: 0.9em; }
+body.layout-flip #rank-animation-wrapper { grid-area: dial; width: 1.5em; height: 1.5em; margin-right: 0.35em; }
+body.layout-flip #rankValue { grid-area: name; font-size: 0.85em; padding-bottom: 0; }
+body.layout-flip .flip-digits {
+  grid-area: digits;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25em;
+  position: relative;
+  z-index: 1;
+  perspective: 10em;
+}
+/* Split-flap tile: static top/bottom halves, plus two flaps while a digit changes
+   (old top half falls, new bottom half lands). Tile colours come from the skin. */
+.flip-side { display: flex; gap: 0.14em; }
+.flip-d {
+  display: block;
+  position: relative;
+  width: 1em;
+  height: 1.43em;
+  font-family: 'Courier New', monospace;
+  font-size: 1.75em;
+  font-weight: 900;
+  line-height: 1.43em;
+  text-align: center;
+  perspective: 4em;
+}
+.flip-d.w { color: var(--wins-color); }
+.flip-d.l { color: var(--losses-color); }
+.flip-d .h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  background: var(--tile-top);
+}
+.flip-d .h > b { display: block; height: 1.43em; font-weight: inherit; }
+.flip-d .t { top: 0; border-radius: 0.17em 0.17em 0 0; border-bottom: 1px solid color-mix(in srgb, var(--bg-solid) 75%, transparent); }
+.flip-d .b { bottom: 0; border-radius: 0 0 0.17em 0.17em; background: var(--tile-bottom); }
+.flip-d .b > b { transform: translateY(-50%); }
+.flip-d .ft { z-index: 2; transform-origin: bottom; animation: flapTop 0.2s ease-in forwards; }
+.flip-d .fb { z-index: 2; transform-origin: top; transform: rotateX(90deg); animation: flapBottom 0.2s 0.2s ease-out forwards; }
+@keyframes flapTop {
+  to { transform: rotateX(-90deg); filter: brightness(0.6); }
+}
+@keyframes flapBottom {
+  from { transform: rotateX(90deg); filter: brightness(1.35); }
+  to { transform: rotateX(0); filter: none; }
+}
+.flip-colon { font-size: 1.5em; font-weight: 900; color: var(--separator-color); margin: 0 0.1em; }
+
+/* Trading card: holographic foil border (animated), stars by tier, W / L / WR row. */
+@property --holo-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+body.layout-tcard .widget {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-areas: "stars stars stars" "rank rank rank" "w l wr";
+  justify-items: center;
+  align-items: center;
+  gap: 0.35em 0.3em;
+  width: 8.4em;
+  padding: 0.6em 0.5em 0.7em;
+  border-radius: 0.8em;
+  background: none !important;
+  /* --heat (0-5): current win streak; the foil spins faster and glows. */
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 calc(var(--heat, 0) * 5px) rgba(255, 190, 255, 0.75);
+  transition: box-shadow 0.6s ease;
+}
+body.layout-tcard .widget::before,
+body.layout-tcard .widget::after {
+  content: '';
+  position: absolute;
+}
+body.layout-tcard .widget::before {
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(from var(--holo-angle), #ff6ad5, #c774e8, #ad8cff, #8795e8, #94d0ff, #7affc3, #fff58a, #ff6ad5);
+  animation: holoTurn calc(4s - var(--heat, 0) * 0.6s) linear infinite;
+}
+body.layout-tcard .widget::after {
+  inset: 3px;
+  border-radius: calc(0.8em - 3px);
+  /* The skin's own panel colour (opaque), so light skins get a light card. */
+  background: linear-gradient(160deg, color-mix(in srgb, var(--bg-solid) 88%, var(--rank-text-color)), var(--bg-solid));
+}
+@keyframes holoTurn { to { --holo-angle: 360deg; } }
+body.layout-tcard .tcard-stars {
+  display: block;
+  grid-area: stars;
+  position: relative;
+  z-index: 1;
+  font-size: 0.7em;
+  letter-spacing: 0.1em;
+}
+.tcard-stars span { display: inline-block; color: color-mix(in srgb, var(--rank-text-color) 22%, transparent); }
+.tcard-stars span.on { color: #ffd34d; text-shadow: 0 0 6px rgba(255, 211, 77, 0.55); }
+body.skin-light .tcard-stars span.on { color: #b77900; text-shadow: 0 0 4px rgba(255, 200, 60, 0.6); }
+.tcard-stars span.pop { animation: starPop 0.8s cubic-bezier(0.3, 1.8, 0.5, 1); }
+@keyframes starPop {
+  0% { transform: scale(0) rotate(-90deg); }
+  60% { transform: scale(1.9) rotate(10deg); text-shadow: 0 0 14px #ffd34d; }
+  100% { transform: scale(1); }
+}
+/* Result flip: the card turns edge-on, shows its back, then turns back.
+   JS swaps faces at the edge-on moments (12.5% / 87.5%). */
+body.layout-tcard .widget.card-flip { animation: cardFlip 1.6s ease-in-out; }
+/* Idle float: a slow 3D tilt while nothing else moves the card. */
+body.layout-tcard.card-fx-float .widget.visible:not(.card-flip):not(.hide),
+body.layout-tcard.card-fx-float.always-visible .widget:not(.card-flip) { animation: cardFloat 6s ease-in-out infinite; }
+@keyframes cardFloat {
+  0%, 100% { transform: perspective(40em) rotateY(-7deg) rotateX(3deg); }
+  50% { transform: perspective(40em) rotateY(7deg) rotateX(-3deg) translateY(-0.2em); }
+}
+/* Light sweep: a glare crosses the card after a result or rank change. */
+.tcard-shine { display: none; }
+body.layout-tcard .tcard-shine {
+  display: block;
+  position: absolute;
+  inset: 3px;
+  z-index: 7;
+  overflow: hidden;
+  border-radius: calc(0.8em - 3px);
+  pointer-events: none;
+}
+body.layout-tcard .tcard-shine::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(115deg, transparent 42%, rgba(255, 255, 255, 0.4) 50%, transparent 58%);
+  transform: translateX(-70%);
+  opacity: 0;
+}
+body.layout-tcard .tcard-shine.go::before { animation: cardShine 0.9s ease-out; }
+@keyframes cardShine {
+  0% { transform: translateX(-70%); opacity: 1; }
+  100% { transform: translateX(70%); opacity: 1; }
+}
+@keyframes cardFlip {
+  0% { transform: perspective(40em) rotateY(0); }
+  12.5% { transform: perspective(40em) rotateY(90deg); }
+  12.51% { transform: perspective(40em) rotateY(-90deg); }
+  25%, 75% { transform: perspective(40em) rotateY(0); }
+  87.5% { transform: perspective(40em) rotateY(90deg); }
+  87.51% { transform: perspective(40em) rotateY(-90deg); }
+  100% { transform: perspective(40em) rotateY(0); }
+}
+.tcard-back { display: none; }
+body.layout-tcard .widget.card-back-on .tcard-back {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2em;
+  position: absolute;
+  inset: 3px;
+  z-index: 6;
+  border-radius: calc(0.8em - 3px);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--bg-solid) 88%, var(--rank-text-color)), var(--bg-solid));
+}
+.tcard-back b { font-size: 1.3em; font-weight: 900; letter-spacing: 0.03em; line-height: 1.1; white-space: nowrap; }
+.tcard-back b.w { color: var(--wins-color); }
+.tcard-back b.l { color: var(--losses-color); }
+.tcard-back small { font-size: 0.6em; letter-spacing: 0.12em; line-height: 1.2; white-space: nowrap; color: var(--rank-text-color); opacity: 0.7; }
+body.layout-tcard .rank-section { grid-area: rank; flex-direction: column; gap: 0.3em; }
+body.layout-tcard #rank-animation-wrapper { width: 4em; height: 4em; }
+body.layout-tcard #rankValue {
+  font-size: 0.78em;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding-bottom: 0;
+}
+body.layout-tcard .widget > .role-badge { position: absolute; top: 0.55em; left: 0.55em; margin: 0; }
+body.layout-tcard .role-icon { width: 0.85em; height: 0.85em; }
+body.layout-tcard .stats { display: contents; }
+body.layout-tcard .stat-item { flex-direction: column; gap: 0; position: relative; z-index: 1; }
+body.layout-tcard .stat-item:first-child { grid-area: w; }
+body.layout-tcard .stat-item:last-child { grid-area: l; }
+body.layout-tcard .icon-fill-container,
+body.layout-tcard .stat-sep,
+body.layout-tcard .wr-bar { display: none; }
+/* W / L / WR share one structure: value (0.85em) over label (0.5em of the widget),
+   fixed line heights, top-aligned — so every font lines the three up. */
+body.layout-tcard .stat-item,
+body.layout-tcard .wr-block { align-self: start; }
+body.layout-tcard .stat-value { font-size: 0.85em; line-height: 1.1; }
+body.layout-tcard .wr-block { grid-area: wr; display: flex; }
+body.layout-tcard .wr-text { display: flex; flex-direction: column-reverse; align-items: center; font-size: 0.85em; line-height: 1.1; }
+body.layout-tcard .stat-item::after,
+body.layout-tcard .wr-label {
+  display: block;
+  margin-top: 0.2em;
+  font-size: 0.5em;
+  line-height: 1.1;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  color: var(--rank-text-color);
+  opacity: 0.6;
+}
+/* The WR label sits inside the 0.85em value block: scale it back to 0.5em of the widget. */
+body.layout-tcard .wr-label { font-size: calc(0.5em / 0.85); margin-top: calc(0.2em / 0.85); }
+body.layout-tcard .stat-item:first-child::after { content: 'WINS'; }
+body.layout-tcard .stat-item:last-child::after { content: 'LOSS'; }
+
+/* Light skins: dark text has no panel in Minimal, so give it a light halo. */
+body.skin-light.layout-minimal .stat-value,
+body.skin-light.layout-minimal #rankValue {
+  text-shadow: 0 0 3px #fff, 0 0 6px #fff, 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+body.skin-light.layout-minimal .stats,
+body.skin-light.layout-minimal .widget > .role-badge { filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.85)); }
