@@ -113,6 +113,16 @@ func (c *Checker) Check(force bool) Info {
 	info.Name = tag
 	info.fillDownloadURLs(tag)
 	info.Available = Newer(tag, c.current) && info.ExeURL != ""
+	if info.Available {
+		// The admin shows the release notes before the streamer clicks Update.
+		// Without them it still offers the update, with a link to GitHub.
+		if name, body, err := c.releaseNotes(tag); err == nil {
+			if name != "" {
+				info.Name = name
+			}
+			info.Body = body
+		}
+	}
 	c.cached, c.have = info, true
 	_ = c.writeStatus(info)
 	return info
@@ -176,6 +186,36 @@ func tagFromReleaseURL(u string) string {
 		tag = tag[:j]
 	}
 	return strings.Trim(tag, "/")
+}
+
+var apiBase = "https://api.github.com"
+
+// releaseNotes fetches the title and markdown body of one release.
+func (c *Checker) releaseNotes(tag string) (name, body string, err error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/releases/tags/%s", apiBase, GitHubOwner, GitHubRepo, tag)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	res, err := c.client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if res.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("github %s", res.Status)
+	}
+	var rel struct {
+		Name string `json:"name"`
+		Body string `json:"body"`
+	}
+	if err := json.Unmarshal(raw, &rel); err != nil {
+		return "", "", err
+	}
+	return strings.TrimSpace(rel.Name), strings.ReplaceAll(rel.Body, "\r\n", "\n"), nil
 }
 
 func isReleaseSemver(tag string) bool {

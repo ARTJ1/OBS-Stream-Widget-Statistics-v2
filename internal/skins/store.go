@@ -75,6 +75,19 @@ func (s *Store) Save(name string, settings store.Settings) (CustomSkin, error) {
 	return skin, nil
 }
 
+// Rename changes a custom skin's name; false if the id is unknown.
+func (s *Store) Rename(id, name string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.list {
+		if s.list[i].ID == id {
+			s.list[i].Name = name
+			return true, s.save()
+		}
+	}
+	return false, nil
+}
+
 func (s *Store) Delete(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

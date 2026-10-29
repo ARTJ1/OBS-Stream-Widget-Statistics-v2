@@ -76,6 +76,12 @@ type View struct {
 	Mode   string `json:"mode"`
 	Role   string `json:"role"`
 	Game   string `json:"game"`
+	// StartRank is the rank at session start (app launch or last W/L reset),
+	// used by the "session" layout to show progress this stream.
+	StartRank int `json:"startRank"`
+	// Recent holds this session's latest results, oldest first ("w" / "l"),
+	// for the "form" layout.
+	Recent []string `json:"recent"`
 }
 
 type Settings struct {
@@ -94,6 +100,9 @@ type Settings struct {
 	HiddenTime      int    `json:"hiddenTime"`
 	AlwaysVisible   bool   `json:"alwaysVisible"` // skip the show/hide cycle
 
+	Layout         string `json:"layout"` // detailed | mini | card | badge | strip | minimal | column | ring | slant | scoreboard | session | form | ladder | roles | hex | feed | tug | flip | tcard
+	// CardFx: trading-card reactions, comma list of stars|flip|heat|shine|float, or "none".
+	CardFx         string `json:"cardFx"`
 	IconColor      string `json:"iconColor"`
 	VesselStyle    string `json:"vesselStyle"` // classic|royal|rage|inferno|toxic|nova|fang|hard|grim|solid|sharp|award|medal|miraqlesan
 	SeparatorColor string `json:"separatorColor"`
@@ -130,6 +139,32 @@ type Store struct {
 	dir      string
 	state    State
 	settings Settings
+	// sessionStart: rank at session start per "game/role" ("game/" for classic). In memory only.
+	sessionStart map[string]int
+	// recent: latest results this session, oldest first. In memory only.
+	recent []string
+}
+
+const maxRecent = 10
+
+// DefaultCardFx are the trading-card reactions on out of the box.
+const DefaultCardFx = "stars,flip,heat"
+
+func (s *Store) pushRecent(r string) {
+	s.recent = append(s.recent, r)
+	if len(s.recent) > maxRecent {
+		s.recent = s.recent[len(s.recent)-maxRecent:]
+	}
+}
+
+// dropRecent removes the latest r (an undo of a mistaken +1).
+func (s *Store) dropRecent(r string) {
+	for i := len(s.recent) - 1; i >= 0; i-- {
+		if s.recent[i] == r {
+			s.recent = append(s.recent[:i], s.recent[i+1:]...)
+			return
+		}
+	}
 }
 
 func DefaultSettings() Settings {
@@ -146,6 +181,8 @@ func DefaultSettings() Settings {
 		VesselStyle:     "classic",
 		SeparatorColor:  "rgba(255,255,255,0.55)",
 		AppearEffect:    "slide",
+		Layout:          "detailed",
+		CardFx:          DefaultCardFx,
 		FillStyle:       "liquid",
 		RankFx:          "classic",
 		AnimDirection:   "left",
@@ -206,7 +243,48 @@ func New(dataDir string) (*Store, error) {
 		_ = s.persistState()
 	}
 	s.clamp()
+	s.captureSession(false)
 	return s, nil
+}
+
+func sessionKey(game, role string) string {
+	return game + "/" + role
+}
+
+// captureSession records the current ranks of the active game as the session
+// baseline. With overwrite=false only missing entries are filled in.
+func (s *Store) captureSession(overwrite bool) {
+	if s.sessionStart == nil {
+		s.sessionStart = map[string]int{}
+	}
+	game := s.state.Game
+	if !isValidGame(game) {
+		game = GameOverwatch
+	}
+	set := func(key string, rank int) {
+		if _, ok := s.sessionStart[key]; ok && !overwrite {
+			return
+		}
+		s.sessionStart[key] = rank
+	}
+	set(sessionKey(game, ""), s.state.Rank)
+	if game == GameApex {
+		return
+	}
+	for _, id := range roleOrder {
+		set(sessionKey(game, id), s.state.Roles[id].Rank)
+	}
+}
+
+func (s *Store) sessionStartRank(v View) int {
+	role := v.Role
+	if v.Game == GameApex || v.Mode == ModeClassic {
+		role = ""
+	}
+	if r, ok := s.sessionStart[sessionKey(v.Game, role)]; ok {
+		return r
+	}
+	return v.Rank
 }
 
 func shiftOwRankForEmerald(rank int) int {
@@ -415,6 +493,15 @@ func (s *Store) clamp() {
 	if s.settings.AppearEffect == "" {
 		s.settings.AppearEffect = "slide"
 	}
+	if s.settings.CardFx == "" {
+		s.settings.CardFx = DefaultCardFx
+	}
+	switch s.settings.Layout {
+	case "detailed", "mini", "card", "badge", "strip", "minimal", "column", "ring", "slant", "scoreboard", "session",
+		"form", "ladder", "roles", "hex", "feed", "tug", "flip", "tcard":
+	default:
+		s.settings.Layout = "detailed"
+	}
 	if s.settings.UiLang != "en" && s.settings.UiLang != "ru" {
 		s.settings.UiLang = "ru"
 	}
@@ -533,6 +620,8 @@ func (s *Store) SetGame(game string) (Snapshot, error) {
 	}
 	s.state.Game = game
 	s.clamp()
+	s.captureSession(false)
+	s.recent = nil // results belong to the game they were played in
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -554,7 +643,10 @@ func (s *Store) CycleGame() (Snapshot, error) {
 }
 
 func (s *Store) snapLocked() Snapshot {
-	return Snapshot{State: s.state, Settings: s.settings, View: s.state.View()}
+	v := s.state.View()
+	v.StartRank = s.sessionStartRank(v)
+	v.Recent = append([]string{}, s.recent...)
+	return Snapshot{State: s.state, Settings: s.settings, View: v}
 }
 
 func (s *Store) Dir() string {
@@ -622,6 +714,7 @@ func (s *Store) AddWin() (Snapshot, error) {
 	default:
 		s.state.Wins++
 	}
+	s.pushRecent("w")
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -639,6 +732,7 @@ func (s *Store) AddLoss() (Snapshot, error) {
 	default:
 		s.state.Losses++
 	}
+	s.pushRecent("l")
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -656,6 +750,7 @@ func (s *Store) SubWin() (Snapshot, error) {
 	default:
 		s.state.Wins = clampNonNeg(s.state.Wins - 1)
 	}
+	s.dropRecent("w")
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -673,6 +768,7 @@ func (s *Store) SubLoss() (Snapshot, error) {
 	default:
 		s.state.Losses = clampNonNeg(s.state.Losses - 1)
 	}
+	s.dropRecent("l")
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -771,6 +867,9 @@ func (s *Store) Reset() (Snapshot, error) {
 		s.state.Wins = 0
 		s.state.Losses = 0
 	}
+	// Resetting the counters starts a new session.
+	s.captureSession(true)
+	s.recent = nil
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}
@@ -958,6 +1057,7 @@ func (s *Store) SetState(st State) (Snapshot, error) {
 	defer s.mu.Unlock()
 	s.state = st
 	s.clamp()
+	s.captureSession(false)
 	if err := s.persistState(); err != nil {
 		return Snapshot{}, err
 	}

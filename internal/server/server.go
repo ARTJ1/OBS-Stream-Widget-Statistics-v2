@@ -928,6 +928,29 @@ func (s *Server) customSkins(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
+	case http.MethodPatch:
+		// Rename: PATCH /api/skins?id=... {"name": "..."}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		var req struct {
+			Name string `json:"name"`
+		}
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		_ = json.Unmarshal(body, &req)
+		name := strings.TrimSpace(req.Name)
+		if id == "" || name == "" {
+			http.Error(w, "id and name required", http.StatusBadRequest)
+			return
+		}
+		ok, err := s.Skins.Rename(id, name)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id, "name": name})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -936,7 +959,7 @@ func (s *Server) customSkins(w http.ResponseWriter, r *http.Request) {
 func (s *Server) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

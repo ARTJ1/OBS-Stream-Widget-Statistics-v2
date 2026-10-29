@@ -73,9 +73,9 @@ window.WIDGET_SKINS = [
     id: 'nordic-frost',
     name: 'Nordic Frost',
     desc: 'Frost · светлый север',
-    preview: { bg: 'rgba(210,225,235,0.96)', wins: '#0ea5e9', losses: '#64748b' },
+    preview: { bg: 'rgba(210,225,235,0.96)', wins: '#0369a1', losses: '#64748b' },
     settings: {
-      bgColor: 'rgba(210,225,235,0.96)', bgImage: '', winsColor: '#0ea5e9', lossesColor: '#64748b',
+      bgColor: 'rgba(210,225,235,0.96)', bgImage: '', winsColor: '#0369a1', lossesColor: '#64748b',
       rankTextColor: '#0f172a', iconColor: '#1e293b', separatorColor: 'rgba(15,23,42,0.35)',
       font: "'Inter', sans-serif", fontSize: 16, appearEffect: 'slide', fillStyle: 'solid', rankFx: 'frost',
       animDirection: 'left', fillLimit: 10, fillDurationMs: 520, emptyDurationMs: 1500,
@@ -657,9 +657,9 @@ window.WIDGET_SKINS = [
     id: 'opal-shine',
     name: 'Opal Shine',
     desc: 'Prism · опаловый блеск',
-    preview: { bg: 'rgba(245,243,255,0.96)', wins: '#8b5cf6', losses: '#06b6d4' },
+    preview: { bg: 'rgba(245,243,255,0.96)', wins: '#8b5cf6', losses: '#0e7490' },
     settings: {
-      bgColor: 'rgba(245,243,255,0.96)', bgImage: '', winsColor: '#8b5cf6', lossesColor: '#06b6d4',
+      bgColor: 'rgba(245,243,255,0.96)', bgImage: '', winsColor: '#8b5cf6', lossesColor: '#0e7490',
       rankTextColor: '#4c1d95', iconColor: '#5b21b6', separatorColor: 'rgba(76,29,149,0.3)',
       font: "'Montserrat', sans-serif", fontSize: 16, appearEffect: 'fade', fillStyle: 'liquid', rankFx: 'prism',
       animDirection: 'left', fillLimit: 10, fillDurationMs: 500, emptyDurationMs: 1500,

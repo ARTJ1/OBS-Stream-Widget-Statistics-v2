@@ -109,13 +109,7 @@ function setObsStatusKey(key, ok = false, vars) {
 }
 
 function refreshLocalizedDynamicUI() {
-  const bannerText = document.getElementById('updateBannerText');
-  if (bannerText && latestUpdateInfo?.available && latestUpdateInfo?.latest) {
-    bannerText.textContent = t('update.text', {
-      current: latestUpdateInfo.current || '?',
-      latest: latestUpdateInfo.latest,
-    });
-  }
+  if (latestUpdateInfo?.available && latestUpdateInfo?.latest) renderUpdateBanner(latestUpdateInfo);
   if (statusI18n?.key) {
     statusEl.textContent = t(statusI18n.key, statusI18n.vars || undefined);
     statusEl.classList.toggle('ok', !!statusI18n.ok);
@@ -128,8 +122,6 @@ function refreshLocalizedDynamicUI() {
   } else if (!obsStatusText.textContent || /не подключено|not connected/i.test(obsStatusText.textContent)) {
     setObsStatusKey('main.obsOffline');
   }
-  const faqHint = document.getElementById('faqDemoHint');
-  if (faqHint) faqHint.textContent = t('faq.preview.hint');
   // Re-label scene dropdown chrome (placeholder / live suffix) without a network round-trip.
   const first = obsSceneSelect?.options?.[0];
   if (first && !first.value) {
@@ -384,6 +376,8 @@ function fillAppearance(settings) {
   if (form.vesselStyle) form.vesselStyle.value = settings.vesselStyle || 'classic';
   updateVesselCredit();
   fillSeparatorColor(settings.separatorColor || 'rgba(255,255,255,0.55)');
+  if (form.layout) form.layout.value = settings.layout || 'detailed';
+  fillCardFx(settings.cardFx);
   if (form.appearEffect) form.appearEffect.value = settings.appearEffect || 'slide';
   if (settings.font) {
     if (![...fontSelect.options].some((o) => o.value === settings.font)) {
@@ -439,6 +433,19 @@ function ensureSceneOption(name) {
   }
 }
 
+// Trading-card reactions live on the Layout page as checkboxes (name="cardFx").
+const DEFAULT_CARD_FX = 'stars,flip,heat';
+function readCardFx() {
+  const boxes = [...document.querySelectorAll('input[name="cardFx"]')];
+  if (!boxes.length) return DEFAULT_CARD_FX;
+  const on = boxes.filter((b) => b.checked).map((b) => b.value);
+  return on.length ? on.join(',') : 'none';
+}
+function fillCardFx(value) {
+  const on = new Set(String(value || DEFAULT_CARD_FX).split(','));
+  document.querySelectorAll('input[name="cardFx"]').forEach((b) => { b.checked = on.has(b.value); });
+}
+
 function readAppearance() {
   return {
     bgType: form.bgImage.value ? 'image' : 'color',
@@ -452,6 +459,8 @@ function readAppearance() {
     iconColor: form.iconColor?.value || '#ffffff',
     vesselStyle: form.vesselStyle?.value || 'classic',
     separatorColor: buildSeparatorColor(),
+    layout: form.layout?.value || 'detailed',
+    cardFx: readCardFx(),
     appearEffect: form.appearEffect?.value || 'slide',
     animDirection: form.animDirection.value,
     animDurationIn: Number(form.animDurationIn.value) || 0,
@@ -490,6 +499,8 @@ function viewFromSnap(snap) {
       role: snap.view.role || snap.state?.role || 'tank',
       roleCycle: snap.state?.roleCycle || ['tank', 'support', 'damage'],
       game,
+      startRank: snap.view.startRank,
+      recent: snap.view.recent,
     };
   }
   const st = snap?.state || snap || {};
@@ -628,25 +639,36 @@ function schedulePreviewPush() {
 function renderCopyLinks(runtime) {
   const base = runtime.baseUrl || location.origin;
   overlayUrl = `${base}/overlay/`;
-  const items = [
-    ['Overlay', overlayUrl], ['Admin', `${base}/admin/`],
-    ['Win +1', `${base}/api/win`], ['Win −1', `${base}/api/win/down`],
-    ['Loss +1', `${base}/api/loss`], ['Loss −1', `${base}/api/loss/down`],
-    ['Rank up', `${base}/api/rank/up`], ['Rank down', `${base}/api/rank/down`], ['Reset', `${base}/api/reset`],
-    ['Deck state (Live)', `${base}/api/deck/state`],
-    ['Game next', `${base}/api/game/next`],
-    ['Mode next', `${base}/api/mode/next`], ['Role next', `${base}/api/role/next`],
-    ['Rank↑ Tank', `${base}/api/rank/up?role=tank`],
-    ['Rank↑ Support', `${base}/api/rank/up?role=support`],
-    ['Rank↑ Damage', `${base}/api/rank/up?role=damage`],
-    ['Rank↓ Tank', `${base}/api/rank/down?role=tank`],
-    ['Rank↓ Support', `${base}/api/rank/down?role=support`],
-    ['Rank↓ Damage', `${base}/api/rank/down?role=damage`],
+  // Grouped by what a Stream Deck button does; only the OBS group starts open.
+  const groups = [
+    ['urls.obs', true, [['Overlay', overlayUrl], ['Admin', `${base}/admin/`]]],
+    ['urls.wl', false, [
+      ['Win +1', `${base}/api/win`], ['Win −1', `${base}/api/win/down`],
+      ['Loss +1', `${base}/api/loss`], ['Loss −1', `${base}/api/loss/down`], ['Reset', `${base}/api/reset`],
+    ]],
+    ['urls.rank', false, [['Rank up', `${base}/api/rank/up`], ['Rank down', `${base}/api/rank/down`]]],
+    ['urls.roles', false, [
+      ['Rank↑ Tank', `${base}/api/rank/up?role=tank`],
+      ['Rank↑ Support', `${base}/api/rank/up?role=support`],
+      ['Rank↑ Damage', `${base}/api/rank/up?role=damage`],
+      ['Rank↓ Tank', `${base}/api/rank/down?role=tank`],
+      ['Rank↓ Support', `${base}/api/rank/down?role=support`],
+      ['Rank↓ Damage', `${base}/api/rank/down?role=damage`],
+    ]],
+    ['urls.game', false, [
+      ['Game next', `${base}/api/game/next`], ['Mode next', `${base}/api/mode/next`], ['Role next', `${base}/api/role/next`],
+      ['Deck state (Live)', `${base}/api/deck/state`],
+    ]],
   ];
   overlayLink.href = overlayUrl;
-  copyList.innerHTML = items.map(([label, url]) => `
-    <div class="copy-item"><span>${label}</span><code>${url}</code>
-    <button type="button" data-copy="${url}">${t('btn.copy')}</button></div>`).join('');
+  copyList.innerHTML = groups.map(([key, open, items]) => `
+    <details class="copy-group"${open ? ' open' : ''}>
+      <summary><span data-i18n="${key}">${t(key)}</span><span class="copy-count">${items.length}</span>
+        <button type="button" class="ghost copy-all" data-copy="${items.map(([label, url]) => `${label}: ${url}`).join('&#10;')}">${t('urls.copyAll')}</button></summary>
+      ${items.map(([label, url]) => `
+      <div class="copy-item"><span>${label}</span><code>${url}</code>
+      <button type="button" data-copy="${url}">${t('btn.copy')}</button></div>`).join('')}
+    </details>`).join('');
 }
 
 const RANK_FX_LABELS = {
@@ -674,8 +696,25 @@ const RANK_FX_LABELS = {
   prism: 'Prism',
 };
 
-let skinsFxFilter = 'all';
-let skinsSortMode = 'fx';
+// ---------- Skins gallery ----------
+// Cards show the skin's colours; hovering one turns it into the live widget in your
+// current layout and plays it in the big preview. Moods and search replace the
+// per-effect filters. Favourites and recently used skins are kept in this browser.
+let skinsMood = 'all';
+let skinsQuery = '';
+let renamingSkinId = null;
+
+const SKIN_MOODS = ['all', 'dark', 'light', 'neon', 'fire', 'ice', 'magic', 'retro', 'calm'];
+const SKIN_FX_MOOD = {
+  neon: 'neon', hologram: 'neon', prism: 'neon', sonic: 'neon', lightning: 'neon', chrome: 'neon',
+  blaze: 'fire', melt: 'fire', toxic: 'fire',
+  frost: 'ice', ripple: 'ice', shatter: 'ice',
+  arcane: 'magic', phantom: 'magic', vortex: 'magic', divine: 'magic', smoke: 'magic',
+  pixel: 'retro',
+  classic: 'calm', paper: 'calm', ink: 'calm', bloom: 'calm',
+};
+const SKIN_FAV_KEY = 'widgetStats.skinFavorites';
+const SKIN_RECENT_KEY = 'widgetStats.skinRecent';
 
 function listPresetSkins() {
   return Array.isArray(window.WIDGET_SKINS) ? window.WIDGET_SKINS.slice() : [];
@@ -693,125 +732,218 @@ function skinLocalizedDesc(skin) {
   return window.AdminI18n?.skinDesc?.(skin) || skin?.desc || skin?.name || '';
 }
 
-function filteredSortedSkins() {
-  let list = listPresetSkins();
-  if (skinsFxFilter !== 'all') {
-    list = list.filter((s) => skinFxId(s) === skinsFxFilter);
+function findSkin(id) {
+  return listPresetSkins().find((s) => s.id === id) || customSkins.find((s) => s.id === id) || null;
+}
+
+function readSkinList(key) {
+  try {
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
   }
-  if (skinsSortMode === 'name') {
-    list.sort((a, b) => String(a.name).localeCompare(String(b.name), uiLang === 'en' ? 'en' : 'ru'));
+}
+
+function writeSkinList(key, list) {
+  try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* storage off: lists just don't persist */ }
+}
+
+function rememberRecentSkin(id) {
+  writeSkinList(SKIN_RECENT_KEY, [id, ...readSkinList(SKIN_RECENT_KEY).filter((x) => x !== id)].slice(0, 6));
+}
+
+function toggleFavoriteSkin(id) {
+  const favs = readSkinList(SKIN_FAV_KEY);
+  writeSkinList(SKIN_FAV_KEY, favs.includes(id) ? favs.filter((x) => x !== id) : [id, ...favs]);
+}
+
+function skinIsLight(settings) {
+  const m = String(settings?.bgColor || '').match(/[\d.]+/g) || ['0', '0', '0'];
+  const [r, g, b] = m.map(Number);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+}
+
+function skinMoods(skin) {
+  return [skinIsLight(skin.settings) ? 'light' : 'dark', SKIN_FX_MOOD[skinFxId(skin)] || 'calm'];
+}
+
+function filteredSkins() {
+  const q = skinsQuery.toLowerCase();
+  return listPresetSkins()
+    .filter((skin) => skinsMood === 'all' || skinMoods(skin).includes(skinsMood))
+    .filter((skin) => {
+      if (!q) return true;
+      const words = [skin.name, skinLocalizedDesc(skin), skinFxId(skin), skinFxLabel(skinFxId(skin)),
+        ...skinMoods(skin).map((m) => t(`mood.${m}`))];
+      return words.join(' ').toLowerCase().includes(q);
+    })
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), uiLang === 'en' ? 'en' : 'ru'));
+}
+
+function skinCardHtml(skin, { custom = false } = {}) {
+  const s = skin.settings || {};
+  const active = skin.id === selectedSkinId;
+  const pick = custom ? `data-custom-pick="${skin.id}"` : `data-skin="${skin.id}"`;
+  let meta;
+  if (custom && renamingSkinId === skin.id) {
+    meta = `<input class="skin-rename-input" data-rename-input="${skin.id}" value="${escapeHtml(skin.name)}" maxlength="48" aria-label="${t('skins.rename')}">`;
+  } else if (custom) {
+    meta = `<strong>${escapeHtml(skin.name)}</strong>
+      <span class="skin-tools">
+        <button type="button" class="skin-tool" data-rename-skin="${skin.id}" title="${t('skins.rename')}" aria-label="${t('skins.rename')}">✎</button>
+        <button type="button" class="skin-tool" data-custom-delete="${skin.id}" title="${t('skins.delete')}" aria-label="${t('skins.delete')}">✕</button>
+      </span>`;
   } else {
-    list.sort((a, b) => {
-      const fa = skinFxId(a);
-      const fb = skinFxId(b);
-      if (fa !== fb) return fa.localeCompare(fb);
-      return String(a.name).localeCompare(String(b.name), uiLang === 'en' ? 'en' : 'ru');
-    });
+    const fav = readSkinList(SKIN_FAV_KEY).includes(skin.id);
+    meta = `<strong>${escapeHtml(skin.name)}</strong><span class="skin-desc">${escapeHtml(skinLocalizedDesc(skin))}</span>
+      <button type="button" class="skin-star${fav ? ' on' : ''}" data-star-skin="${skin.id}" aria-pressed="${fav}" title="${t('skins.favorite')}" aria-label="${t('skins.favorite')}">★</button>`;
   }
-  return list;
+  return `<div class="skin-card${active ? ' active' : ''}${custom ? ' custom' : ''}" ${pick} data-hover-skin="${skin.id}" role="button" tabindex="0">
+    ${active ? `<span class="skin-now">${t('skins.now')}</span>` : ''}
+    <div class="skin-swatch" style="background:${s.bgColor || 'rgba(0,0,0,0.7)'}">
+      <span class="skin-chip" style="background:${s.winsColor || '#00ff00'}"></span>
+      <span class="skin-chip" style="background:${s.lossesColor || '#ff0000'}"></span>
+      ${custom ? '' : `<span class="skin-fx-badge">${skinFxLabel(skinFxId(skin))}</span>`}
+    </div>
+    <div class="skin-meta">${meta}</div>
+  </div>`;
 }
 
-function ensureSkinsFilterOptions() {
-  const select = document.getElementById('skinsFxFilter');
-  if (!select) return;
-  const current = select.value || 'all';
-  const fxs = [...new Set(listPresetSkins().map(skinFxId))].sort();
-  select.innerHTML = '';
-  const all = document.createElement('option');
-  all.value = 'all';
-  all.setAttribute('data-i18n', 'skins.allFx');
-  all.textContent = t('skins.allFx');
-  select.appendChild(all);
-  for (const fx of fxs) {
-    const opt = document.createElement('option');
-    opt.value = fx;
-    opt.textContent = skinFxLabel(fx);
-    select.appendChild(opt);
-  }
-  select.value = current;
-  select.dataset.ready = '1';
-}
-
-function renderSkinsFxChips() {
+function renderSkinMoodChips() {
   const host = document.getElementById('skinsFxChips');
   if (!host) return;
-  const counts = {};
-  for (const skin of listPresetSkins()) {
-    const fx = skinFxId(skin);
-    counts[fx] = (counts[fx] || 0) + 1;
-  }
-  const fxs = Object.keys(counts).sort();
-  const chips = [
-    `<button type="button" class="fx-chip ${skinsFxFilter === 'all' ? 'active' : ''}" data-fx-chip="all">${t('skins.all')} <em>${listPresetSkins().length}</em></button>`,
-    ...fxs.map((fx) => `
-      <button type="button" class="fx-chip ${skinsFxFilter === fx ? 'active' : ''}" data-fx-chip="${fx}">
-        ${skinFxLabel(fx)} <em>${counts[fx]}</em>
-      </button>`),
-  ];
-  host.innerHTML = chips.join('');
+  const presets = listPresetSkins();
+  host.innerHTML = SKIN_MOODS.map((mood) => {
+    const n = mood === 'all' ? presets.length : presets.filter((s) => skinMoods(s).includes(mood)).length;
+    return `<button type="button" class="fx-chip ${skinsMood === mood ? 'active' : ''}" data-mood="${mood}">${t(`mood.${mood}`)} <em>${n}</em></button>`;
+  }).join('');
 }
 
 function renderSkins() {
-  ensureSkinsFilterOptions();
-  renderSkinsFxChips();
-  const select = document.getElementById('skinsFxFilter');
-  const sortEl = document.getElementById('skinsSort');
-  if (select) select.value = skinsFxFilter;
-  if (sortEl) sortEl.value = skinsSortMode;
-
-  const list = filteredSortedSkins();
-  let lastFx = null;
-  skinsGrid.innerHTML = list.map((skin) => {
-    const fx = skinFxId(skin);
-    const header = (skinsSortMode === 'fx' && skinsFxFilter === 'all' && fx !== lastFx)
-      ? `<div class="skins-group-title" data-fx-group="${fx}">${skinFxLabel(fx)}</div>`
-      : '';
-    lastFx = fx;
-    return `${header}
-    <button type="button" class="skin-card ${skin.id === selectedSkinId ? 'active' : ''}" data-skin="${skin.id}" data-rank-fx="${fx}">
-      <div class="skin-swatch" style="background:${skin.preview.bg}">
-        <span class="skin-chip" style="background:${skin.preview.wins}"></span>
-        <span class="skin-chip" style="background:${skin.preview.losses}"></span>
-        <span class="skin-fx-badge">${skinFxLabel(fx)}</span>
-      </div>
-      <div class="skin-meta"><strong>${skin.name}</strong><span>${skinLocalizedDesc(skin)}</span></div>
-    </button>`;
-  }).join('') || `<p class="setup-note">${t('skins.emptyFilter')}</p>`;
+  hideSkinHover();
+  renderSkinMoodChips();
+  const favs = readSkinList(SKIN_FAV_KEY);
+  const recent = readSkinList(SKIN_RECENT_KEY).filter((id) => !favs.includes(id));
+  const favRow = document.getElementById('skinsFavRow');
+  if (favRow) {
+    const items = [...favs, ...recent].map(findSkin).filter(Boolean);
+    favRow.innerHTML = items.map((skin) => skinCardHtml(skin, { custom: skin.id.startsWith('custom_') })).join('')
+      || `<p class="setup-note skins-row-empty">${t('skins.favEmpty')}</p>`;
+  }
+  const list = filteredSkins();
+  const count = document.getElementById('skinsCount');
+  if (count) count.textContent = `${list.length}`;
+  skinsGrid.innerHTML = list.map((skin) => skinCardHtml(skin)).join('')
+    || `<p class="setup-note">${t('skins.emptyFilter')}</p>`;
   renderCustomSkins();
-}
-
-function skinPreviewFromSettings(settings) {
-  return {
-    bg: settings.bgColor || 'rgba(0,0,0,0.7)',
-    wins: settings.winsColor || '#00ff00',
-    losses: settings.lossesColor || '#ff0000',
-  };
 }
 
 function renderCustomSkins() {
   if (!customSkinsGrid) return;
-  const has = customSkins.length > 0;
-  customSkinsEmpty?.classList.toggle('hidden', has);
-  customSkinsGrid.innerHTML = customSkins.map((skin) => {
-    const preview = skinPreviewFromSettings(skin.settings || {});
-    const active = skin.id === selectedSkinId ? 'active' : '';
-    return `
-      <div class="skin-card custom ${active}" data-custom-skin="${skin.id}">
-        <button type="button" class="skin-pick" data-custom-pick="${skin.id}">
-          <div class="skin-swatch" style="background:${preview.bg}">
-            <span class="skin-chip" style="background:${preview.wins}"></span>
-            <span class="skin-chip" style="background:${preview.losses}"></span>
-          </div>
-          <div class="skin-meta"><strong>${escapeHtml(skin.name)}</strong><span>${t('skins.customBadge')}</span></div>
-        </button>
-        <div class="custom-skin-actions">
-          <button type="button" data-custom-apply="${skin.id}">${t('skins.apply')}</button>
-          <button type="button" class="danger" data-custom-delete="${skin.id}">${t('skins.delete')}</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  customSkinsEmpty?.classList.toggle('hidden', customSkins.length > 0);
+  customSkinsGrid.innerHTML = customSkins.map((skin) => skinCardHtml(skin, { custom: true })).join('');
+  customSkinsGrid.querySelector('[data-rename-input]')?.select();
 }
+
+async function finishSkinRename(input) {
+  const id = input.dataset.renameInput;
+  const name = input.value.trim();
+  renamingSkinId = null;
+  const skin = customSkins.find((s) => s.id === id);
+  if (!skin || !name || name === skin.name) {
+    renderSkins();
+    return;
+  }
+  try {
+    await api(`/api/skins?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    await loadCustomSkins();
+    setStatusKey('msg.skinRenamed', true);
+  } catch (err) {
+    setStatus(String(err.message || err));
+  }
+  renderSkins();
+}
+
+// Hover: one shared live widget slides over the hovered card's colour swatch,
+// and the big preview plays the same skin until the mouse leaves.
+const skinsPanel = document.getElementById('skinsPanel');
+const skinHoverFrame = document.getElementById('skinHoverFrame');
+let hoveredSkinCard = null;
+let savedPreviewState = null;
+
+function skinPreviewSettings(skin) {
+  const base = readAppearance();
+  const merged = { ...base, ...(skin.settings || {}), skinId: skin.id };
+  // Presets carry no layout: show them in the layout the streamer picked.
+  if (!skin.id.startsWith('custom_')) {
+    merged.layout = base.layout;
+    merged.cardFx = base.cardFx;
+  }
+  return merged;
+}
+
+function postSkinPreview(frame, settings) {
+  const win = frame?.contentWindow;
+  if (!win) return;
+  try {
+    if (lastSnap) win.postMessage({ type: 'widget-preview-state', view: viewFromSnap(lastSnap), state: lastSnap.state }, '*');
+    win.postMessage({ type: 'widget-preview-settings', settings }, '*');
+  } catch { /* frame still loading */ }
+}
+
+function showSkinHover(card) {
+  const skin = findSkin(card.dataset.hoverSkin);
+  const swatch = card.querySelector('.skin-swatch');
+  if (!skin || !swatch || !skinsPanel || !skinHoverFrame) return;
+  const box = skinsPanel.getBoundingClientRect();
+  const r = swatch.getBoundingClientRect();
+  Object.assign(skinHoverFrame.style, {
+    left: `${r.left - box.left}px`,
+    top: `${r.top - box.top}px`,
+    width: `${r.width}px`,
+    height: `${r.height}px`,
+  });
+  skinHoverFrame.hidden = false;
+  const settings = skinPreviewSettings(skin);
+  postSkinPreview(skinHoverFrame, { ...settings, alwaysVisible: true });
+  postSkinPreview(previewFrame, settings);
+  const state = document.getElementById('saveState');
+  if (state) {
+    if (!savedPreviewState) savedPreviewState = { text: state.textContent, state: state.dataset.state };
+    state.textContent = `${t('skins.previewing')}: ${skin.name}`;
+    state.dataset.state = 'preview';
+  }
+}
+
+function hideSkinHover() {
+  if (!hoveredSkinCard && skinHoverFrame?.hidden !== false) return;
+  hoveredSkinCard = null;
+  if (skinHoverFrame) skinHoverFrame.hidden = true;
+  const state = document.getElementById('saveState');
+  if (state && savedPreviewState && state.dataset.state === 'preview') {
+    state.textContent = savedPreviewState.text;
+    state.dataset.state = savedPreviewState.state || '';
+  }
+  savedPreviewState = null;
+  pushPreviewSettings();
+}
+
+skinsPanel?.addEventListener('mouseover', (e) => {
+  const card = e.target.closest('[data-hover-skin]');
+  if (card === hoveredSkinCard) return;
+  if (!card) {
+    hideSkinHover();
+    return;
+  }
+  hoveredSkinCard = card;
+  showSkinHover(card);
+});
+skinsPanel?.addEventListener('mouseleave', hideSkinHover);
 
 function escapeHtml(value) {
   return String(value || '')
@@ -839,15 +971,7 @@ function applySkinSettings(settings, skinId) {
   schedulePreviewPush();
   setTimeout(() => {
     sendPreviewDemo('fullCycle');
-    const hint = document.getElementById('skinDemoHint');
-    if (hint) hint.textContent = 'Demo…';
   }, 160);
-}
-
-function replaySkinDemo() {
-  schedulePreviewPush();
-  setTimeout(() => sendPreviewDemo('fullCycle'), 100);
-  setStatusKey('msg.demoSkin', true);
 }
 
 async function api(path, options) {
@@ -984,15 +1108,6 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('motionSaveBtn').addEventListener('click', async () => {
-  try {
-    const snap = await saveAllSettings();
-    fillAppearance(snap.settings);
-    setStatusKey('msg.animSaved', true);
-  } catch (err) {
-    setStatus(String(err.message || err));
-  }
-});
 document.getElementById('motionTestWin').addEventListener('click', () => {
   sendPreviewDemo('win');
   setStatusKey('msg.previewWin', true);
@@ -1066,38 +1181,55 @@ document.getElementById('bgClearBtn').addEventListener('click', async (e) => {
   }
 });
 
-skinsGrid.addEventListener('click', (e) => {
-  const card = e.target.closest('[data-skin]');
-  if (!card) return;
-  const skin = (window.WIDGET_SKINS || []).find((s) => s.id === card.dataset.skin);
+function applyPresetSkinCard(card) {
+  const skin = listPresetSkins().find((s) => s.id === card.dataset.skin);
   if (!skin) return;
+  hideSkinHover();
   applySkinSettings(skin.settings, skin.id);
+  rememberRecentSkin(skin.id);
   renderSkins();
   setStatusKey('msg.skinPicked', true, { name: skin.name, fx: skinFxLabel(skinFxId(skin)) });
-});
+}
 
-document.getElementById('skinsFxFilter')?.addEventListener('change', (e) => {
-  skinsFxFilter = e.target.value || 'all';
+async function applyCustomSkinCard(id) {
+  const skin = customSkins.find((s) => s.id === id);
+  if (!skin) return;
+  hideSkinHover();
+  applySkinSettings(skin.settings, skin.id);
+  rememberRecentSkin(skin.id);
   renderSkins();
-});
-document.getElementById('skinsSort')?.addEventListener('change', (e) => {
-  skinsSortMode = e.target.value || 'fx';
-  renderSkins();
-});
-document.getElementById('skinsFxChips')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-fx-chip]');
-  if (!btn) return;
-  skinsFxFilter = btn.dataset.fxChip || 'all';
-  renderSkins();
-});
+  setStatusKey('msg.customPicked', true, { name: skin.name });
+}
 
-customSkinsGrid?.addEventListener('click', async (e) => {
+// Stars, rename and delete live on the cards: handle them first so the click
+// doesn't also apply the skin.
+skinsPanel?.addEventListener('click', async (e) => {
+  const star = e.target.closest('[data-star-skin]');
+  if (star) {
+    e.stopPropagation();
+    toggleFavoriteSkin(star.dataset.starSkin);
+    renderSkins();
+    return;
+  }
+  const rename = e.target.closest('[data-rename-skin]');
+  if (rename) {
+    e.stopPropagation();
+    renamingSkinId = rename.dataset.renameSkin;
+    renderSkins();
+    return;
+  }
+  if (e.target.closest('[data-rename-input]')) {
+    e.stopPropagation();
+    return;
+  }
   const del = e.target.closest('[data-custom-delete]');
   if (del) {
+    e.stopPropagation();
     const id = del.dataset.customDelete;
     try {
       await api(`/api/skins?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (selectedSkinId === id) selectedSkinId = 'default';
+      writeSkinList(SKIN_RECENT_KEY, readSkinList(SKIN_RECENT_KEY).filter((x) => x !== id));
       await loadCustomSkins();
       renderSkins();
       setStatusKey('msg.skinDeleted', true);
@@ -1106,14 +1238,41 @@ customSkinsGrid?.addEventListener('click', async (e) => {
     }
     return;
   }
-  const pick = e.target.closest('[data-custom-pick], [data-custom-apply]');
-  if (!pick) return;
-  const id = pick.dataset.customPick || pick.dataset.customApply;
-  const skin = customSkins.find((s) => s.id === id);
-  if (!skin) return;
-  applySkinSettings(skin.settings, skin.id);
+  const mood = e.target.closest('[data-mood]');
+  if (mood) {
+    skinsMood = mood.dataset.mood || 'all';
+    renderSkins();
+    return;
+  }
+  const custom = e.target.closest('[data-custom-pick]');
+  if (custom) {
+    applyCustomSkinCard(custom.dataset.customPick);
+    return;
+  }
+  const card = e.target.closest('[data-skin]');
+  if (card) applyPresetSkinCard(card);
+}, true);
+
+skinsPanel?.addEventListener('keydown', (e) => {
+  const input = e.target.closest?.('[data-rename-input]');
+  if (input) {
+    if (e.key === 'Enter') finishSkinRename(input);
+    if (e.key === 'Escape') { renamingSkinId = null; renderSkins(); }
+    return;
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('[data-skin], [data-custom-pick]')) {
+    e.preventDefault();
+    e.target.click();
+  }
+});
+skinsPanel?.addEventListener('focusout', (e) => {
+  const input = e.target.closest?.('[data-rename-input]');
+  if (input && renamingSkinId) finishSkinRename(input);
+});
+
+document.getElementById('skinsSearch')?.addEventListener('input', (e) => {
+  skinsQuery = e.target.value.trim();
   renderSkins();
-  setStatusKey('msg.customPicked', true, { name: skin.name });
 });
 
 document.getElementById('customSkinSaveBtn')?.addEventListener('click', async () => {
@@ -1132,20 +1291,6 @@ document.getElementById('customSkinSaveBtn')?.addEventListener('click', async ()
   } catch (err) {
     setStatus(String(err.message || err));
   }
-});
-
-document.getElementById('skinApplySaveBtn').addEventListener('click', async () => {
-  try {
-    const snap = await saveAllSettings();
-    fillAppearance(snap.settings);
-    setStatusKey('msg.skinSavedObs', true);
-  } catch (err) {
-    setStatus(String(err.message || err));
-  }
-});
-
-document.getElementById('skinReplayDemoBtn')?.addEventListener('click', () => {
-  replaySkinDemo();
 });
 
 document.getElementById('obsConnectBtn').addEventListener('click', async () => {
@@ -2230,6 +2375,82 @@ function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {})
   }, 1000);
 }
 
+// Release notes come from docs/releases/vX.Y.Z.md: an optional summary line, then
+// "What's new" bullets and "What happens when you update" bullets. Everything after
+// an "## English" heading is the English version.
+const UPDATE_NEW_SHOWN = 5;
+let updateNotesExpanded = false;
+
+function parseReleaseNotes(body, lang) {
+  const parts = String(body || '').replace(/\r\n/g, '\n').split(/^#{1,3}\s*English\s*$/im);
+  const part = lang === 'en' && parts.length > 1 ? parts[1] : parts[0];
+  let summary = '';
+  const sections = [];
+  let cur = null;
+  for (const raw of part.split('\n')) {
+    const line = raw.trim();
+    if (!line || /^(-{3,}|\*{3,})$/.test(line)) continue;
+    if (/^#{1,6}\s/.test(line)) {
+      cur = { items: [] };
+      sections.push(cur);
+      continue;
+    }
+    const item = line.match(/^[-*]\s+(.*)$/);
+    if (item) {
+      if (!cur) {
+        cur = { items: [] };
+        sections.push(cur);
+      }
+      cur.items.push(item[1]);
+    } else if (!summary && !cur) {
+      summary = line;
+    }
+  }
+  const lists = sections.filter((s) => s.items.length);
+  return { summary, news: lists[0]?.items || [], keep: lists[1]?.items || [] };
+}
+
+function releaseInlineHtml(md) {
+  return escapeHtml(md)
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function majorOf(v) {
+  const m = String(v || '').match(/^v?(\d+)\./);
+  return m ? Number(m[1]) : 0;
+}
+
+function renderUpdateBanner(info) {
+  const notes = parseReleaseNotes(info.body, uiLang);
+  const nameTail = String(info.name || '').split(/\s[—–-]\s/).slice(1).join(' — ');
+  const summary = notes.summary || (uiLang === 'en' ? '' : nameTail);
+  document.getElementById('updateBannerTitle').textContent = t('update.title', { latest: info.latest });
+  document.getElementById('updateMajorBadge').hidden = majorOf(info.latest) <= majorOf(info.current);
+  document.getElementById('updateBannerText').textContent =
+    [t('update.current', { current: info.current || '?' }), summary].filter(Boolean).join(' · ');
+
+  const shown = updateNotesExpanded ? notes.news : notes.news.slice(0, UPDATE_NEW_SHOWN);
+  document.getElementById('updateNewBox').hidden = !notes.news.length;
+  document.getElementById('updateNewList').innerHTML = shown.map((s) => `<li>${releaseInlineHtml(s)}</li>`).join('');
+  const more = document.getElementById('updateMoreBtn');
+  const hiddenCount = notes.news.length - UPDATE_NEW_SHOWN;
+  more.hidden = hiddenCount <= 0;
+  more.textContent = updateNotesExpanded ? t('update.less') : t('update.more', { n: hiddenCount });
+
+  document.getElementById('updateKeepBox').hidden = !notes.keep.length;
+  document.getElementById('updateKeepList').innerHTML = notes.keep.map((s) => `<li><span>${releaseInlineHtml(s)}</span></li>`).join('');
+  const gh = document.getElementById('updateGhLink');
+  gh.href = info.htmlUrl || `https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/${info.latest}`;
+  document.getElementById('updateNotes').hidden = false;
+}
+
+document.getElementById('updateMoreBtn')?.addEventListener('click', () => {
+  updateNotesExpanded = !updateNotesExpanded;
+  if (latestUpdateInfo) renderUpdateBanner(latestUpdateInfo);
+});
+
 async function checkForUpdates({ forceBanner = false } = {}) {
   try {
     const info = await api('/api/update/check?force=1');
@@ -2240,11 +2461,8 @@ async function checkForUpdates({ forceBanner = false } = {}) {
     const banner = document.getElementById('updateBanner');
     if (!banner) return;
     if (info.available && info.latest) {
+      renderUpdateBanner(info);
       banner.hidden = false;
-      const text = document.getElementById('updateBannerText');
-      if (text) {
-        text.textContent = t('update.text', { current: info.current || '?', latest: info.latest });
-      }
       if (forceBanner) banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
       banner.hidden = true;

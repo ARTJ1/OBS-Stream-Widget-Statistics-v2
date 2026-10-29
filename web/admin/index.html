@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-  <main class="page">
+  <main class="studio">
     <header class="topbar">
       <div class="topbar-brand">
         <span class="logo-mark" aria-hidden="true">WS</span>
@@ -45,50 +45,59 @@
             <svg class="seg-ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h1v3h-1V2zm0 17h1v3h-1v-3zM2 11h3v1H2v-1zm17 0h3v1h-3v-1zM5.6 4.2l2.1 2.1-.7.7-2.1-2.1.7-.7zm11.4 11.4 2.1 2.1-.7.7-2.1-2.1.7-.7zM4.9 18.4l.7.7 2.1-2.1-.7-.7-2.1 2.1zm11.4-11.4.7.7 2.1-2.1-.7-.7-2.1 2.1z"/></svg>
           </button>
         </div>
+        <div class="status-pills" id="statusPills">
+          <button type="button" class="pill-btn" id="pillObs" data-goto="connections"><span class="pill-dot"></span><span data-i18n="pill.obs">OBS</span></button>
+          <button type="button" class="pill-btn" id="pillAuto" data-goto="auto"><span class="pill-dot"></span><span data-i18n="pill.auto">Автозачёт</span></button>
+          <button type="button" class="pill-btn warn" id="pillUpdate" data-goto="connections" hidden><span class="pill-dot"></span><span data-i18n="pill.update">Обновление</span></button>
+        </div>
         <div class="status" id="status">Connecting…</div>
       </div>
     </header>
 
-    <div class="update-banner" id="updateBanner" hidden>
-      <div>
-        <strong id="updateBannerTitle" data-i18n="update.title">Доступно обновление</strong>
-        <p id="updateBannerText" class="setup-note" style="margin:4px 0 0"></p>
-      </div>
-      <div class="actions">
-        <button type="button" id="updateApplyBtn" class="primary" data-i18n="update.apply">Обновить</button>
-        <button type="button" id="updateLaterBtn" data-i18n="update.later">Позже</button>
-      </div>
-    </div>
-
-    <nav class="tabs" id="tabs">
-      <button type="button" class="tab active" data-tab="main" data-i18n="tab.main">Главное</button>
-      <button type="button" class="tab" data-tab="look" data-i18n="tab.look">Внешний вид</button>
-      <button type="button" class="tab" data-tab="motion" data-i18n="tab.motion">Анимации</button>
-      <button type="button" class="tab" data-tab="skins" data-i18n="tab.skins">Скины</button>
-      <button type="button" class="tab" data-tab="faq" data-i18n="tab.faq">Справка</button>
-    </nav>
-
-    <section class="tab-panel active" data-panel="main">
-      <section class="panel setup-panel">
-        <h2 data-i18n="main.obsTitle">OBS: сцена для виджета</h2>
-        <p class="setup-note" data-i18n="main.obsNote">Подключи WebSocket OBS, выбери сцену — источник создаётся только там и без дублей.</p>
-        <form id="obsForm" class="form-grid obs-grid">
-          <label>OBS host <input name="obsHost" type="text" value="127.0.0.1"></label>
-          <label>OBS port <input name="obsPort" type="number" value="4455"></label>
-          <label>WebSocket password <input name="obsPassword" type="password" autocomplete="off"></label>
-          <label><span data-i18n="main.obsSource">Имя источника</span> <input name="obsSourceName" type="text" value="Widget Stats v2"></label>
-          <label class="full"><span data-i18n="main.obsScene">Сцена</span>
-            <select name="obsScene" id="obsSceneSelect"><option value="" data-i18n="main.obsScenePlaceholder">— подключись к OBS —</option></select>
-          </label>
-          <div class="full actions">
-            <button type="button" id="obsConnectBtn" data-i18n="main.obsConnect">Подключить OBS</button>
-            <button type="button" id="obsRefreshScenesBtn" data-i18n="main.obsRefresh">Обновить сцены</button>
-            <button type="button" id="obsEnsureBtn" class="primary" data-i18n="main.obsEnsure">Поставить виджет на сцену</button>
+    <section class="update-banner" id="updateBanner" hidden>
+      <div class="update-head">
+        <div class="update-title">
+          <div class="update-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></div>
+          <div>
+            <h3><span id="updateBannerTitle"></span><span class="update-badge" id="updateMajorBadge" data-i18n="update.major" hidden>Большое обновление</span></h3>
+            <p id="updateBannerText" class="update-sub"></p>
           </div>
-        </form>
-        <p class="setup-note" id="obsStatusText">OBS: не подключено</p>
-      </section>
+        </div>
+        <div class="actions">
+          <button type="button" id="updateApplyBtn" class="primary" data-i18n="update.apply">Обновить</button>
+          <button type="button" id="updateLaterBtn" data-i18n="update.later">Позже</button>
+        </div>
+      </div>
+      <div class="update-body" id="updateNotes" hidden>
+        <div class="update-new" id="updateNewBox">
+          <h4 data-i18n="update.newTitle">Что нового</h4>
+          <ul id="updateNewList"></ul>
+          <button type="button" class="update-more" id="updateMoreBtn" hidden></button>
+        </div>
+        <div class="update-side">
+          <div class="update-keep" id="updateKeepBox" hidden>
+            <h4 data-i18n="update.keepTitle">Что будет при обновлении</h4>
+            <ul id="updateKeepList"></ul>
+          </div>
+          <a class="update-gh" id="updateGhLink" href="#" target="_blank" rel="noopener" data-i18n="update.github">Все изменения на GitHub ↗</a>
+        </div>
+      </div>
+    </section>
 
+    <div class="studio-body">
+      <nav class="studio-nav tabs" id="tabs" aria-label="Sections">
+        <button type="button" class="tab active" data-tab="main"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg><span data-i18n="nav.live">Live</span></button>
+        <button type="button" class="tab" data-tab="layout"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span data-i18n="nav.layout">Вид виджета</span></button>
+        <button type="button" class="tab" data-tab="skins"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.9 1.7-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg><span data-i18n="nav.skins">Скины</span></button>
+        <button type="button" class="tab" data-tab="look"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg><span data-i18n="nav.look">Цвета и шрифт</span></button>
+        <button type="button" class="tab" data-tab="motion"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3l1.8 4.7 4.7 1.8-4.7 1.8L11 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg><span data-i18n="nav.motion">Анимации</span></button>
+        <button type="button" class="tab" data-tab="auto"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg><span data-i18n="nav.auto">Автозачёт</span></button>
+        <button type="button" class="tab" data-tab="connections"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2v5M15 2v5M6.5 7h11v3.5a5.5 5.5 0 0 1-11 0zM12 16v6"/></svg><span data-i18n="nav.connections">Подключения</span></button>
+        <button type="button" class="tab" data-tab="faq"><svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .9-1 1.5v.7"/><path d="M12 17.2v.3"/></svg><span data-i18n="nav.help">Справка</span></button>
+      </nav>
+
+      <div class="studio-main">
+        <section class="tab-panel active" data-panel="main">
       <section class="panel">
         <h2 data-i18n="main.stats">Статистика</h2>
         <div class="form-grid mode-role-grid" style="margin-bottom:14px">
@@ -171,7 +180,272 @@
         </div>
         <button class="danger" data-action="/api/reset" data-i18n="main.reset">Сбросить W/L</button>
       </section>
+        </section>
 
+        <section class="tab-panel" data-panel="layout">
+          <section class="panel">
+            <h2 data-i18n="layout.title">Вид виджета</h2>
+            <p class="setup-note" data-i18n="layout.note">Нажми на вариант — он сразу появится в превью и в OBS. Скин, цвета и эффекты сохраняются.</p>
+            <div class="layout-grid" id="layoutGrid"></div>
+          </section>
+          <section class="panel card-options" id="cardOptions" hidden>
+            <h2 data-i18n="card.title">Реакции коллекционной карты</h2>
+            <p class="setup-note" data-i18n="card.note">Включи то, что нравится. Кнопка «Победа» в превью покажет сразу.</p>
+            <div class="card-opts">
+              <label class="card-opt"><input type="checkbox" name="cardFx" value="stars"><span><b data-i18n="card.stars">Звёзды загораются</b><span data-i18n="card.starsHint">Новая звезда вспыхивает при повышении тира.</span></span></label>
+              <label class="card-opt"><input type="checkbox" name="cardFx" value="flip"><span><b data-i18n="card.flip">Карта переворачивается</b><span data-i18n="card.flipHint">После игры показывает «+1 WIN» или «LOSS» и поворачивается обратно.</span></span></label>
+              <label class="card-opt"><input type="checkbox" name="cardFx" value="heat"><span><b data-i18n="card.heat">Фольга разогревается</b><span data-i18n="card.heatHint">Чем длиннее серия побед, тем быстрее крутится и ярче светится рамка.</span></span></label>
+              <label class="card-opt"><input type="checkbox" name="cardFx" value="shine"><span><b data-i18n="card.shine">Блик</b><span data-i18n="card.shineHint">По карте пробегает отблеск после игры и смены ранга.</span></span></label>
+              <label class="card-opt"><input type="checkbox" name="cardFx" value="float"><span><b data-i18n="card.float">Парение</b><span data-i18n="card.floatHint">Карта медленно покачивается в 3D, пока ничего не происходит.</span></span></label>
+            </div>
+          </section>
+        </section>
+
+        <section class="tab-panel" data-panel="skins">
+          <section class="panel skins-panel" id="skinsPanel">
+            <h2 data-i18n="skins.title">Скины</h2>
+            <p class="setup-note" data-i18n="skins.note">Наведи на скин — увидишь его вживую в своём виде виджета. Кликни — применится сразу.</p>
+            <label class="skins-search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+              <input type="search" id="skinsSearch" data-i18n-placeholder="skins.search" placeholder="Найти скин: neon, лёд, gold…">
+            </label>
+            <div class="skins-fx-chips" id="skinsFxChips"></div>
+
+            <h3 class="skins-section" data-i18n="skins.customTitle">Мои скины</h3>
+            <div class="skins-row">
+              <div class="skins-row-items" id="customSkinsGrid"></div>
+              <div class="skin-save-card">
+                <input type="text" id="customSkinName" maxlength="48" data-i18n-placeholder="skins.customPlaceholder" placeholder="Мой скин">
+                <button type="button" id="customSkinSaveBtn" class="primary" data-i18n="skins.customSave">Сохранить текущий вид</button>
+              </div>
+            </div>
+            <p class="setup-note hidden" id="customSkinsEmpty" data-i18n="skins.customEmpty">Пока нет сохранённых скинов.</p>
+
+            <h3 class="skins-section" data-i18n="skins.favRecent">Избранное и недавние</h3>
+            <div class="skins-row"><div class="skins-row-items" id="skinsFavRow"></div></div>
+
+            <h3 class="skins-section"><span data-i18n="skins.allTitle">Все скины</span> <em id="skinsCount"></em></h3>
+            <div class="skins-grid" id="skinsGrid"></div>
+
+            <!-- One live widget, moved over whichever card the mouse is on. -->
+            <iframe class="skin-hover-frame" id="skinHoverFrame" title="Skin preview" src="/overlay/?preview=1" tabindex="-1" aria-hidden="true" hidden></iframe>
+          </section>
+        </section>
+
+        <section class="tab-panel" data-panel="look">
+          <section class="panel">
+            <h2 data-i18n="look.title">Внешний вид</h2>
+            <p class="layout-hidden-note" hidden></p>
+            <form id="settingsForm" class="settings-groups">
+              <fieldset class="group">
+                <legend data-i18n="look.groupColors">Цвета</legend>
+                <div class="form-grid">
+              <label data-uses="bgcolor" class="color-field">
+                <span data-i18n="look.bgColor">Цвет фона</span>
+                <div class="color-row">
+                  <input name="bgColorPicker" type="color" value="#000000">
+                  <input name="bgAlpha" type="range" min="0" max="100" value="70" data-i18n-title="look.alpha" title="Прозрачность">
+                  <span class="swatch-text" id="bgSwatch" data-i18n="look.bgSwatch">фон</span>
+                  <input name="bgColor" type="hidden" value="rgba(0,0,0,0.7)">
+                </div>
+              </label>
+              <label class="color-field">
+                <span data-i18n="look.winsColor">Цвет текста побед</span>
+                <div class="color-row">
+                  <input name="winsColor" type="color" value="#00ff00">
+                  <span class="swatch-text" id="winsSwatch">12</span>
+                </div>
+              </label>
+              <label class="color-field">
+                <span data-i18n="look.lossesColor">Цвет текста поражений</span>
+                <div class="color-row">
+                  <input name="lossesColor" type="color" value="#ff0000">
+                  <span class="swatch-text" id="lossesSwatch">3</span>
+                </div>
+              </label>
+              <label class="color-field">
+                <span data-i18n="look.rankColor">Цвет текста ранга</span>
+                <div class="color-row">
+                  <input name="rankTextColor" type="color" value="#ffffff">
+                  <span class="swatch-text" id="rankSwatch">Gold 1</span>
+                </div>
+              </label>
+              <label data-uses="vessels roles" class="color-field">
+                <span data-i18n="look.iconColor">Цвет иконок (кубок/череп)</span>
+                <div class="color-row">
+                  <input name="iconColor" type="color" value="#ffffff">
+                  <span class="swatch-text" id="iconSwatch">icon</span>
+                </div>
+              </label>
+              <label data-uses="sep" class="color-field">
+                <span data-i18n="look.sepColor">Цвет разделителя</span>
+                <div class="color-row">
+                  <input name="separatorColorPicker" type="color" value="#ffffff">
+                  <input name="separatorAlpha" type="range" min="20" max="100" value="55" data-i18n-title="look.alpha" title="Прозрачность">
+                  <input name="separatorColor" type="hidden" value="rgba(255,255,255,0.55)">
+                </div>
+              </label>
+                </div>
+              </fieldset>
+              <fieldset class="group">
+                <legend data-i18n="look.groupFont">Шрифт и иконки</legend>
+                <div class="form-grid">
+              <label><span data-i18n="look.font">Шрифт</span> <select name="font" id="fontSelect"></select></label>
+              <label><span data-i18n="look.fontSize">Размер шрифта</span> <input name="fontSize" type="number" min="10" max="64" value="16"></label>
+              <label data-uses="vessels" class="full"><span data-i18n="look.vesselStyle">Стиль иконок (пара)</span>
+                <select name="vesselStyle" id="vesselStyleSelect">
+                  <option value="classic">Classic — trophy / skull</option>
+                  <option value="royal">Royal — crown / ghost</option>
+                  <option value="rage">Rage — fist / heart-crack</option>
+                  <option value="inferno">Inferno — flame / bomb</option>
+                  <option value="toxic">Toxic — medal / biohazard</option>
+                  <option value="nova">Nova — star / radiation</option>
+                  <option value="fang">Fang — cup / skull</option>
+                  <option value="hard">Hard — block cup / detail skull</option>
+                  <option value="grim">Grim — wing cup / death skull</option>
+                  <option value="solid">Solid — fill cup / solid skull</option>
+                  <option value="sharp">Sharp — sharp cup / simple skull</option>
+                  <option value="award">Award — award cup / tech skull</option>
+                  <option value="medal">Medal — medal / skull2</option>
+                  <option value="miraqlesan">miraqlesan — happy / melted</option>
+                </select>
+              </label>
+                </div>
+              </fieldset>
+              <fieldset data-uses="bgimage" class="group">
+                <legend data-i18n="look.groupBg">Фон-картинка</legend>
+              <div class="full dropzone" id="bgDropzone">
+                <input name="bgImage" type="hidden" value="">
+                <p><strong data-i18n="look.bgImage">Фон-картинка</strong> <span data-i18n="look.bgImageHint">— перетащи сюда файл или кликни</span></p>
+                <p class="drop-hint" id="bgDropHint" data-i18n="look.bgFormats">PNG / JPG / WEBP / GIF</p>
+                <img id="bgPreviewImg" alt="" hidden>
+                <div class="btn-row">
+                  <button type="button" id="bgClearBtn" data-i18n="look.clearBg">Убрать картинку</button>
+                </div>
+                <input id="bgFileInput" type="file" accept="image/*" hidden>
+              </div>
+              </fieldset>
+              <fieldset class="group">
+                <legend data-i18n="look.groupShow">Появление и скрытие</legend>
+                <div class="form-grid">
+              <label><span data-i18n="look.appear">Стиль появления</span>
+                <select name="appearEffect">
+                  <option value="slide" data-i18n="appear.slide">Слайд</option>
+                  <option value="fade" data-i18n="appear.fade">Фейд</option>
+                  <option value="bounce" data-i18n="appear.bounce">Прыжок</option>
+                  <option value="zoom" data-i18n="appear.zoom">Зум</option>
+                </select>
+              </label>
+              <label><span data-i18n="look.dir">Направление (для слайда)</span>
+                <select name="animDirection">
+                  <option value="left" data-i18n="dir.left">Слева</option>
+                  <option value="right" data-i18n="dir.right">Справа</option>
+                  <option value="top" data-i18n="dir.top">Сверху</option>
+                  <option value="bottom" data-i18n="dir.bottom">Снизу</option>
+                </select>
+              </label>
+                </div>
+                <details class="advanced">
+                  <summary data-i18n="look.timings">Тайминги (мс)</summary>
+                  <div class="form-grid">
+              <label><span data-i18n="look.msIn">Появление (мс)</span> <input name="animDurationIn" type="number" min="0" step="50" value="500"></label>
+              <label><span data-i18n="look.msStay">Показ (мс)</span> <input name="animStayTime" type="number" min="0" step="100" value="10000"></label>
+              <label><span data-i18n="look.msOut">Исчезновение (мс)</span> <input name="animDurationOut" type="number" min="0" step="50" value="500"></label>
+              <label><span data-i18n="look.msHidden">Пауза скрытия (мс)</span> <input name="hiddenTime" type="number" min="0" step="100" value="8000"></label>
+                  </div>
+                </details>
+              </fieldset>
+              <!-- The layout is picked on the "Layout" page; the field stays here so it is saved with the look. -->
+              <div class="sr-only">
+              <label><span data-i18n="look.layout">Вид виджета</span>
+                <select name="layout">
+                  <option value="detailed" data-i18n="layout.detailed">Подробный</option>
+                  <option value="mini" data-i18n="layout.mini">Мини</option>
+                  <option value="card" data-i18n="layout.card">Карточка</option>
+                  <option value="badge" data-i18n="layout.badge">Значок</option>
+                  <option value="strip" data-i18n="layout.strip">Полоса</option>
+                  <option value="minimal" data-i18n="layout.minimal">Минимал</option>
+                  <option value="column" data-i18n="layout.column">Колонка</option>
+                  <option value="ring" data-i18n="layout.ring">Кольцо</option>
+                  <option value="slant" data-i18n="layout.slant">Наклон (OW)</option>
+                  <option value="scoreboard" data-i18n="layout.scoreboard">Табло</option>
+                  <option value="session" data-i18n="layout.session">Сессия</option>
+                  <option value="form" data-i18n="layout.form">Форма (5 игр)</option>
+                  <option value="ladder" data-i18n="layout.ladder">Лестница</option>
+                  <option value="roles" data-i18n="layout.roles">Все роли</option>
+                  <option value="hex" data-i18n="layout.hex">Гекс</option>
+                  <option value="feed" data-i18n="layout.feed">Килфид</option>
+                  <option value="tug" data-i18n="layout.tug">Перетягивание</option>
+                  <option value="flip" data-i18n="layout.flip">Перекидное табло</option>
+                  <option value="tcard" data-i18n="layout.tcard">Коллекционная карта</option>
+                </select>
+              </label>
+              </div>
+            </form>
+          </section>
+        </section>
+
+        <section class="tab-panel" data-panel="motion">
+          <section class="panel">
+            <h2 data-i18n="motion.title">Анимации</h2>
+            <p class="layout-hidden-note" hidden></p>
+            <p class="setup-note" data-uses="vessels" data-i18n="motion.note">Кубок/череп заливаются жидкостью. Ранг играет в выбранном стиле — в покое тоже. Смотри справа в превью.</p>
+            <form id="motionForm" class="form-grid">
+              <label data-uses="vessels"><span data-i18n="motion.fillStyle">Стиль заливки</span>
+                <select name="fillStyle">
+                  <option value="liquid" data-i18n="fill.liquid">Жидкость (волны)</option>
+                  <option value="solid" data-i18n="fill.solid">Ровный подъём</option>
+                  <option value="glow" data-i18n="fill.glow">Свечение</option>
+                  <option value="bubble" data-i18n="fill.bubble">Пузырьки</option>
+                </select>
+              </label>
+              <label><span data-i18n="motion.rankFx">Стиль анимации ранга</span>
+                <select name="rankFx">
+                  <option value="classic" data-i18n="fx.classic">Classic</option>
+                  <option value="blaze" data-i18n="fx.blaze">Blaze (огонь)</option>
+                  <option value="frost" data-i18n="fx.frost">Frost (лёд)</option>
+                  <option value="neon" data-i18n="fx.neon">Neon (глитч)</option>
+                  <option value="divine" data-i18n="fx.divine">Divine (сияние)</option>
+                  <option value="melt" data-i18n="fx.melt">Melt (штамп / плавка)</option>
+                  <option value="arcane" data-i18n="fx.arcane">Arcane (магия)</option>
+                  <option value="toxic" data-i18n="fx.toxic">Toxic (яд)</option>
+                  <option value="paper" data-i18n="fx.paper">Paper (книга)</option>
+                  <option value="vortex" data-i18n="fx.vortex">Vortex (вихрь)</option>
+                  <option value="shatter" data-i18n="fx.shatter">Shatter (стекло)</option>
+                  <option value="smoke" data-i18n="fx.smoke">Smoke (дым)</option>
+                  <option value="lightning" data-i18n="fx.lightning">Lightning (молния)</option>
+                  <option value="ripple" data-i18n="fx.ripple">Ripple (рябь)</option>
+                  <option value="hologram" data-i18n="fx.hologram">Hologram (голограмма)</option>
+                  <option value="pixel" data-i18n="fx.pixel">Pixel (пиксели)</option>
+                  <option value="chrome" data-i18n="fx.chrome">Chrome (хром)</option>
+                  <option value="phantom" data-i18n="fx.phantom">Phantom (призрак)</option>
+                  <option value="sonic" data-i18n="fx.sonic">Sonic (ударная волна)</option>
+                  <option value="bloom" data-i18n="fx.bloom">Bloom (лепестки)</option>
+                  <option value="ink" data-i18n="fx.ink">Ink (тушь)</option>
+                  <option value="prism" data-i18n="fx.prism">Prism (призма)</option>
+                </select>
+              </label>
+              <label data-uses="vessels"><span data-i18n="motion.empty">Эффект опустошения</span>
+                <select name="emptyEffect">
+                  <option value="drain" data-i18n="empty.drain">Слив вниз</option>
+                  <option value="splash" data-i18n="empty.splash">Всплеск</option>
+                  <option value="burst" data-i18n="empty.burst">Вспышка</option>
+                  <option value="pour" data-i18n="empty.pour">Выливание</option>
+                  <option value="fade" data-i18n="empty.fade">Затухание</option>
+                </select>
+              </label>
+              <label data-uses="vessels"><span data-i18n="motion.fillLimit">Порог опустошения</span> <input name="fillLimit" type="number" min="1" max="50" value="10"></label>
+              <label data-uses="vessels"><span data-i18n="motion.fillMs">Скорость заливки (мс)</span> <input name="fillDurationMs" type="number" min="50" step="10" value="650"></label>
+              <label data-uses="vessels"><span data-i18n="motion.emptyMs">Длительность опустошения (мс)</span> <input name="emptyDurationMs" type="number" min="200" step="50" value="1600"></label>
+              <label><span data-i18n="motion.numMs">Анимация цифр (мс)</span> <input name="numberAnimMs" type="number" min="100" step="50" value="500"></label>
+              <label data-uses="vessels" class="check-field"><input name="vesselWave" type="checkbox" checked> <span data-i18n="motion.wave">Живая волна на поверхности</span></label>
+              <label class="check-field"><input name="idlePulse" type="checkbox" checked> <span data-i18n="motion.idle">Эффект ранга в покое</span></label>
+              <label class="check-field"><input name="alwaysVisible" type="checkbox"> <span data-i18n="motion.alwaysVisible">Без анимации — виджет виден всегда</span></label>
+            </form>
+          </section>
+        </section>
+
+        <section class="tab-panel" data-panel="auto">
       <section class="panel" id="autoPanel">
         <div class="auto-head">
           <h2>
@@ -314,139 +588,100 @@
           <div class="auto-debug-log" id="autoDebugLogBox"></div>
         </details>
       </section>
+        </section>
 
-      <section class="panel">
-        <h2 data-i18n="main.urls">URL для OBS / Stream Deck</h2>
-        <div class="actions" style="margin-bottom:12px">
-          <button type="button" id="copyOverlayBtn" class="primary" data-i18n="main.copyOverlay">Скопировать URL оверлея</button>
-          <button type="button" class="show-overlay-btn" data-show-overlay data-i18n="main.showWidget">Показать виджет</button>
-          <a id="overlayLink" href="/overlay/" target="_blank" rel="noopener" data-i18n="main.openOverlay">Открыть overlay</a>
-        </div>
-        <div class="copy-list" id="copyList"></div>
+        <section class="tab-panel" data-panel="connections">
+      <section class="panel setup-panel">
+        <h2 data-i18n="main.obsTitle">OBS: сцена для виджета</h2>
+        <p class="setup-note" data-i18n="main.obsNote">Подключи WebSocket OBS, выбери сцену — источник создаётся только там и без дублей.</p>
+        <form id="obsForm" class="form-grid obs-grid">
+          <label>OBS host <input name="obsHost" type="text" value="127.0.0.1"></label>
+          <label>OBS port <input name="obsPort" type="number" value="4455"></label>
+          <label>WebSocket password <input name="obsPassword" type="password" autocomplete="off"></label>
+          <label><span data-i18n="main.obsSource">Имя источника</span> <input name="obsSourceName" type="text" value="Widget Stats v2"></label>
+          <label class="full"><span data-i18n="main.obsScene">Сцена</span>
+            <select name="obsScene" id="obsSceneSelect"><option value="" data-i18n="main.obsScenePlaceholder">— подключись к OBS —</option></select>
+          </label>
+          <div class="full actions">
+            <button type="button" id="obsConnectBtn" data-i18n="main.obsConnect">Подключить OBS</button>
+            <button type="button" id="obsRefreshScenesBtn" data-i18n="main.obsRefresh">Обновить сцены</button>
+            <button type="button" id="obsEnsureBtn" class="primary" data-i18n="main.obsEnsure">Поставить виджет на сцену</button>
+          </div>
+        </form>
+        <p class="setup-note" id="obsStatusText">OBS: не подключено</p>
+      </section>
+          <section class="panel">
+            <h2 data-i18n="main.urls">URL для OBS / Stream Deck</h2>
+            <div class="actions" style="margin-bottom:12px">
+              <button type="button" id="copyOverlayBtn" class="primary" data-i18n="main.copyOverlay">Скопировать URL оверлея</button>
+              <a id="overlayLink" href="/overlay/" target="_blank" rel="noopener" data-i18n="main.openOverlay">Открыть overlay</a>
+            </div>
+            <div class="copy-list" id="copyList"></div>
         <p class="setup-note" style="margin-top:12px">
           <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/streamdock-icons-live-v1.0.0" target="_blank" rel="noopener" data-i18n="main.streamDeckIcons">LIVE-иконки Stream Dock</a>
           <a href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/blob/main/docs/STREAMDOCK-LIVE.md" target="_blank" rel="noopener">Live Mode</a>
         </p>
-      </section>
-    </section>
+          </section>
+        </section>
 
-    <section class="tab-panel" data-panel="look">
-      <section class="panel appearance-panel">
-        <div class="appearance-grid">
-          <div>
-            <h2 data-i18n="look.title">Внешний вид</h2>
-            <form id="settingsForm" class="form-grid">
-              <label class="color-field">
-                <span data-i18n="look.bgColor">Цвет фона</span>
-                <div class="color-row">
-                  <input name="bgColorPicker" type="color" value="#000000">
-                  <input name="bgAlpha" type="range" min="0" max="100" value="70" data-i18n-title="look.alpha" title="Прозрачность">
-                  <span class="swatch-text" id="bgSwatch" data-i18n="look.bgSwatch">фон</span>
-                  <input name="bgColor" type="hidden" value="rgba(0,0,0,0.7)">
-                </div>
-              </label>
-              <label class="color-field">
-                <span data-i18n="look.winsColor">Цвет текста побед</span>
-                <div class="color-row">
-                  <input name="winsColor" type="color" value="#00ff00">
-                  <span class="swatch-text" id="winsSwatch">12</span>
-                </div>
-              </label>
-              <label class="color-field">
-                <span data-i18n="look.lossesColor">Цвет текста поражений</span>
-                <div class="color-row">
-                  <input name="lossesColor" type="color" value="#ff0000">
-                  <span class="swatch-text" id="lossesSwatch">3</span>
-                </div>
-              </label>
-              <label class="color-field">
-                <span data-i18n="look.rankColor">Цвет текста ранга</span>
-                <div class="color-row">
-                  <input name="rankTextColor" type="color" value="#ffffff">
-                  <span class="swatch-text" id="rankSwatch">Gold 1</span>
-                </div>
-              </label>
-              <label class="color-field">
-                <span data-i18n="look.iconColor">Цвет иконок (кубок/череп)</span>
-                <div class="color-row">
-                  <input name="iconColor" type="color" value="#ffffff">
-                  <span class="swatch-text" id="iconSwatch">icon</span>
-                </div>
-              </label>
-              <label class="full"><span data-i18n="look.vesselStyle">Стиль иконок (пара)</span>
-                <select name="vesselStyle" id="vesselStyleSelect">
-                  <option value="classic">Classic — trophy / skull</option>
-                  <option value="royal">Royal — crown / ghost</option>
-                  <option value="rage">Rage — fist / heart-crack</option>
-                  <option value="inferno">Inferno — flame / bomb</option>
-                  <option value="toxic">Toxic — medal / biohazard</option>
-                  <option value="nova">Nova — star / radiation</option>
-                  <option value="fang">Fang — cup / skull</option>
-                  <option value="hard">Hard — block cup / detail skull</option>
-                  <option value="grim">Grim — wing cup / death skull</option>
-                  <option value="solid">Solid — fill cup / solid skull</option>
-                  <option value="sharp">Sharp — sharp cup / simple skull</option>
-                  <option value="award">Award — award cup / tech skull</option>
-                  <option value="medal">Medal — medal / skull2</option>
-                  <option value="miraqlesan">miraqlesan — happy / melted</option>
-                </select>
-              </label>
-              <label class="color-field">
-                <span data-i18n="look.sepColor">Цвет разделителя</span>
-                <div class="color-row">
-                  <input name="separatorColorPicker" type="color" value="#ffffff">
-                  <input name="separatorAlpha" type="range" min="20" max="100" value="55" data-i18n-title="look.alpha" title="Прозрачность">
-                  <input name="separatorColor" type="hidden" value="rgba(255,255,255,0.55)">
-                </div>
-              </label>
-              <label><span data-i18n="look.font">Шрифт</span> <select name="font" id="fontSelect"></select></label>
-              <label><span data-i18n="look.fontSize">Размер шрифта</span> <input name="fontSize" type="number" min="10" max="64" value="16"></label>
-              <label><span data-i18n="look.appear">Стиль появления</span>
-                <select name="appearEffect">
-                  <option value="slide" data-i18n="appear.slide">Слайд</option>
-                  <option value="fade" data-i18n="appear.fade">Фейд</option>
-                  <option value="bounce" data-i18n="appear.bounce">Прыжок</option>
-                  <option value="zoom" data-i18n="appear.zoom">Зум</option>
-                </select>
-              </label>
-              <label><span data-i18n="look.dir">Направление (для слайда)</span>
-                <select name="animDirection">
-                  <option value="left" data-i18n="dir.left">Слева</option>
-                  <option value="right" data-i18n="dir.right">Справа</option>
-                  <option value="top" data-i18n="dir.top">Сверху</option>
-                  <option value="bottom" data-i18n="dir.bottom">Снизу</option>
-                </select>
-              </label>
-              <label><span data-i18n="look.msIn">Появление (мс)</span> <input name="animDurationIn" type="number" min="0" step="50" value="500"></label>
-              <label><span data-i18n="look.msStay">Показ (мс)</span> <input name="animStayTime" type="number" min="0" step="100" value="10000"></label>
-              <label><span data-i18n="look.msOut">Исчезновение (мс)</span> <input name="animDurationOut" type="number" min="0" step="50" value="500"></label>
-              <label><span data-i18n="look.msHidden">Пауза скрытия (мс)</span> <input name="hiddenTime" type="number" min="0" step="100" value="8000"></label>
+        <section class="tab-panel" data-panel="faq">
+          <section class="panel">
+            <h2 data-i18n="faq.title">Справка</h2>
+            <p class="setup-note" data-i18n="faq.note">«Открыть» ведёт на нужную страницу, «Показать» проигрывает пример в превью справа.</p>
+            <div class="help-start" id="helpStart"></div>
+            <input type="search" id="helpSearch" class="help-search" data-i18n-placeholder="help.search" placeholder="Поиск: OBS, ранг, пропадает…">
+            <div class="faq-list" id="faqList"></div>
+            <p class="setup-note" id="helpEmpty" hidden data-i18n="help.empty">Ничего не нашлось. Попробуй другое слово или напиши разработчику.</p>
+          </section>
+          <section class="panel help-contact" id="helpContact">
+            <h2 data-i18n="help.contactTitle">Написать разработчику</h2>
+            <p class="setup-note" data-i18n="help.contactNote">Вопрос, идея или что-то сломалось? Напиши. Для бага нажми «Скопировать данные» и вставь их в сообщение: так проще понять, что случилось.</p>
+            <div class="actions">
+              <a class="btn-link discord" id="helpDiscord" href="#" target="_blank" rel="noopener" hidden data-i18n="help.discord">Discord</a>
+              <a class="btn-link" id="helpIssues" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/issues" target="_blank" rel="noopener" data-i18n="help.issues">Сообщить о баге на GitHub</a>
+              <button type="button" class="ghost" id="helpCopyInfo" data-i18n="help.copyInfo">Скопировать данные для бага</button>
+            </div>
+          </section>
+          <section class="panel help-support">
+            <h2 data-i18n="help.supportTitle">Поддержать разработчика</h2>
+            <p class="setup-note" data-i18n="help.supportNote">Программа бесплатная и останется такой. Если она пригодилась на стримах, можно угостить разработчика кофе — это помогает делать новые функции.</p>
+            <div class="actions">
+              <a class="btn-link donate" href="https://dalink.to/artj1" target="_blank" rel="noopener" data-i18n="help.donateDa">DonationAlerts</a>
+              <a class="btn-link boosty" href="https://boosty.to/artj1/donate" target="_blank" rel="noopener" data-i18n="help.donateBoosty">Boosty (из других стран)</a>
+            </div>
+          </section>
+        </section>
+      </div>
 
-              <div class="full dropzone" id="bgDropzone">
-                <input name="bgImage" type="hidden" value="">
-                <p><strong data-i18n="look.bgImage">Фон-картинка</strong> <span data-i18n="look.bgImageHint">— перетащи сюда файл или кликни</span></p>
-                <p class="drop-hint" id="bgDropHint" data-i18n="look.bgFormats">PNG / JPG / WEBP / GIF</p>
-                <img id="bgPreviewImg" alt="" hidden>
-                <div class="btn-row">
-                  <button type="button" id="bgClearBtn" data-i18n="look.clearBg">Убрать картинку</button>
-                </div>
-                <input id="bgFileInput" type="file" accept="image/*" hidden>
-              </div>
-
-              <div class="full actions">
-                <button type="submit" data-i18n="look.save">Сохранить в оверлей OBS</button>
-                <button type="button" class="show-overlay-btn" data-show-overlay data-i18n="main.showWidget">Показать виджет</button>
-              </div>
-            </form>
+      <aside class="studio-preview">
+        <div class="preview-card">
+          <div class="preview-header">
+            <h2 data-i18n="look.preview">Превью</h2>
+            <span class="save-state" id="saveState" aria-live="polite"></span>
           </div>
-          <aside class="preview-pane">
-            <div class="preview-header">
-              <h2 data-i18n="look.preview">Превью</h2>
-              <span class="preview-hint">Live</span>
+          <div class="preview-stage">
+            <iframe class="widget-preview" id="previewFrame" title="Widget preview" src="/overlay/?preview=1"></iframe>
+          </div>
+          <div class="preview-block">
+            <span class="block-label" data-i18n="studio.test">Проверить в превью</span>
+            <div class="btn-grid">
+              <button type="button" id="motionTestWin" class="ghost" data-i18n="studio.testWin">Победа</button>
+              <button type="button" id="motionTestLoss" class="ghost" data-i18n="studio.testLoss">Поражение</button>
+              <button type="button" id="motionTestRankUp" class="ghost" data-i18n="studio.testRank">Смена ранга</button>
+              <button type="button" id="motionTestFillCycle" class="ghost" data-i18n="studio.testCycle">Полный цикл</button>
             </div>
-            <div class="preview-stage">
-              <iframe class="widget-preview" id="previewFrame" title="Widget preview" src="/overlay/?preview=1"></iframe>
+            <p class="setup-note" data-i18n="studio.testNote">Только превью — счёт и OBS не меняются.</p>
+          </div>
+          <div class="preview-block">
+            <span class="block-label" data-i18n="studio.live">На стриме</span>
+            <div class="btn-grid live">
+              <button type="button" class="live-btn win" data-action="/api/win">+1 W</button>
+              <button type="button" class="live-btn loss" data-action="/api/loss">+1 L</button>
+              <button type="button" class="live-btn" data-action="/api/rank/up" data-i18n-title="studio.rankUp" title="Ранг выше">▲</button>
+              <button type="button" class="live-btn" data-action="/api/rank/down" data-i18n-title="studio.rankDown" title="Ранг ниже">▼</button>
             </div>
+            <button type="button" class="show-overlay-btn wide" data-show-overlay data-i18n="main.showWidget">Показать виджет</button>
+          </div>
             <a class="vessel-credit" id="vesselCredit" target="_blank" rel="noopener noreferrer" hidden>
               <svg class="vessel-credit-logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0 1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
               <span class="vessel-credit-text">
@@ -455,176 +690,15 @@
               </span>
               <span class="vessel-credit-go" data-i18n="look.iconAuthorGo">Twitch ↗</span>
             </a>
-          </aside>
         </div>
-      </section>
-    </section>
-
-    <section class="tab-panel" data-panel="motion">
-      <section class="panel appearance-panel">
-        <div class="appearance-grid">
-          <div>
-            <h2 data-i18n="motion.title">Анимации</h2>
-            <p class="setup-note" data-i18n="motion.note">Кубок/череп заливаются жидкостью. Ранг играет в выбранном стиле — в покое тоже. Смотри справа в превью.</p>
-            <form id="motionForm" class="form-grid">
-              <label><span data-i18n="motion.fillStyle">Стиль заливки</span>
-                <select name="fillStyle">
-                  <option value="liquid" data-i18n="fill.liquid">Жидкость (волны)</option>
-                  <option value="solid" data-i18n="fill.solid">Ровный подъём</option>
-                  <option value="glow" data-i18n="fill.glow">Свечение</option>
-                  <option value="bubble" data-i18n="fill.bubble">Пузырьки</option>
-                </select>
-              </label>
-              <label><span data-i18n="motion.rankFx">Стиль анимации ранга</span>
-                <select name="rankFx">
-                  <option value="classic" data-i18n="fx.classic">Classic</option>
-                  <option value="blaze" data-i18n="fx.blaze">Blaze (огонь)</option>
-                  <option value="frost" data-i18n="fx.frost">Frost (лёд)</option>
-                  <option value="neon" data-i18n="fx.neon">Neon (глитч)</option>
-                  <option value="divine" data-i18n="fx.divine">Divine (сияние)</option>
-                  <option value="melt" data-i18n="fx.melt">Melt (штамп / плавка)</option>
-                  <option value="arcane" data-i18n="fx.arcane">Arcane (магия)</option>
-                  <option value="toxic" data-i18n="fx.toxic">Toxic (яд)</option>
-                  <option value="paper" data-i18n="fx.paper">Paper (книга)</option>
-                  <option value="vortex" data-i18n="fx.vortex">Vortex (вихрь)</option>
-                  <option value="shatter" data-i18n="fx.shatter">Shatter (стекло)</option>
-                  <option value="smoke" data-i18n="fx.smoke">Smoke (дым)</option>
-                  <option value="lightning" data-i18n="fx.lightning">Lightning (молния)</option>
-                  <option value="ripple" data-i18n="fx.ripple">Ripple (рябь)</option>
-                  <option value="hologram" data-i18n="fx.hologram">Hologram (голограмма)</option>
-                  <option value="pixel" data-i18n="fx.pixel">Pixel (пиксели)</option>
-                  <option value="chrome" data-i18n="fx.chrome">Chrome (хром)</option>
-                  <option value="phantom" data-i18n="fx.phantom">Phantom (призрак)</option>
-                  <option value="sonic" data-i18n="fx.sonic">Sonic (ударная волна)</option>
-                  <option value="bloom" data-i18n="fx.bloom">Bloom (лепестки)</option>
-                  <option value="ink" data-i18n="fx.ink">Ink (тушь)</option>
-                  <option value="prism" data-i18n="fx.prism">Prism (призма)</option>
-                </select>
-              </label>
-              <label><span data-i18n="motion.empty">Эффект опустошения</span>
-                <select name="emptyEffect">
-                  <option value="drain" data-i18n="empty.drain">Слив вниз</option>
-                  <option value="splash" data-i18n="empty.splash">Всплеск</option>
-                  <option value="burst" data-i18n="empty.burst">Вспышка</option>
-                  <option value="pour" data-i18n="empty.pour">Выливание</option>
-                  <option value="fade" data-i18n="empty.fade">Затухание</option>
-                </select>
-              </label>
-              <label><span data-i18n="motion.fillLimit">Порог опустошения</span> <input name="fillLimit" type="number" min="1" max="50" value="10"></label>
-              <label><span data-i18n="motion.fillMs">Скорость заливки (мс)</span> <input name="fillDurationMs" type="number" min="50" step="10" value="650"></label>
-              <label><span data-i18n="motion.emptyMs">Длительность опустошения (мс)</span> <input name="emptyDurationMs" type="number" min="200" step="50" value="1600"></label>
-              <label><span data-i18n="motion.numMs">Анимация цифр (мс)</span> <input name="numberAnimMs" type="number" min="100" step="50" value="500"></label>
-              <label class="check-field"><input name="vesselWave" type="checkbox" checked> <span data-i18n="motion.wave">Живая волна на поверхности</span></label>
-              <label class="check-field"><input name="idlePulse" type="checkbox" checked> <span data-i18n="motion.idle">Эффект ранга в покое</span></label>
-              <label class="check-field"><input name="alwaysVisible" type="checkbox"> <span data-i18n="motion.alwaysVisible">Без анимации — виджет виден всегда</span></label>
-              <div class="full actions">
-                <button type="button" id="motionSaveBtn" data-i18n="motion.save">Сохранить анимации</button>
-                <button type="button" class="show-overlay-btn" data-show-overlay data-i18n="main.showWidget">Показать виджет</button>
-              </div>
-              <div class="full actions preview-demo-actions">
-                <button type="button" id="motionTestWin" class="ghost" data-i18n="motion.prevWin">Превью +Win</button>
-                <button type="button" id="motionTestLoss" class="ghost" data-i18n="motion.prevLoss">Превью +Loss</button>
-                <button type="button" id="motionTestRankUp" class="ghost" data-i18n="motion.prevRank">Превью Rank ↑↓</button>
-                <button type="button" id="motionTestRankDown" class="ghost" data-i18n="motion.prevRankCycle">Превью Rank цикл</button>
-                <button type="button" id="motionTestFillCycle" class="ghost" data-i18n="motion.prevFill">Превью полный цикл</button>
-              </div>
-            </form>
-          </div>
-          <aside class="preview-pane">
-            <div class="preview-header">
-              <h2 data-i18n="motion.previewTitle">Превью анимаций</h2>
-              <span class="preview-hint">Live</span>
-            </div>
-            <div class="preview-stage tall">
-              <iframe class="widget-preview" id="previewFrameMotion" title="Motion preview" src="/overlay/?preview=1"></iframe>
-            </div>
-            <p class="setup-note" style="margin-top:10px" data-i18n="motion.previewNote">Кнопки выше крутят только превью — статистика в OBS не меняется. «Показать виджет» — для реального оверлея.</p>
-          </aside>
-        </div>
-      </section>
-    </section>
-
-    <section class="tab-panel" data-panel="skins">
-      <section class="panel appearance-panel">
-        <div class="appearance-grid">
-          <div>
-            <h2 data-i18n="skins.title">Галерея скинов</h2>
-            <p class="setup-note" data-i18n="skins.note">Кликни пресет — справа полный прогон. Фильтр по анимации ранга — чтобы не листать весь список.</p>
-            <div class="skins-toolbar">
-              <label class="skins-filter-label"><span data-i18n="skins.fx">Анимация</span>
-                <select id="skinsFxFilter">
-                  <option value="all" data-i18n="skins.allFx">Все анимации</option>
-                </select>
-              </label>
-              <label class="skins-filter-label"><span data-i18n="skins.sort">Сортировка</span>
-                <select id="skinsSort">
-                  <option value="fx" data-i18n="skins.sortFx">По анимации</option>
-                  <option value="name" data-i18n="skins.sortName">По имени</option>
-                </select>
-              </label>
-            </div>
-            <div class="skins-fx-chips" id="skinsFxChips" data-i18n-title="skins.chips" aria-label="Быстрый фильтр анимаций"></div>
-            <div class="skins-grid" id="skinsGrid"></div>
-
-            <section class="custom-skins-panel">
-              <h2 data-i18n="skins.customTitle">Мои скины</h2>
-              <p class="setup-note" data-i18n="skins.customNote">Сохрани текущий вид отдельным скином.</p>
-              <div class="custom-skin-save">
-                <label>
-                  <span data-i18n="skins.customName">Название</span>
-                  <input type="text" id="customSkinName" maxlength="48" data-i18n-placeholder="skins.customPlaceholder" placeholder="Мой скин">
-                </label>
-                <button type="button" id="customSkinSaveBtn" class="primary" data-i18n="skins.customSave">Сохранить текущий вид</button>
-              </div>
-              <div class="skins-grid custom-skins-grid" id="customSkinsGrid"></div>
-              <p class="setup-note" id="customSkinsEmpty" data-i18n="skins.customEmpty">Пока нет сохранённых скинов.</p>
-            </section>
-          </div>
-          <aside class="preview-pane">
-            <div class="preview-header">
-              <h2 data-i18n="skins.previewTitle">Превью скина</h2>
-              <span class="preview-hint" id="skinDemoHint">Demo</span>
-            </div>
-            <div class="preview-stage tall">
-              <iframe class="widget-preview" id="previewFrameSkins" title="Skin preview" src="/overlay/?preview=1"></iframe>
-            </div>
-            <div class="actions preview-actions">
-              <button type="button" id="skinApplySaveBtn" class="primary" data-i18n="skins.save">Сохранить выбранный скин</button>
-              <button type="button" class="show-overlay-btn" data-show-overlay data-i18n="main.showWidget">Показать виджет</button>
-              <button type="button" id="skinReplayDemoBtn" class="ghost" data-i18n="skins.replay">Проиграть демо снова</button>
-            </div>
-            <p class="setup-note" style="margin-top:10px" data-i18n="skins.previewNote">Авто-демо: появление → победы → поражения → смена ранга. Не меняет счёт в OBS.</p>
-          </aside>
-        </div>
-      </section>
-    </section>
-
-    <section class="tab-panel" data-panel="faq">
-      <section class="panel appearance-panel">
-        <div class="appearance-grid">
-          <div>
-            <h2 data-i18n="faq.title">Справка / FAQ</h2>
-            <p class="setup-note" data-i18n="faq.note">Коротко: что где настроить и как это выглядит. Открой пункт — справа превью; кнопки «Показать» крутят только превью, счёт в OBS не меняется.</p>
-            <div class="faq-list" id="faqList"></div>
-          </div>
-          <aside class="preview-pane">
-            <div class="preview-header">
-              <h2 data-i18n="faq.previewTitle">Превью</h2>
-              <span class="preview-hint" id="faqDemoHint" data-i18n="faq.preview.hint">Demo</span>
-            </div>
-            <div class="preview-stage tall">
-              <iframe class="widget-preview" id="previewFrameFaq" title="FAQ preview" src="/overlay/?preview=1"></iframe>
-            </div>
-            <div class="actions preview-actions">
-              <button type="button" id="faqReplayDemoBtn" class="ghost" data-i18n="faq.demo.full">Полный прогон</button>
-              <button type="button" class="show-overlay-btn" data-show-overlay data-i18n="main.showWidget">Показать виджет</button>
-            </div>
-            <p class="setup-note" style="margin-top:10px" data-i18n="faq.previewNote">Превью использует текущие настройки внешнего вида и анимаций. Сохрани их на вкладках, если хочешь увидеть ровно то, что в OBS.</p>
-          </aside>
-        </div>
-      </section>
-    </section>
+      </aside>
+    </div>
   </main>
+
+  <div class="save-toast" id="saveToast" hidden>
+    <span id="saveToastText"></span>
+    <button type="button" id="saveToastUndo" data-i18n="studio.undo">Отменить</button>
+  </div>
 
   <div id="autoRoiModal" class="auto-roi-modal" hidden>
     <div class="auto-roi-dialog" role="dialog" aria-modal="true" aria-labelledby="autoRoiTitle">
@@ -655,5 +729,6 @@
   <script src="skins.js"></script>
   <script src="faq.js"></script>
   <script src="admin.js"></script>
+  <script src="studio.js"></script>
 </body>
 </html>

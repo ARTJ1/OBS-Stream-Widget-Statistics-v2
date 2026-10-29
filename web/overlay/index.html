@@ -9,7 +9,7 @@
 <body>
   <div class="widget appear-slide from-left" id="widget">
     <div class="widget-fx-layer" id="widgetFxLayer" aria-hidden="true"></div>
-    <div class="stats">
+    <div class="stats" id="stats">
       <div class="stat-item">
         <div class="icon-fill-container vessel" id="winsIconContainer" data-vessel="wins">
           <div class="vessel-tilt">
@@ -78,11 +78,40 @@
     <div class="rank-section" id="rankSection">
       <div id="rank-animation-wrapper">
         <div class="rank-fx-layer" id="rankFxLayer" aria-hidden="true"></div>
+        <!-- Win-rate ring around the rank icon (ring layout only). -->
+        <svg class="wr-ring" viewBox="0 0 72 72" aria-hidden="true">
+          <circle class="wr-ring-loss" cx="36" cy="36" r="33"/>
+          <circle class="wr-ring-win" id="wrRingWin" cx="36" cy="36" r="33"/>
+        </svg>
         <img id="rankImageUnder" class="rank-img rank-img-under" src="assets/uploads/Bronze.png" alt="">
         <img id="rankImage" class="rank-img rank-img-over" src="assets/uploads/Bronze.png" alt="Rank">
       </div>
       <span id="rankValue">Bronze 5</span>
+      <!-- Rank change since session start (session layout only). -->
+      <span class="rank-delta" id="rankDelta" aria-hidden="true"></span>
     </div>
+    <!-- Win rate: shown only by layouts that use it (card, strip). -->
+    <div class="wr-block" id="wrBlock" aria-hidden="true">
+      <div class="wr-bar"><i id="wrFill"></i></div>
+      <span class="wr-text"><span class="wr-label">WR</span> <span id="wrValue">0%</span></span>
+    </div>
+    <!-- Last results (form layout), division steps (ladder layout), other roles (roles layout). -->
+    <div class="form-pips" id="formPips" aria-hidden="true"></div>
+    <div class="ladder" id="ladder" aria-hidden="true">
+      <span class="ladder-steps" id="ladderSteps"></span>
+      <img class="ladder-next" id="ladderNext" alt="">
+    </div>
+    <div class="roles-list" id="rolesList" aria-hidden="true"></div>
+    <!-- Kill feed rows, tug-of-war rope, flip-clock digits, card stars (their layouts only). -->
+    <div class="feed-list" id="feedList" aria-hidden="true"></div>
+    <div class="tug" id="tug" aria-hidden="true">
+      <div class="tug-rope"><span class="tug-knot" id="tugKnot"></span></div>
+      <span class="tug-net" id="tugNet"></span>
+    </div>
+    <div class="flip-digits" id="flipDigits" aria-hidden="true"></div>
+    <div class="tcard-stars" id="tcardStars" aria-hidden="true"></div>
+    <div class="tcard-back" id="tcardBack" aria-hidden="true"></div>
+    <div class="tcard-shine" id="tcardShine" aria-hidden="true"></div>
   </div>
   <!-- SVG filters for rank FX (fire / melt / frost / etc.) -->
   <svg class="fx-defs" aria-hidden="true" width="0" height="0" style="position:absolute;overflow:hidden">
