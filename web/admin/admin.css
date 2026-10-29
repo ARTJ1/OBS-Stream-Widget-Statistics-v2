@@ -874,7 +874,7 @@ h2 { font-size: 18px; margin-bottom: 16px; }
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--line);
-  background: var(--surface);
+  background-color: var(--surface);
   color: inherit;
 }
 
@@ -1087,7 +1087,7 @@ h2 { font-size: 18px; margin-bottom: 16px; }
 }
 .rank-pick select,
 .rank-pick input {
-  background: var(--surface);
+  background-color: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--text);
@@ -1885,3 +1885,59 @@ a.btn-link.boosty:hover { background: #d94e1d; }
 .actions a { font-size: 13.333px; font-family: inherit; }
 .setup-note a { color: var(--accent); text-decoration: none; margin-right: 12px; }
 .setup-note a:hover { text-decoration: underline; }
+
+/* Showing on stream: two clear modes, fields only for the picked one. */
+[data-show][hidden] { display: none !important; }
+.show-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.show-mode {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); cursor: pointer;
+}
+.show-mode:has(input:checked) { border-color: var(--accent); background: var(--faq-open-bg); }
+.show-mode input { width: auto; margin-top: 3px; }
+.show-mode span { display: grid; gap: 4px; }
+.show-mode strong { font-size: 14px; color: var(--text); }
+.show-mode em { font-style: normal; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.show-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 12px; }
+.show-summary { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); color: var(--setup-list); font-size: 13px; line-height: 1.45; flex: 1 1 260px; }
+.reset-btn { font-size: 12px; padding: 7px 12px; }
+.group-foot { justify-content: flex-end; }
+@media (max-width: 700px) { .show-modes { grid-template-columns: 1fr; } }
+
+/* Dropdowns: our own chevron with room on the right, instead of the browser's
+   arrow squeezed against the edge. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239aa3ad' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+  cursor: pointer;
+}
+select:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+select::-ms-expand { display: none; }
+
+/* Effect pickers (fx-picker.js) */
+.fx-select-hidden { position: absolute !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.fx-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: -4px; }
+.fx-picker-rank { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+.fx-tile {
+  display: grid; gap: 6px; padding: 6px 6px 8px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; text-align: center;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.fx-tile:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); transform: translateY(-1px); }
+.fx-tile.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: var(--faq-open-bg); }
+.fx-thumb {
+  display: block; height: 72px; border-radius: 8px; overflow: hidden;
+  background: repeating-conic-gradient(var(--checker-a) 0% 25%, var(--checker-bg) 0% 50%) 0 0 / 12px 12px;
+}
+.fx-picker-rank .fx-thumb { height: 64px; }
+.fx-thumb iframe { width: 100%; height: 100%; border: 0; pointer-events: none; display: block; }
+.fx-name { font-size: 12px; font-weight: 600; line-height: 1.2; }
+.fx-pick-hint { margin: 2px 0 6px; }
+.fx-picker-icons { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.fx-picker-icons .fx-thumb { height: 58px; }

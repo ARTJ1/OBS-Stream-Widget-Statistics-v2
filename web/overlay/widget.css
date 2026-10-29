@@ -49,6 +49,11 @@ html.preview-mode body {
   align-items: center;
   justify-content: center;
 }
+/* Widget scale in OBS: re-renders at the target size instead of OBS stretching a picture. */
+html:not(.preview-mode) .widget {
+  zoom: var(--widget-zoom, 1);
+}
+
 html.preview-mode .widget {
   /* Never squeeze below its content in the preview box; zoom handles the fit. */
   flex-shrink: 0;
@@ -183,9 +188,8 @@ body.always-visible .widget {
   transition: none !important;
 }
 /* The trading card animates its own transform (flip, float), which an
-   !important transform would freeze; it gets a plain one instead. */
+   !important transform would freeze. */
 body.always-visible:not(.layout-tcard) .widget { transform: none !important; }
-body.always-visible.layout-tcard .widget { transform: none; }
 
 /* Legacy direction helpers kept for hide scheduling */
 .widget.from-left.hide { }
@@ -276,6 +280,10 @@ body.always-visible.layout-tcard .widget { transform: none; }
 .stat-value {
   font-weight: bold;
   font-size: calc(var(--font-size) * 1.2);
+  /* Same-width digits and room for two of them: the widget does not jump as counts change. */
+  font-variant-numeric: tabular-nums;
+  min-width: 2ch;
+  text-align: center;
   transition: transform 0.3s ease, color 0.3s ease;
   align-self: center;
 }
@@ -501,10 +509,7 @@ body.fill-glow .icon-fill-container.is-emptying .liquid-body,
 body.fill-glow .icon-fill-container.is-emptying .liquid-meniscus {
   filter: none !important;
 }
-/* Shell under liquid = fringe stripes along silhouette edges while draining */
-.icon-fill-container.is-emptying .vessel-shell {
-  opacity: 0 !important;
-}
+/* The grey body stays while emptying: without it the icon read as an empty hole. */
 .icon-fill-container.is-emptying .vessel-outline {
   opacity: 0.9;
 }
@@ -3092,7 +3097,7 @@ body.layout-hex .stat-value { font-size: 1em; font-weight: 900; }
 /* Kill feed: result rows like the in-game kill feed; the top row holds the live rank. */
 body.layout-feed .widget {
   display: grid;
-  grid-template-columns: auto auto auto auto;
+  grid-template-columns: auto auto auto auto auto;
   align-items: center;
   gap: 0.25em 0;
   padding: 0;
@@ -3104,7 +3109,7 @@ body.layout-feed .stats { display: none; }
 body.layout-feed .rank-section,
 body.layout-feed .feed-list { display: contents; }
 .feed-list .feed-bg {
-  grid-column: 1 / -1;
+  grid-column: 1 / 5;
   grid-row: var(--row);
   align-self: stretch;
   background: var(--bg-color);
@@ -3127,6 +3132,36 @@ body.layout-feed .feed-list { display: contents; }
 .feed-list .feed-tag.w { color: var(--wins-color); }
 .feed-list .feed-tag.l { color: var(--losses-color); }
 .feed-list .feed-tag.none { opacity: 0.6; }
+.feed-list .slot { visibility: hidden; }
+.feed-list .feed-tag.feed-sizer {
+  grid-row: 1;
+  visibility: hidden;
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+.feed-list .feed-board {
+  grid-column: 5;
+  grid-row: 1 / 4;
+  align-self: stretch;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25em;
+  margin-left: 0.25em;
+  padding: 0 0.8em;
+  background: var(--bg-color);
+  font-weight: 900;
+  line-height: 1;
+}
+.feed-board b { font-size: 1.5em; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: center; }
+.feed-board b.w { color: var(--wins-color); }
+.feed-board b.l { color: var(--losses-color); }
+.feed-board i { width: 1.6em; border-top: 0.12em solid var(--separator-color); margin: 0.1em 0; opacity: 0.7; }
 .feed-list [style*="--row:2"] { opacity: 0.7; }
 .feed-list [style*="--row:3"] { opacity: 0.45; }
 body.layout-feed .widget > .role-badge { grid-column: 2; grid-row: 1; margin: 0 0.35em 0 0; }
@@ -3318,16 +3353,59 @@ body.skin-light .tcard-stars span.on { color: #b77900; text-shadow: 0 0 4px rgba
   60% { transform: scale(1.9) rotate(10deg); text-shadow: 0 0 14px #ffd34d; }
   100% { transform: scale(1); }
 }
-/* Result flip: the card turns edge-on, shows its back, then turns back.
-   JS swaps faces at the edge-on moments (12.5% / 87.5%). */
+/* The card moves in two independent layers, so neither cuts the other off:
+   - appear / hide: the separate translate and scale properties;
+   - its own motions (idle float, result flip): transform animations, as before.
+   With the float on, the flip is played from JS on top of the float pose
+   (playFloatingFlip), and the float keeps running underneath.
+   Doubled classes beat the generic appear transforms. */
+body.layout-tcard.layout-tcard .widget.widget { transform: none; }
+body.layout-tcard.card-fx-float .widget { animation: cardFloat 6s ease-in-out infinite; }
 body.layout-tcard .widget.card-flip { animation: cardFlip 1.6s ease-in-out; }
-/* Idle float: a slow 3D tilt while nothing else moves the card. */
-body.layout-tcard.card-fx-float .widget.visible:not(.card-flip):not(.hide),
-body.layout-tcard.card-fx-float.always-visible .widget:not(.card-flip) { animation: cardFloat 6s ease-in-out infinite; }
+/* Same float animation (not restarted); the JS flip covers it while it runs. */
+body.layout-tcard.card-fx-float .widget.card-flip { animation: cardFloat 6s ease-in-out infinite; }
+body.layout-tcard .widget.appear-slide.from-left { translate: -150% 0; }
+body.layout-tcard .widget.appear-slide.from-right { translate: 150vw 0; }
+body.layout-tcard .widget.appear-slide.from-top { translate: 0 -150%; }
+body.layout-tcard .widget.appear-slide.from-bottom { translate: 0 150vh; }
+body.layout-tcard .widget.appear-bounce { translate: 0 -40px; scale: 0.92; }
+body.layout-tcard .widget.appear-zoom { scale: 0.72; }
+body.layout-tcard .widget.visible.visible { translate: none; scale: none; }
+body.layout-tcard .widget.appear-slide.hide.from-left { translate: -150% 0; }
+body.layout-tcard .widget.appear-slide.hide.from-right { translate: 150vw 0; }
+body.layout-tcard .widget.appear-slide.hide.from-top { translate: 0 -150%; }
+body.layout-tcard .widget.appear-slide.hide.from-bottom { translate: 0 150vh; }
+body.layout-tcard .widget.appear-bounce.hide { translate: 0 24px; scale: 0.96; }
+body.layout-tcard .widget.appear-zoom.hide { scale: 0.85; }
+body.always-visible.layout-tcard .widget { translate: none; scale: none; }
+/* The card's own glow transition must not replace the appear / hide motion. */
+body.layout-tcard .widget.appear-slide,
+body.layout-tcard .widget.appear-zoom {
+  transition: box-shadow 0.6s ease,
+              opacity var(--animation-duration-in) var(--animation-timing-function),
+              translate var(--animation-duration-in) var(--animation-timing-function),
+              scale var(--animation-duration-in) var(--animation-timing-function);
+}
+body.layout-tcard .widget.appear-bounce {
+  transition: box-shadow 0.6s ease,
+              opacity var(--animation-duration-in) cubic-bezier(0.34, 1.56, 0.64, 1),
+              translate var(--animation-duration-in) cubic-bezier(0.34, 1.56, 0.64, 1),
+              scale var(--animation-duration-in) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+body.layout-tcard .widget.appear-fade {
+  transition: box-shadow 0.6s ease, opacity var(--animation-duration-in) ease;
+}
+body.layout-tcard .widget.hide.hide {
+  transition: box-shadow 0.6s ease,
+              opacity var(--animation-duration-out) var(--animation-timing-function),
+              translate var(--animation-duration-out) var(--animation-timing-function),
+              scale var(--animation-duration-out) var(--animation-timing-function);
+}
 @keyframes cardFloat {
   0%, 100% { transform: perspective(40em) rotateY(-7deg) rotateX(3deg); }
   50% { transform: perspective(40em) rotateY(7deg) rotateX(-3deg) translateY(-0.2em); }
 }
+
 /* Light sweep: a glare crosses the card after a result or rank change. */
 .tcard-shine { display: none; }
 body.layout-tcard .tcard-shine {
@@ -3361,6 +3439,9 @@ body.layout-tcard .tcard-shine.go::before { animation: cardShine 0.9s ease-out; 
   87.51% { transform: perspective(40em) rotateY(-90deg); }
   100% { transform: perspective(40em) rotateY(0); }
 }
+
+
+
 .tcard-back { display: none; }
 body.layout-tcard .widget.card-back-on .tcard-back {
   display: flex;
@@ -3426,3 +3507,54 @@ body.skin-light.layout-minimal #rankValue {
 }
 body.skin-light.layout-minimal .stats,
 body.skin-light.layout-minimal .widget > .role-badge { filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.85)); }
+
+/* Emptying effects (see runEmptyEffect) */
+.fx-dot {
+  position: absolute;
+  pointer-events: none;
+  will-change: transform, opacity;
+  z-index: 6;
+}
+.fx-layer {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+}
+/* The stream starts left of the icon: never clip it like the fill SVG. */
+.icon-fill-container svg.fx-pour {
+  left: 0;
+  top: 0;
+  width: auto;
+  height: auto;
+  overflow: visible;
+}
+.fx-ring {
+  border-style: solid;
+  border-radius: 50%;
+  background: transparent;
+}
+.fx-soap {
+  border-style: solid;
+  border-radius: 50%;
+  z-index: 6;
+}
+
+/* Admin tiles: one part of the widget, no box around it. */
+html.solo .widget {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  padding: 4px !important;
+  gap: 0 !important;
+}
+html.solo .widget::before,
+html.solo .widget::after { display: none !important; }
+html.solo-vessel .widget > :not(.stats),
+html.solo-vessel .stats > :not(.stat-item:first-child),
+html.solo-vessel .stat-value,
+html.solo-icons .widget > :not(.stats),
+html.solo-icons .stat-value,
+html.solo-icons #statSep,
+html.solo-rank .widget > :not(.rank-section),
+html.solo-rank #rankValue,
+html.solo-rank .rank-delta { display: none !important; }

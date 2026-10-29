@@ -346,8 +346,94 @@ function fillMotion(settings) {
   }
   motionForm.vesselWave.checked = settings.vesselWave !== false;
   motionForm.idlePulse.checked = settings.idlePulse !== false;
-  motionForm.alwaysVisible.checked = !!settings.alwaysVisible;
+  fillShow(settings);
 }
+
+// ---------- Showing on stream (appear / stay / hide cycle) ----------
+// Times are stored in ms; the form shows seconds, which is how streamers think.
+function secToMs(v) {
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 1000) : 0;
+}
+
+function msToSec(ms) {
+  return String(Math.round((Number(ms) || 0) / 100) / 10);
+}
+
+function fillShow(settings) {
+  const mode = settings.alwaysVisible ? 'always' : 'cycle';
+  motionForm.querySelectorAll('[name="showMode"]').forEach((r) => { r.checked = r.value === mode; });
+  motionForm.appearEffect.value = settings.appearEffect || 'slide';
+  motionForm.animDirection.value = settings.animDirection || 'left';
+  motionForm.staySec.value = msToSec(settings.animStayTime ?? 10000);
+  motionForm.hiddenSec.value = msToSec(settings.hiddenTime ?? 8000);
+  motionForm.animDurationIn.value = settings.animDurationIn ?? 500;
+  motionForm.animDurationOut.value = settings.animDurationOut ?? 500;
+  updateShowUI();
+}
+
+function readShow() {
+  return {
+    alwaysVisible: motionForm.querySelector('[name="showMode"]:checked')?.value === 'always',
+    appearEffect: motionForm.appearEffect.value || 'slide',
+    animDirection: motionForm.animDirection.value || 'left',
+    animStayTime: secToMs(motionForm.staySec.value),
+    hiddenTime: secToMs(motionForm.hiddenSec.value),
+    animDurationIn: Number(motionForm.animDurationIn.value) || 0,
+    animDurationOut: Number(motionForm.animDurationOut.value) || 0,
+  };
+}
+
+// Shows only the fields that matter for the picked mode, and spells the cycle out.
+function updateShowUI() {
+  const show = readShow();
+  const rotating = lastSnap?.state?.mode === 'roles_rotate';
+  const tags = new Set([show.alwaysVisible ? 'always' : 'cycle']);
+  if (show.appearEffect === 'slide') tags.add('slide');
+  if (show.alwaysVisible && rotating) tags.add('rotate');
+  motionForm.querySelectorAll('[data-show]').forEach((el) => {
+    const need = el.dataset.show.split(' ');
+    // "cycle slide": needs both; "cycle rotate": either one.
+    el.hidden = need.includes('slide')
+      ? !need.every((t) => tags.has(t))
+      : !need.some((t) => tags.has(t));
+  });
+  const label = document.getElementById('staySecLabel');
+  if (label) label.textContent = t(show.alwaysVisible ? 'show.rotateEvery' : 'show.stay');
+  const stay = msToSec(show.animStayTime);
+  const hidden = msToSec(show.hiddenTime);
+  let key;
+  if (show.alwaysVisible) key = rotating && show.animStayTime > 0 ? 'show.sumAlwaysRotate' : 'show.sumAlways';
+  else if (show.animStayTime <= 0) key = 'show.sumNoHide';
+  else if (show.hiddenTime <= 0) key = rotating ? 'show.sumNoReturnRotate' : 'show.sumNoReturn';
+  else key = rotating ? 'show.sumCycleRotate' : 'show.sumCycle';
+  const sum = document.getElementById('showSummary');
+  if (sum) sum.textContent = t(key, { stay, hidden });
+}
+
+// Defaults match a fresh install.
+const SHOW_DEFAULTS = {
+  alwaysVisible: false, appearEffect: 'slide', animDirection: 'left',
+  animStayTime: 10000, hiddenTime: 8000, animDurationIn: 500, animDurationOut: 500,
+};
+const EFFECT_DEFAULTS = {
+  fillStyle: 'liquid', rankFx: 'classic', emptyEffect: 'drain', fillLimit: 10,
+  fillDurationMs: 650, emptyDurationMs: 1600, numberAnimMs: 500, vesselWave: true, idlePulse: true,
+};
+
+motionForm.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-reset]');
+  if (!btn) return;
+  if (btn.dataset.reset === 'show') fillShow(SHOW_DEFAULTS);
+  else fillMotion({ ...readMotion(), ...EFFECT_DEFAULTS });
+  // Same path as a manual edit: preview updates and the change auto-saves (with Undo).
+  motionForm.dispatchEvent(new Event('change', { bubbles: true }));
+  pushPreviewSettings();
+});
+
+motionForm.addEventListener('input', updateShowUI);
+motionForm.addEventListener('change', updateShowUI);
+window.addEventListener('admin-i18n', updateShowUI);
 
 function readMotion() {
   return {
@@ -360,7 +446,7 @@ function readMotion() {
     rankFx: motionForm.rankFx?.value || 'classic',
     vesselWave: !!motionForm.vesselWave.checked,
     idlePulse: !!motionForm.idlePulse.checked,
-    alwaysVisible: !!motionForm.alwaysVisible.checked,
+    ...readShow(),
   };
 }
 
@@ -369,6 +455,7 @@ function fillAppearance(settings) {
   form.bgColorPicker.value = parsed.hex;
   form.bgAlpha.value = String(parsed.alpha);
   form.bgColor.value = settings.bgColor || buildBgColor();
+  if (form.scale) form.scale.value = String(settings.scale || 100);
   if (settings.winsColor?.startsWith('#')) form.winsColor.value = settings.winsColor;
   if (settings.lossesColor?.startsWith('#')) form.lossesColor.value = settings.lossesColor;
   if (settings.rankTextColor?.startsWith('#')) form.rankTextColor.value = settings.rankTextColor;
@@ -378,7 +465,6 @@ function fillAppearance(settings) {
   fillSeparatorColor(settings.separatorColor || 'rgba(255,255,255,0.55)');
   if (form.layout) form.layout.value = settings.layout || 'detailed';
   fillCardFx(settings.cardFx);
-  if (form.appearEffect) form.appearEffect.value = settings.appearEffect || 'slide';
   if (settings.font) {
     if (![...fontSelect.options].some((o) => o.value === settings.font)) {
       const opt = document.createElement('option');
@@ -390,11 +476,6 @@ function fillAppearance(settings) {
     window.loadGoogleFont?.(settings.font);
   }
   form.fontSize.value = settings.fontSize || 16;
-  form.animDirection.value = settings.animDirection || 'left';
-  form.animDurationIn.value = settings.animDurationIn ?? 500;
-  form.animStayTime.value = settings.animStayTime ?? 10000;
-  form.animDurationOut.value = settings.animDurationOut ?? 500;
-  form.hiddenTime.value = settings.hiddenTime ?? 8000;
   setBgPreview(settings.bgImage || '');
   selectedSkinId = settings.skinId || selectedSkinId;
   if (settings.uiLang === 'en' || settings.uiLang === 'ru') {
@@ -453,6 +534,7 @@ function readAppearance() {
     bgImage: form.bgImage.value,
     font: form.font.value,
     fontSize: Number(form.fontSize.value) || 16,
+    scale: Number(form.scale?.value) || 100,
     winsColor: form.winsColor.value,
     lossesColor: form.lossesColor.value,
     rankTextColor: form.rankTextColor.value,
@@ -461,12 +543,6 @@ function readAppearance() {
     separatorColor: buildSeparatorColor(),
     layout: form.layout?.value || 'detailed',
     cardFx: readCardFx(),
-    appearEffect: form.appearEffect?.value || 'slide',
-    animDirection: form.animDirection.value,
-    animDurationIn: Number(form.animDurationIn.value) || 0,
-    animStayTime: Number(form.animStayTime.value) || 0,
-    animDurationOut: Number(form.animDurationOut.value) || 0,
-    hiddenTime: Number(form.hiddenTime.value) || 0,
     skinId: selectedSkinId,
     uiLang,
     uiTheme,
@@ -565,6 +641,7 @@ function renderModeRole(view) {
 function renderState(snapOrState) {
   if (snapOrState?.state || snapOrState?.view || snapOrState?.settings) {
     lastSnap = snapOrState;
+    if (typeof updateShowUI === 'function' && motionForm.staySec) updateShowUI();
   }
   const view = snapOrState?.view || snapOrState?.state
     ? viewFromSnap(snapOrState)
@@ -1364,6 +1441,13 @@ function connectWS() {
   ws.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
     if (msg.state || msg.view) renderState(msg);
+    // The widget can be rescaled from OBS (stretching the source); keep the form in
+    // step so the next save does not put the old scale back.
+    const scale = msg.type === 'settings' ? msg.settings?.scale : 0;
+    if (scale && form.scale && Number(form.scale.value) !== scale) {
+      form.scale.value = String(scale);
+      pushPreviewSettings();
+    }
   });
   ws.addEventListener('close', () => {
     setStatusKey('status.reconnect');

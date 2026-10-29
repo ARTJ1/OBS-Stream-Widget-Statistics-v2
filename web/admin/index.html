@@ -292,6 +292,8 @@
                 <div class="form-grid">
               <label><span data-i18n="look.font">Шрифт</span> <select name="font" id="fontSelect"></select></label>
               <label><span data-i18n="look.fontSize">Размер шрифта</span> <input name="fontSize" type="number" min="10" max="64" value="16"></label>
+              <label><span data-i18n="look.scale">Масштаб на сцене, %</span> <input name="scale" type="number" min="25" max="500" step="5" value="100"></label>
+              <p class="setup-note full" data-i18n="look.scaleNote">Растяните виджет мышкой в OBS — масштаб подстроится сам, а текст останется чётким.</p>
               <label data-uses="vessels" class="full"><span data-i18n="look.vesselStyle">Стиль иконок (пара)</span>
                 <select name="vesselStyle" id="vesselStyleSelect">
                   <option value="classic">Classic — trophy / skull</option>
@@ -324,36 +326,6 @@
                 </div>
                 <input id="bgFileInput" type="file" accept="image/*" hidden>
               </div>
-              </fieldset>
-              <fieldset class="group">
-                <legend data-i18n="look.groupShow">Появление и скрытие</legend>
-                <div class="form-grid">
-              <label><span data-i18n="look.appear">Стиль появления</span>
-                <select name="appearEffect">
-                  <option value="slide" data-i18n="appear.slide">Слайд</option>
-                  <option value="fade" data-i18n="appear.fade">Фейд</option>
-                  <option value="bounce" data-i18n="appear.bounce">Прыжок</option>
-                  <option value="zoom" data-i18n="appear.zoom">Зум</option>
-                </select>
-              </label>
-              <label><span data-i18n="look.dir">Направление (для слайда)</span>
-                <select name="animDirection">
-                  <option value="left" data-i18n="dir.left">Слева</option>
-                  <option value="right" data-i18n="dir.right">Справа</option>
-                  <option value="top" data-i18n="dir.top">Сверху</option>
-                  <option value="bottom" data-i18n="dir.bottom">Снизу</option>
-                </select>
-              </label>
-                </div>
-                <details class="advanced">
-                  <summary data-i18n="look.timings">Тайминги (мс)</summary>
-                  <div class="form-grid">
-              <label><span data-i18n="look.msIn">Появление (мс)</span> <input name="animDurationIn" type="number" min="0" step="50" value="500"></label>
-              <label><span data-i18n="look.msStay">Показ (мс)</span> <input name="animStayTime" type="number" min="0" step="100" value="10000"></label>
-              <label><span data-i18n="look.msOut">Исчезновение (мс)</span> <input name="animDurationOut" type="number" min="0" step="50" value="500"></label>
-              <label><span data-i18n="look.msHidden">Пауза скрытия (мс)</span> <input name="hiddenTime" type="number" min="0" step="100" value="8000"></label>
-                  </div>
-                </details>
               </fieldset>
               <!-- The layout is picked on the "Layout" page; the field stays here so it is saved with the look. -->
               <div class="sr-only">
@@ -390,7 +362,50 @@
             <h2 data-i18n="motion.title">Анимации</h2>
             <p class="layout-hidden-note" hidden></p>
             <p class="setup-note" data-uses="vessels" data-i18n="motion.note">Кубок/череп заливаются жидкостью. Ранг играет в выбранном стиле — в покое тоже. Смотри справа в превью.</p>
-            <form id="motionForm" class="form-grid">
+            <form id="motionForm" class="settings-groups">
+              <fieldset class="group show-group">
+                <legend data-i18n="show.title">Показ на стриме</legend>
+                <div class="show-modes" role="radiogroup">
+                  <label class="show-mode"><input type="radio" name="showMode" value="cycle">
+                    <span><strong data-i18n="show.cycle">Появляется и прячется</strong><em data-i18n="show.cycleHint">Виден несколько секунд, прячется и после паузы появляется снова. На победу, поражение и смену ранга появляется сразу.</em></span></label>
+                  <label class="show-mode"><input type="radio" name="showMode" value="always">
+                    <span><strong data-i18n="show.always">Всегда на экране</strong><em data-i18n="show.alwaysHint">Не прячется, без появления и скрытия.</em></span></label>
+                </div>
+                <div class="form-grid">
+                  <label data-show="cycle"><span data-i18n="look.appear">Стиль появления</span>
+                    <select name="appearEffect">
+                      <option value="slide" data-i18n="appear.slide">Слайд</option>
+                      <option value="fade" data-i18n="appear.fade">Фейд</option>
+                      <option value="bounce" data-i18n="appear.bounce">Прыжок</option>
+                      <option value="zoom" data-i18n="appear.zoom">Зум</option>
+                    </select>
+                  </label>
+                  <label data-show="cycle slide"><span data-i18n="look.dir">Направление (для слайда)</span>
+                    <select name="animDirection">
+                      <option value="left" data-i18n="dir.left">Слева</option>
+                      <option value="right" data-i18n="dir.right">Справа</option>
+                      <option value="top" data-i18n="dir.top">Сверху</option>
+                      <option value="bottom" data-i18n="dir.bottom">Снизу</option>
+                    </select>
+                  </label>
+                  <label data-show="cycle rotate"><span id="staySecLabel" data-i18n="show.stay">Виден, секунд</span> <input name="staySec" type="number" min="0" max="3600" step="0.5" value="10"></label>
+                  <label data-show="cycle"><span data-i18n="show.hidden">Спрятан, секунд</span> <input name="hiddenSec" type="number" min="0" max="3600" step="0.5" value="8"></label>
+                </div>
+                <div class="show-foot">
+                  <p class="show-summary" id="showSummary"></p>
+                  <button type="button" class="ghost reset-btn" data-reset="show" data-i18n="show.reset">Вернуть по умолчанию</button>
+                </div>
+                <details class="advanced" data-show="cycle">
+                  <summary data-i18n="show.speed">Скорость появления и исчезновения</summary>
+                  <div class="form-grid">
+                    <label><span data-i18n="look.msIn">Появление (мс)</span> <input name="animDurationIn" type="number" min="0" step="50" value="500"></label>
+                    <label><span data-i18n="look.msOut">Исчезновение (мс)</span> <input name="animDurationOut" type="number" min="0" step="50" value="500"></label>
+                  </div>
+                </details>
+              </fieldset>
+              <fieldset class="group">
+                <legend data-i18n="show.effects">Эффекты</legend>
+                <div class="form-grid">
               <label data-uses="vessels"><span data-i18n="motion.fillStyle">Стиль заливки</span>
                 <select name="fillStyle">
                   <option value="liquid" data-i18n="fill.liquid">Жидкость (волны)</option>
@@ -427,11 +442,14 @@
               </label>
               <label data-uses="vessels"><span data-i18n="motion.empty">Эффект опустошения</span>
                 <select name="emptyEffect">
-                  <option value="drain" data-i18n="empty.drain">Слив вниз</option>
+                  <option value="drain" data-i18n="empty.drain">Растворение</option>
                   <option value="splash" data-i18n="empty.splash">Всплеск</option>
                   <option value="burst" data-i18n="empty.burst">Вспышка</option>
                   <option value="pour" data-i18n="empty.pour">Выливание</option>
                   <option value="fade" data-i18n="empty.fade">Затухание</option>
+                  <option value="steam" data-i18n="empty.steam">Испарение</option>
+                  <option value="pixel" data-i18n="empty.pixel">Пиксели</option>
+                  <option value="bubbles" data-i18n="empty.bubbles">Мыльные пузыри</option>
                 </select>
               </label>
               <label data-uses="vessels"><span data-i18n="motion.fillLimit">Порог опустошения</span> <input name="fillLimit" type="number" min="1" max="50" value="10"></label>
@@ -440,7 +458,11 @@
               <label><span data-i18n="motion.numMs">Анимация цифр (мс)</span> <input name="numberAnimMs" type="number" min="100" step="50" value="500"></label>
               <label data-uses="vessels" class="check-field"><input name="vesselWave" type="checkbox" checked> <span data-i18n="motion.wave">Живая волна на поверхности</span></label>
               <label class="check-field"><input name="idlePulse" type="checkbox" checked> <span data-i18n="motion.idle">Эффект ранга в покое</span></label>
-              <label class="check-field"><input name="alwaysVisible" type="checkbox"> <span data-i18n="motion.alwaysVisible">Без анимации — виджет виден всегда</span></label>
+                </div>
+                <div class="show-foot group-foot">
+                  <button type="button" class="ghost reset-btn" data-reset="effects" data-i18n="show.reset">Вернуть по умолчанию</button>
+                </div>
+              </fieldset>
             </form>
           </section>
         </section>
@@ -730,5 +752,6 @@
   <script src="faq.js"></script>
   <script src="admin.js"></script>
   <script src="studio.js"></script>
+<script src="fx-picker.js"></script>
 </body>
 </html>
