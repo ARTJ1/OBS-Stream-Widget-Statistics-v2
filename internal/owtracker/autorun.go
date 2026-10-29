@@ -93,23 +93,21 @@ func (t *Tracker) autoTick(gameForeground bool) time.Duration {
 	t.autoMu.Lock()
 	cooling := !t.flow.armed() && now.Sub(t.flow.lastCount) < flowMinMatchGap
 	t.autoMu.Unlock()
-	if cooling {
-		// Just counted a match: no new one can end this soon. Only the auto rank
-		// reader looks at frames now (for the post-match progress screen).
-		t.state.Store(StateMenu)
-		if t.rank.active() && t.rankOn.Load() {
-			return t.rankTick(gameForeground, now)
-		}
-		t.setRankWatching(false)
-		return 5 * time.Second
-	}
-	if t.rank.active() {
-		// Cooldown over: commit a lone read, or give up on this match.
-		if t.rankOn.Load() {
-			t.feedRank(now.Add(rankWatchFor), RankRead{})
-		}
+	if t.rank.active() && !t.rankOn.Load() {
 		t.rank.stop()
 		t.setRankWatching(false)
+	}
+	if t.rank.active() {
+		// Just counted a match, or the progress screen is still up: no new match
+		// can end now. Only the auto rank reader looks at frames (the watch ends
+		// itself once the screen closes or never showed).
+		t.state.Store(StateMenu)
+		return t.rankTick(gameForeground, now)
+	}
+	if cooling {
+		t.setRankWatching(false)
+		t.state.Store(StateMenu)
+		return 5 * time.Second
 	}
 	if t.cnn == nil {
 		t.state.Store(StateInactive)

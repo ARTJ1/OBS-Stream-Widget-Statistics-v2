@@ -106,44 +106,106 @@ func TestRankIndex(t *testing.T) {
 
 func TestRankWatch(t *testing.T) {
 	now := time.Now()
+	at := func(d time.Duration) time.Time { return now.Add(d) }
 	em3 := RankRead{Role: "damage", Tier: "Emerald", Division: 3, Rank: RankIndex("Emerald", 3)}
 	animating := RankRead{Role: "damage"}
-
-	// Two equal reads confirm at once.
 	var w rankWatch
+
+	// Two equal reads do not commit while the screen is up; the screen closing does.
 	w.start(now)
-	if _, ok := w.observe(now, animating); ok {
-		t.Fatal("role-only read confirmed")
+	w.observe(at(0), animating)
+	w.observe(at(250*time.Millisecond), em3)
+	if _, ok := w.observe(at(500*time.Millisecond), em3); ok {
+		t.Fatal("committed with the screen still up")
 	}
-	if _, ok := w.observe(now, em3); ok {
-		t.Fatal("confirmed after one read")
+	if _, ok := w.observe(at(time.Second), RankRead{}); ok {
+		t.Fatal("committed before the screen was gone for rankGoneAfter")
 	}
-	got, ok := w.observe(now, em3)
-	if !ok || got != em3 {
-		t.Fatalf("got %+v %v", got, ok)
+	if got, ok := w.observe(at(500*time.Millisecond+rankGoneAfter), RankRead{}); !ok || got != em3 {
+		t.Fatalf("screen closed: %+v %v", got, ok)
 	}
 	if w.active() {
-		t.Fatal("still active after confirm")
+		t.Fatal("still active after commit")
 	}
 
 	// A single read commits once the screen is gone.
 	w.start(now)
-	w.observe(now, em3)
-	for i := 0; i < rankGoneFrames-1; i++ {
-		if _, ok := w.observe(now, RankRead{}); ok {
-			t.Fatal("committed too early")
-		}
-	}
-	if got, ok := w.observe(now, RankRead{}); !ok || got != em3 {
+	w.observe(at(0), em3)
+	if got, ok := w.observe(at(rankGoneAfter), RankRead{}); !ok || got != em3 {
 		t.Fatalf("lone read: %+v %v", got, ok)
 	}
 
-	// Nothing read: the watch ends at the deadline with no rank.
+	// Nothing read: the watch ends after the search window with no rank.
 	w.start(now)
-	if _, ok := w.observe(now.Add(rankWatchFor), RankRead{}); ok {
+	if _, ok := w.observe(at(rankSearchFor-time.Second), RankRead{}); ok || !w.active() {
+		t.Fatal("ended before the search window")
+	}
+	if _, ok := w.observe(at(rankSearchFor), RankRead{}); ok {
 		t.Fatal("rank from nothing")
 	}
 	if w.active() {
-		t.Fatal("still active after deadline")
+		t.Fatal("still active after the search window")
+	}
+}
+
+// A rank-up left on screen: the old rank shows first, then the new one (seen
+// live: Emerald 2 -> Emerald 1 read as Emerald 2).
+func TestRankWatchRankUp(t *testing.T) {
+	now := time.Now()
+	em2 := RankRead{Role: "damage", Tier: "Emerald", Division: 2, Rank: RankIndex("Emerald", 2)}
+	em1 := RankRead{Role: "damage", Tier: "Emerald", Division: 1, Rank: RankIndex("Emerald", 1)}
+	var w rankWatch
+	w.start(now)
+	tick := time.Duration(0)
+	feed := func(r RankRead, n int) (RankRead, bool) {
+		for i := 0; i < n; i++ {
+			if got, ok := w.observe(now.Add(40*time.Second+tick), r); ok {
+				return got, ok
+			}
+			tick += rankPoll
+		}
+		return RankRead{}, false
+	}
+	if got, ok := feed(em2, 16); ok { // bar filling, 4 s
+		t.Fatalf("committed the old rank %+v", got)
+	}
+	if got, ok := feed(RankRead{Role: "damage"}, 6); ok { // rank-up flash
+		t.Fatalf("committed during the animation: %+v", got)
+	}
+	// The new rank stays on screen: committed after rankSettle.
+	got, ok := feed(em1, int(rankSettle/rankPoll)+2)
+	if !ok || got != em1 {
+		t.Fatalf("got %+v %v, want %+v", got, ok, em1)
+	}
+	if tick > 4*time.Second+6*rankPoll+rankSettle+rankPoll {
+		t.Errorf("committed late: %s after the screen showed", tick)
+	}
+}
+
+// The screen shows late in the search window and stays: followed past it.
+func TestRankWatchPastSearchWindow(t *testing.T) {
+	now := time.Now()
+	em1 := RankRead{Role: "tank", Tier: "Gold", Division: 1, Rank: RankIndex("Gold", 1)}
+	var w rankWatch
+	w.start(now)
+	d := rankSearchFor - time.Second
+	for ; d < rankSearchFor+5*time.Second; d += rankPoll {
+		if got, ok := w.observe(now.Add(d), em1); ok {
+			t.Fatalf("committed at %s: %+v", d, got)
+		}
+	}
+	if got, ok := w.observe(now.Add(d+rankGoneAfter), RankRead{}); !ok || got != em1 {
+		t.Fatalf("got %+v %v", got, ok)
+	}
+
+	// A screen that never closes and never settles (label always animating)
+	// still ends at rankWatchMax.
+	w.start(now)
+	w.observe(now.Add(time.Minute), em1)
+	for d := time.Minute; d < rankWatchMax; d += time.Second {
+		w.observe(now.Add(d), RankRead{Role: "tank"})
+	}
+	if got, ok := w.observe(now.Add(rankWatchMax), RankRead{Role: "tank"}); !ok || got != em1 {
+		t.Fatalf("at the cap: %+v %v", got, ok)
 	}
 }

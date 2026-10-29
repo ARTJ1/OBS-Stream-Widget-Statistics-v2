@@ -7,8 +7,9 @@ import (
 	"time"
 )
 
-// Live auto rank (alpha): runs only during the post-match cooldown, after a
-// counted win/loss, while the banner detector captures nothing.
+// Live auto rank (alpha): runs after a counted win/loss, during the post-match
+// cooldown and for as long as the progress screen stays up after it, while the
+// banner detector captures nothing.
 
 // rankFrameWidth: OBS frame width for the reader (crops are rescaled for OCR).
 const rankFrameWidth = 1280
