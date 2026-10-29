@@ -49,6 +49,16 @@ func (ft *rankFlowTracker) endCooldown() {
 	ft.flow.lastCount = time.Now().Add(-flowMinMatchGap - time.Second)
 	ft.flow.lastBanner = ft.flow.lastCount
 	ft.autoMu.Unlock()
+	if ft.rank.active() {
+		ft.rank.started = ft.flow.lastCount
+	}
+}
+
+// screenGone moves the last progress-screen read back past rankGoneAfter.
+func (ft *rankFlowTracker) screenGone() {
+	if !ft.rank.seenAt.IsZero() {
+		ft.rank.seenAt = ft.rank.seenAt.Add(-rankGoneAfter)
+	}
 }
 
 var (
@@ -62,16 +72,21 @@ func TestAutoRankFlowConfirms(t *testing.T) {
 	if !ft.rank.active() || !ft.Status().RankWatch {
 		t.Fatal("watch not started after a counted match")
 	}
-	for i := 0; i < 10 && len(ft.applied) == 0; i++ {
+	for i := 0; i < 6; i++ {
 		if d := ft.autoTick(false); d < rankMinPause || d > rankPoll {
 			t.Fatalf("tick %d during the watch returned %s, want up to %s", i, d, rankPoll)
 		}
 	}
+	if len(ft.applied) != 0 {
+		t.Fatalf("applied %+v with the screen still up", ft.applied)
+	}
+	ft.screenGone()
+	ft.autoTick(false)
 	if len(ft.applied) != 1 || ft.applied[0] != em2 {
 		t.Fatalf("applied %+v, want one %+v", ft.applied, em2)
 	}
-	if ft.calls != 4 {
-		t.Errorf("reader calls = %d, want 4 (confirm on the 2nd equal read)", ft.calls)
+	if ft.calls != 7 {
+		t.Errorf("reader calls = %d, want 7 (commit once the screen closed)", ft.calls)
 	}
 	for _, w := range ft.widths {
 		if w != rankFrameWidth {
@@ -110,6 +125,8 @@ func TestAutoRankFlowDryRun(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		ft.autoTick(false)
 	}
+	ft.screenGone()
+	ft.autoTick(false)
 	if len(ft.applied) != 0 {
 		t.Errorf("dry run applied %+v", ft.applied)
 	}
@@ -118,20 +135,23 @@ func TestAutoRankFlowDryRun(t *testing.T) {
 	}
 }
 
-func TestAutoRankFlowLoneReadAtCooldownEnd(t *testing.T) {
-	// One good read, then the screen is still "there" (role only) until the cooldown ends.
-	ft := newRankFlowTracker(t, true, em2, roleOnly, roleOnly)
+func TestAutoRankFlowScreenUpPastCooldown(t *testing.T) {
+	// One good read, then the screen is still "there" (role only) when the
+	// cooldown ends: the watch follows it until it closes.
+	ft := newRankFlowTracker(t, true, em2, roleOnly, roleOnly, roleOnly)
 	ft.countMatch()
 	for i := 0; i < 3; i++ {
 		ft.autoTick(false)
 	}
-	if len(ft.applied) != 0 {
-		t.Fatalf("applied before the cooldown ended: %+v", ft.applied)
-	}
 	ft.endCooldown()
 	ft.autoTick(false)
+	if len(ft.applied) != 0 || !ft.rank.active() {
+		t.Fatalf("watch ended with the screen up: applied %+v", ft.applied)
+	}
+	ft.screenGone()
+	ft.autoTick(false)
 	if len(ft.applied) != 1 || ft.applied[0] != em2 {
-		t.Fatalf("lone read not committed at cooldown end: %+v", ft.applied)
+		t.Fatalf("lone read not committed once the screen closed: %+v", ft.applied)
 	}
 	if ft.rank.active() || ft.Status().RankWatch {
 		t.Error("watch still active after the cooldown")
@@ -147,6 +167,7 @@ func TestAutoRankFlowUnreadableLabel(t *testing.T) {
 		ft.autoTick(false)
 	}
 	ft.endCooldown()
+	ft.screenGone()
 	ft.autoTick(false)
 	if len(ft.applied) != 0 {
 		t.Fatalf("applied %+v", ft.applied)
@@ -162,6 +183,8 @@ func TestAutoRankFlowUnreadableLabel(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		ft.autoTick(false)
 	}
+	ft.screenGone()
+	ft.autoTick(false)
 	if st := ft.Status(); st.RankMiss != nil || st.LastRank == nil {
 		t.Errorf("after a good read: miss=%+v last=%+v", st.RankMiss, st.LastRank)
 	}
