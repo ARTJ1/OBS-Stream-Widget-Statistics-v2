@@ -102,6 +102,7 @@ func main() {
 	}
 
 	go srv.Auto.Run(ctx)
+	go srv.WatchOBS(ctx)
 
 	hotkeydrop.Start(ctx, dataDir, started, func(a hotkeydrop.Action) {
 		if a == hotkeydrop.Quit {

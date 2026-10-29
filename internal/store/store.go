@@ -85,11 +85,14 @@ type View struct {
 }
 
 type Settings struct {
-	BgType          string `json:"bgType"`
-	BgColor         string `json:"bgColor"`
-	BgImage         string `json:"bgImage"`
-	Font            string `json:"font"`
-	FontSize        int    `json:"fontSize"`
+	BgType   string `json:"bgType"`
+	BgColor  string `json:"bgColor"`
+	BgImage  string `json:"bgImage"`
+	Font     string `json:"font"`
+	FontSize int    `json:"fontSize"`
+	// Scale renders the widget bigger or smaller (percent, 100 = natural). Stretching
+	// the source in OBS is folded into this so the widget stays sharp.
+	Scale           int    `json:"scale"`
 	WinsColor       string `json:"winsColor"`
 	LossesColor     string `json:"lossesColor"`
 	RankTextColor   string `json:"rankTextColor"`
@@ -100,7 +103,7 @@ type Settings struct {
 	HiddenTime      int    `json:"hiddenTime"`
 	AlwaysVisible   bool   `json:"alwaysVisible"` // skip the show/hide cycle
 
-	Layout         string `json:"layout"` // detailed | mini | card | badge | strip | minimal | column | ring | slant | scoreboard | session | form | ladder | roles | hex | feed | tug | flip | tcard
+	Layout string `json:"layout"` // detailed | mini | card | badge | strip | minimal | column | ring | slant | scoreboard | session | form | ladder | roles | hex | feed | tug | flip | tcard
 	// CardFx: trading-card reactions, comma list of stars|flip|heat|shine|float, or "none".
 	CardFx         string `json:"cardFx"`
 	IconColor      string `json:"iconColor"`
@@ -174,6 +177,7 @@ func DefaultSettings() Settings {
 		BgImage:         "",
 		Font:            "Arial, sans-serif",
 		FontSize:        16,
+		Scale:           100,
 		WinsColor:       "#00ff00",
 		LossesColor:     "#ff0000",
 		RankTextColor:   "#ffffff",
@@ -453,6 +457,7 @@ func (s *Store) clamp() {
 	if s.settings.FontSize <= 0 {
 		s.settings.FontSize = 16
 	}
+	s.settings.Scale = ClampScale(s.settings.Scale)
 	if s.settings.AnimDirection == "" {
 		s.settings.AnimDirection = "left"
 	}
@@ -1073,4 +1078,23 @@ func (s *Store) UpdateSettings(next Settings) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	return s.snapLocked(), nil
+}
+
+// Widget scale limits, in percent.
+const (
+	MinScale = 25
+	MaxScale = 500
+)
+
+// ClampScale keeps a widget scale in range; 0 (not set) means 100.
+func ClampScale(v int) int {
+	switch {
+	case v <= 0:
+		return 100
+	case v < MinScale:
+		return MinScale
+	case v > MaxScale:
+		return MaxScale
+	}
+	return v
 }

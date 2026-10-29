@@ -110,13 +110,17 @@
     thumbsBuilt = true;
     layoutGrid.innerHTML = [...layoutSelect.options].map((opt) => `
       <button type="button" class="layout-tile" data-layout="${opt.value}" aria-pressed="false">
-        <span class="layout-thumb"><iframe data-layout="${opt.value}" src="/overlay/?preview=1" tabindex="-1" aria-hidden="true" loading="lazy"></iframe></span>
+        <span class="layout-thumb"><iframe data-layout="${opt.value}" src="/overlay/?preview=1&nows=1&still=1&layout=${opt.value}" tabindex="-1" aria-hidden="true"></iframe></span>
         <span class="layout-name"></span>
       </button>`).join('');
     thumbFrames().forEach((frame) => frame.addEventListener('load', () => setTimeout(schedulePushThumbs, 150)));
     labelLayouts();
     markActiveLayout();
   }
+
+  // Load the thumbnails in the background right after the admin opens, so the page
+  // is ready (no loading, no slide-in) the first time it is shown.
+  setTimeout(buildThumbs, 1500);
 
   layoutGrid.addEventListener('click', (e) => {
     const tile = e.target.closest('.layout-tile');

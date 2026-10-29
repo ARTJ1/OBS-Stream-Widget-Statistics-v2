@@ -43,3 +43,11 @@ func TestSessionStartRankClassic(t *testing.T) {
 		t.Fatalf("view = %+v", snap.View)
 	}
 }
+
+func TestClampScale(t *testing.T) {
+	for in, want := range map[int]int{0: 100, -5: 100, 10: MinScale, 100: 100, 164: 164, 900: MaxScale} {
+		if got := ClampScale(in); got != want {
+			t.Errorf("ClampScale(%d) = %d, want %d", in, got, want)
+		}
+	}
+}

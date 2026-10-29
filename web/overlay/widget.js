@@ -65,9 +65,14 @@ function generateApexTier(type) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const isPreview = new URLSearchParams(location.search).get('preview') === '1';
+  const PREVIEW_LAYOUT = isPreview ? new URLSearchParams(location.search).get('layout') : null;
+  const PREVIEW_STILL = isPreview && new URLSearchParams(location.search).get('still') === '1';
   if (isPreview) {
     document.documentElement.classList.add('preview-mode');
     document.body.style.background = 'transparent';
+    // Admin tiles preview a single part: ?solo=vessel (the trophy) or ?solo=rank.
+    const solo = new URLSearchParams(location.search).get('solo');
+    if (solo === 'vessel' || solo === 'rank' || solo === 'icons') document.documentElement.classList.add('solo', `solo-${solo}`);
   }
 
   const dom = {
@@ -146,6 +151,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let reappearDelayMs = 8000;
   let animDirection = 'left';
   let alwaysVisible = false;
+  // Widget scale and Browser Source size (OBS only), see applyWidgetScale.
+  let widgetZoom = 1;
+  let settingsApplied = false;
+  let sizeTimer = 0;
+  let sizeMax = [0, 0];
+  let sizeSent = '';
+  let sizeLook = null; // look the current size belongs to (null until the first settings)
+  let sizeExact = false;
   let waveRaf = 0;
   let waveTime = 0;
 
@@ -321,13 +334,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderFeed() {
     if (!dom.feedList || layout !== 'feed') return;
     const recent = (currentState.recent || []).slice(-3).reverse();
-    const rows = recent.length ? recent : [''];
+    // Always three rows: empty ones are invisible but keep their place, so the
+    // widget (and the OBS source) has its full size before any games are played.
+    const rows = [recent[0] || '', recent[1] || 'slot', recent[2] || 'slot'];
     dom.feedList.innerHTML = rows.map((r, i) => {
-      const cls = r === 'w' ? 'w' : r === 'l' ? 'l' : 'none';
-      const tag = r === 'w' ? 'VICTORY' : r === 'l' ? 'DEFEAT' : 'NO GAMES YET';
+      const cls = r === 'w' ? 'w' : r === 'l' ? 'l' : r === 'slot' ? 'slot' : 'none';
+      const tag = r === 'w' ? 'VICTORY' : r === 'l' ? 'DEFEAT' : r === 'slot' ? 'VICTORY' : 'NO GAMES YET';
       return `<span class="feed-bg ${cls}" style="--row:${i + 1}"></span>`
         + `<span class="feed-tag ${cls}" style="--row:${i + 1}">${tag}</span>`;
-    }).join('');
+    }).join('')
+      // Invisible copies of every label: the label column is always as wide as the
+      // longest one, so the widget doesn't change width with the results.
+      + ['VICTORY', 'DEFEAT', 'NO GAMES YET'].map((t) => `<span class="feed-tag feed-sizer">${t}</span>`).join('')
+      // Session score on the right, the full height of the feed: wins over losses.
+      + `<span class="feed-board"><b class="w">${dom.wins.textContent}</b><i></i><b class="l">${dom.losses.textContent}</b></span>`;
   }
 
   // Tug of war: the knot sits toward whichever side is ahead.
@@ -441,19 +461,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Trading card: turn over to show the result, then turn back.
   let cardFlipTimers = [];
+  let cardFlipDelay = 0;
   function playCardFlip(kind) {
     playCardShine();
     if (layout !== 'tcard' || !cardFx.has('flip') || !dom.tcardBack) return;
-    cardFlipTimers.forEach(clearTimeout);
     const recent = currentState.recent || [];
     let streak = 0;
     for (let i = recent.length - 1; i >= 0 && recent[i] === 'w'; i--) streak++;
     dom.tcardBack.innerHTML = kind === 'w'
       ? `<b class="w">+1 WIN</b><small>${streak >= 2 ? `${streak} IN A ROW` : 'NICE'}</small>`
       : '<b class="l">LOSS</b><small>NEXT ONE</small>';
+    // Already turning: show the latest result on the back, don't start over
+    // (a restart mid-turn looked like the card spinning two or three times).
+    if (dom.widget.classList.contains('card-flip')) {
+      if (dom.widget.classList.contains('card-back-on')) fitCardBack();
+      return;
+    }
+    cardFlipTimers.forEach(clearTimeout);
     dom.widget.classList.remove('card-flip', 'card-back-on');
     void dom.widget.offsetWidth;
     dom.widget.classList.add('card-flip');
+    if (document.body.classList.contains('card-fx-float')) playFloatingFlip();
     // Faces swap while the card is edge-on (12.5% and 87.5% of the 1.6s flip).
     cardFlipTimers = [
       setTimeout(() => {
@@ -463,6 +491,58 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => dom.widget.classList.remove('card-back-on'), 1400),
       setTimeout(() => dom.widget.classList.remove('card-flip'), 1600),
     ];
+  }
+
+  // Flip while floating: one plain transform animation that follows the float
+  // pose frame by frame and adds the turn to it, so the card turns from where the
+  // float has it and ends exactly where the float is by then. Same curves as the
+  // cardFloat / cardFlip keyframes in the CSS.
+  const easeInOut = (x) => {
+    // cubic-bezier(0.42, 0, 0.58, 1)
+    let t = x;
+    for (let i = 0; i < 6; i++) {
+      const bx = 3 * 0.42 * t * (1 - t) ** 2 + 3 * 0.58 * t * t * (1 - t) + t ** 3 - x;
+      const d = 3 * 0.42 * (1 - t) ** 2 + 6 * (0.58 - 0.42) * t * (1 - t) + 3 * (1 - 0.58) * t * t;
+      if (Math.abs(d) < 1e-6) break;
+      t = Math.min(1, Math.max(0, t - bx / d));
+    }
+    return 3 * t * t * (1 - t) + t ** 3;
+  };
+  const FLOAT_MS = 6000;
+  const FLIP_MS = 1600;
+  function floatPose(ms) {
+    const p = (((ms % FLOAT_MS) + FLOAT_MS) % FLOAT_MS) / FLOAT_MS;
+    const k = p < 0.5 ? easeInOut(p * 2) : 1 - easeInOut((p - 0.5) * 2);
+    return { y: -7 + 14 * k, x: 3 - 6 * k, lift: -0.2 * k };
+  }
+  // cardFlip: 0 -> 90 (12.5%), -90 -> 0 (25%), hold, 0 -> 90 (87.5%), -90 -> 0.
+  function flipAngle(p) {
+    const seg = (a, b, from, to) => from + (to - from) * easeInOut((p - a) / (b - a));
+    if (p < 0.125) return seg(0, 0.125, 0, 90);
+    if (p < 0.25) return seg(0.125, 0.25, -90, 0);
+    if (p < 0.75) return 0;
+    if (p < 0.875) return seg(0.75, 0.875, 0, 90);
+    return seg(0.875, 1, -90, 0);
+  }
+  let floatingFlip = null;
+  function playFloatingFlip() {
+    const float = dom.widget.getAnimations().find((a) => a.animationName === 'cardFloat');
+    if (!float || typeof dom.widget.animate !== 'function') return;
+    const start = Number(float.currentTime) || 0;
+    const frames = [];
+    const STEPS = 64;
+    for (let i = 0; i <= STEPS; i++) {
+      const p = i / STEPS;
+      const f = floatPose(start + p * FLIP_MS);
+      // The float tilt fades out as the card nears edge-on, so the faces swap at exactly ±90°.
+      const pose = (turn) => ({ offset: p, transform: `perspective(40em) rotateY(${f.y * (1 - Math.abs(turn) / 90) + turn}deg) rotateX(${f.x}deg) translateY(${f.lift}em)` });
+      // The edge-on face swap: reach +90, then the same moment from the other side.
+      if (i === STEPS / 8 || i === (STEPS * 7) / 8) frames.push(pose(90), pose(-90));
+      else frames.push(pose(flipAngle(p)));
+    }
+    floatingFlip?.cancel();
+    floatingFlip = dom.widget.animate(frames, { duration: FLIP_MS, easing: 'linear' });
+    floatingFlip.onfinish = () => { floatingFlip = null; };
   }
 
   function renderLayoutExtras() {
@@ -603,6 +683,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     if (prev.__previewLocal && isPreview) merged.__previewLocal = true;
+    // Admin tiles: their layout and a still widget come with the URL, so the tile shows
+    // the right picture from the first frame (no slide-in, no swap to another layout).
+    if (isPreview && PREVIEW_LAYOUT) merged.layout = PREVIEW_LAYOUT;
+    if (isPreview && PREVIEW_STILL) merged.alwaysVisible = true;
     settings = merged;
 
     animDurationIn = (merged.animDurationIn || 500) / 1000;
@@ -610,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     animDurationOut = (merged.animDurationOut || 500) / 1000;
     reappearDelayMs = merged.hiddenTime || 0;
     animDirection = merged.animDirection || 'left';
+    const wasAlwaysVisible = alwaysVisible;
     alwaysVisible = !!merged.alwaysVisible;
     document.body.classList.toggle('always-visible', alwaysVisible);
     fillLimit = merged.fillLimit || 10;
@@ -667,6 +752,150 @@ document.addEventListener('DOMContentLoaded', () => {
       : (merged.bgColor || 'rgba(0,0,0,0.7)');
     ensureWaveLoop();
     fitPreviewWidget();
+    applyWidgetScale(merged.scale, lookKeyOf(merged));
+    // Switching between "always on screen" and the appear/hide cycle takes effect at once.
+    if (!isPreview && wasAlwaysVisible !== alwaysVisible && settingsApplied) {
+      if (alwaysVisible) scheduleHide();
+      else showWidget(false);
+    }
+    settingsApplied = true;
+  }
+
+  // ---------- Scale and Browser Source size (OBS only) ----------
+  // The widget renders at its own scale (CSS zoom keeps text sharp) and tells
+  // the server how much room it needs, so the OBS source always fits it.
+
+  function applyWidgetScale(scale, lookKey) {
+    if (isPreview) return;
+    const z = Math.min(5, Math.max(0.25, (Number(scale) || 100) / 100));
+    widgetZoom = z;
+    document.documentElement.style.setProperty('--widget-zoom', String(z));
+    // Only a new look (layout, scale, font, icon style) re-fits the OBS source exactly.
+    // Start-up and every other update can only grow it: no jumps, no cut-off.
+    if (lookKey === sizeLook) return;
+    if (sizeLook !== null) {
+      sizeExact = true;
+      sizeMax = [0, 0];
+      sizeSent = '';
+    }
+    sizeLook = lookKey;
+    scheduleSizeReport(300);
+  }
+
+  function scheduleSizeReport(delay = 900) {
+    if (isPreview) return;
+    clearTimeout(sizeTimer);
+    sizeTimer = setTimeout(reportWidgetSize, delay);
+  }
+
+  // Measures the widget where it will stand, even while hidden: the appear/hide
+  // transform is switched off for the measurement and put back before anything paints.
+  function measureWidget() {
+    const el = dom.widget;
+    const keep = (prop) => [el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)];
+    const put = (prop, [v, p]) => (v ? el.style.setProperty(prop, v, p) : el.style.removeProperty(prop));
+    const transition = keep('transition');
+    const transform = keep('transform');
+    const moves = ['translate', 'scale'].map(keep);
+    el.style.setProperty('transition', 'none', 'important');
+    el.style.setProperty('transform', 'none', 'important');
+    el.style.setProperty('translate', 'none', 'important');
+    el.style.setProperty('scale', 'none', 'important');
+    const r = el.getBoundingClientRect();
+    const ow = el.offsetWidth;
+    put('transform', transform);
+    put('translate', moves[0]);
+    put('scale', moves[1]);
+    void el.offsetWidth; // settle the old transform while transitions are still off
+    put('transition', transition);
+    // Older Chromium (OBS) may report a zoomed element in its own unzoomed pixels.
+    const k = widgetZoom !== 1 && Math.abs(r.width - ow) < 2 ? widgetZoom : 1;
+    // Same air on the right and bottom as the offset on the left and top.
+    return [Math.ceil((r.right + Math.max(0, r.left)) * k) + 6, Math.ceil((r.bottom + Math.max(0, r.top)) * k) + 6];
+  }
+
+  // Sends the size; resolves once OBS has taken it (the server waits for OBS).
+  async function reportWidgetSize() {
+    // A web font still loading means narrower text: measuring now would be wrong.
+    if (document.fonts && document.fonts.status === 'loading') {
+      scheduleSizeReport(300);
+      return;
+    }
+    const [w, h] = measureWidget();
+    // Rank names and counters change width; keep the largest seen so the source
+    // does not jump on every update (a new look starts from scratch).
+    sizeMax = sizeExact ? [w, h] : [Math.max(sizeMax[0], w), Math.max(sizeMax[1], h)];
+    const key = sizeMax.join('x');
+    if (key === sizeSent && !sizeExact) return;
+    sizeSent = key;
+    try {
+      await fetch('/api/overlay/size', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ width: sizeMax[0], height: sizeMax[1], exact: sizeExact }),
+      });
+      sizeExact = false;
+    } catch {
+      sizeSent = '';
+    }
+  }
+
+  // ---------- Hide while OBS resizes ----------
+  // OBS redraws a Browser Source from scratch when its size changes, which shows as a
+  // blink. So a change that resizes the widget (layout, scale, font, icon style) runs:
+  // hide with the usual animation -> apply -> resize in OBS -> appear in the new look.
+  let lookSwapping = false;
+  let lookSwapNext = null;
+  function lookKeyOf(st) {
+    return [st.layout, st.scale, st.font, st.fontSize, st.vesselStyle].join('|');
+  }
+
+  function needsLookSwap(next) {
+    if (isPreview || sizeLook === null || !next) return false;
+    if (lookKeyOf({ ...settings, ...next }) === sizeLook) return false;
+    return alwaysVisible || dom.widget.classList.contains('visible');
+  }
+
+  async function swapLook(msg) {
+    if (lookSwapping) { lookSwapNext = msg; return; }
+    lookSwapping = true;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const always = alwaysVisible;
+    try {
+      clearTimeout(hideWidgetTimeout);
+      clearTimeout(reappearTimeout);
+      if (always) {
+        dom.widget.style.setProperty('opacity', '0', 'important');
+        await wait(40);
+      } else {
+        dom.widget.classList.remove('visible');
+        dom.widget.classList.add('hide', `from-${animDirection}`);
+        await wait(animDurationOut * 1000 + 60);
+      }
+      applySnapshot(msg, { animate: false, settingsOnly: true });
+      if (document.fonts?.ready) await document.fonts.ready;
+      await wait(60);
+      clearTimeout(sizeTimer);
+      await reportWidgetSize();
+      await wait(180); // OBS redraws the source at its new size
+    } finally {
+      if (alwaysVisible || always) {
+        dom.widget.style.removeProperty('opacity');
+        if (!dom.widget.classList.contains('visible')) showWidget(false);
+      } else {
+        showWidget(false);
+      }
+      lookSwapping = false;
+      if (lookSwapNext) {
+        const m = lookSwapNext;
+        lookSwapNext = null;
+        swapLook(m);
+      }
+    }
+  }
+
+  if (!isPreview && typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => scheduleSizeReport()).observe(dom.widget);
   }
 
   function preferPreviewLocalSettings() {
@@ -811,7 +1040,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const VESSEL_FX_CLASSES = [
     'is-emptying', 'pouring', 'wave-active',
     'vessel-drain-active', 'vessel-splash-active', 'vessel-burst-active',
-    'vessel-pour-active', 'vessel-fade-active',
+    'vessel-pour-active', 'vessel-fade-active', 'vessel-tip-active',
+    'vessel-steam-active', 'vessel-pixel-active', 'vessel-bubbles-active',
   ];
 
   function resetVesselVisual(iconContainer, liquidEl) {
@@ -822,6 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
         iconContainer._pourBlobTimer = 0;
       }
       iconContainer.classList.remove(...VESSEL_FX_CLASSES);
+      clearEmptyFx(iconContainer);
       const stream = iconContainer.querySelector('.pour-stream');
       if (stream) stream.classList.remove('active');
     }
@@ -932,12 +1163,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(finish, duration + 150);
   }
 
+  const EMPTY_EFFECTS = ['drain', 'splash', 'burst', 'pour', 'fade', 'steam', 'pixel', 'bubbles'];
+
   function emptyEffectClass() {
-    if (emptyEffect === 'splash') return 'vessel-splash-active';
-    if (emptyEffect === 'burst') return 'vessel-burst-active';
-    if (emptyEffect === 'pour') return 'vessel-pour-active';
-    if (emptyEffect === 'fade') return 'vessel-fade-active';
-    return 'vessel-drain-active';
+    const fx = EMPTY_EFFECTS.includes(emptyEffect) ? emptyEffect : 'drain';
+    return fx === 'pour' ? 'vessel-tip-active' : `vessel-${fx}-active`;
   }
 
   function wavePath(width, t, amp, phase) {
@@ -1142,13 +1372,338 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ---------- Emptying effects ----------
+  // Positions are in the .vessel-fx layer (it does not tilt); sizes follow the icon so
+  // the effect reads at stream size. The grey body stays visible throughout.
+  const EMPTY_FX_GLOW = 'rgba(255,255,255,0.9)';
+
+  function fxFrame(iconContainer) {
+    const fx = iconContainer.querySelector('.vessel-fx');
+    const svg = iconContainer.querySelector('svg.stat-icon');
+    if (!fx || !svg) return null;
+    const fr = fx.getBoundingClientRect();
+    // getBoundingClientRect is in visual pixels; the layer is laid out in CSS pixels
+    // (they differ under the widget scale or the preview zoom).
+    const k = fr.width > 0 && fx.offsetWidth > 0 ? fr.width / fx.offsetWidth : 1;
+    const rel = (r) => ({ x: (r.left - fr.left) / k, y: (r.top - fr.top) / k, w: r.width / k, h: r.height / k });
+    return { fx, svg, k, rel, W: fx.offsetWidth, H: fx.offsetHeight };
+  }
+
+  // Current liquid surface, as a point in the fx layer at a share of the icon width.
+  function surfacePoint(iconContainer, liquidEl, share = 0.5) {
+    const f = fxFrame(iconContainer);
+    if (!f) return { x: 0, y: 0 };
+    const vb = (f.svg.getAttribute('viewBox') || '0 0 512 512').split(/\s+/).map(Number);
+    const box = f.rel(f.svg.getBoundingClientRect());
+    const scale = Math.min(box.w / vb[2], box.h / vb[3]);
+    const ox = box.x + (box.w - vb[2] * scale) / 2;
+    const oy = box.y + (box.h - vb[3] * scale) / 2;
+    return { x: ox + vb[2] * scale * share, y: oy + (readLiquidY(liquidEl) - vb[1]) * scale };
+  }
+
+  function liquidColor(iconContainer) {
+    return getComputedStyle(iconContainer).getPropertyValue('--pour-color').trim() || '#39ff14';
+  }
+
+  // One particle: position/size in fx-layer pixels, motion as offsets over its life.
+  function fxParticle(iconContainer, o) {
+    const f = fxFrame(iconContainer);
+    if (!f) return;
+    const { x, y, size, color, dx = 0, dy = 0, g = 0, ms = 700, fade = true, glow = false,
+      shrink = 0.4, grow = 1, square = false, spin = 0, blur = 0, css } = o;
+    const p = document.createElement('span');
+    p.className = 'fx-dot';
+    const s = Math.max(2, size);
+    Object.assign(p.style, {
+      width: `${s}px`, height: `${square ? s : s * 1.1}px`, left: `${x - s / 2}px`, top: `${y - s / 2}px`,
+      background: color, borderRadius: square ? '1px' : '50%',
+      boxShadow: glow ? `0 0 ${s}px ${color}` : 'none', filter: blur ? `blur(${blur}px)` : 'none',
+    }, css || {});
+    f.fx.appendChild(p);
+    const t0 = performance.now();
+    const step = (now) => {
+      if (!p.isConnected) return;
+      const t = Math.min(1, (now - t0) / ms);
+      const sc = grow !== 1 ? 1 + (grow - 1) * t : 1 - (1 - shrink) * t;
+      p.style.transform = `translate(${dx * t}px, ${dy * t + g * t * t}px) rotate(${spin * t}deg) scale(${sc})`;
+      if (fade) p.style.opacity = String(1 - t * t);
+      if (t < 1) requestAnimationFrame(step); else p.remove();
+    };
+    requestAnimationFrame(step);
+    // Also removed by time, in case frames are paused (hidden source).
+    setTimeout(() => p.remove(), ms + 300);
+  }
+
+  function clearEmptyFx(iconContainer) {
+    if (!iconContainer) return;
+    clearInterval(iconContainer._fxTimer);
+    iconContainer._fxTimer = 0;
+    iconContainer.querySelectorAll('.fx-dot, .fx-layer').forEach((n) => n.remove());
+    const tilt = iconContainer.querySelector('.vessel-tilt');
+    if (tilt) { tilt.style.removeProperty('transform'); tilt.style.removeProperty('transform-origin'); }
+    const ltilt = iconContainer.querySelector('.liquid-tilt');
+    if (ltilt) ltilt.style.removeProperty('transform');
+    const layer = iconContainer.querySelector('.liquid-layer');
+    if (layer) { layer.style.removeProperty('filter'); layer.style.removeProperty('opacity'); }
+    iconContainer.querySelectorAll('.fx-lip').forEach((n) => n.remove());
+  }
+
+  function fxTween(ms, fn, alive) {
+    return new Promise((done) => {
+      const t0 = performance.now();
+      let finished = false;
+      const end = () => { if (!finished) { finished = true; done(); } };
+      const step = (now) => {
+        if (finished) return;
+        if (!alive()) return end();
+        const t = Math.min(1, (now - t0) / ms);
+        fn(t);
+        if (t < 1) requestAnimationFrame(step); else end();
+      };
+      requestAnimationFrame(step);
+      // Paused frames must not hang the empty: finish on time regardless.
+      setTimeout(() => { if (!finished && alive()) fn(1); end(); }, ms + 200);
+    });
+  }
+
+  function everyMs(iconContainer, ms, fn) {
+    clearInterval(iconContainer._fxTimer);
+    iconContainer._fxTimer = setInterval(fn, ms);
+    return () => { clearInterval(iconContainer._fxTimer); iconContainer._fxTimer = 0; };
+  }
+
+  async function runEmptyEffect(liquidEl, iconContainer, gen) {
+    const alive = () => vesselAlive(iconContainer, gen);
+    const dur = emptyDurationMs;
+    const color = liquidColor(iconContainer);
+    const f0 = fxFrame(iconContainer);
+    if (!f0) {
+      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), dur, easeInOutCubic);
+      return;
+    }
+    const W = f0.W;
+    const emptyY = emptyLiquidY(liquidEl);
+    try {
+      switch (EMPTY_EFFECTS.includes(emptyEffect) ? emptyEffect : 'drain') {
+        case 'splash': await fxSplash(); break;
+        case 'burst': await fxBurst(); break;
+        case 'pour': await fxPour(); break;
+        case 'steam': await fxSteam(); break;
+        case 'pixel': await fxPixel(); break;
+        case 'bubbles': await fxBubbles(); break;
+        default: await fxDissolve();
+      }
+    } finally {
+      clearInterval(iconContainer._fxTimer);
+      iconContainer._fxTimer = 0;
+      const tilt = iconContainer.querySelector('.vessel-tilt');
+      if (tilt) tilt.style.removeProperty('transform');
+      const ltilt = iconContainer.querySelector('.liquid-tilt');
+      if (ltilt) ltilt.style.removeProperty('transform');
+      const layer = liquidEl;
+      layer.style.removeProperty('filter');
+      layer.style.removeProperty('opacity');
+      iconContainer.querySelectorAll('.fx-layer, .fx-lip').forEach((n) => n.remove());
+    }
+
+    // Dissolve: the liquid melts away upward as glowing sparks.
+    async function fxDissolve() {
+      const stop = everyMs(iconContainer, 50, () => {
+        if (!alive()) return stop();
+        const pt = surfacePoint(iconContainer, liquidEl, 0.3 + Math.random() * 0.4);
+        fxParticle(iconContainer, { x: pt.x, y: pt.y, size: W * (0.08 + Math.random() * 0.06), color: Math.random() > 0.4 ? color : '#fff',
+          dx: (Math.random() - 0.5) * W * 0.2, dy: -W * 0.6, ms: 900, glow: true, shrink: 0.2 });
+      });
+      const anim = animateLiquidY(liquidEl, emptyY, dur, easeInOutCubic);
+      await fxTween(dur, (t) => { liquidEl.style.setProperty('opacity', String(1 - t * 0.6), 'important'); }, alive);
+      await anim;
+      stop();
+    }
+
+    // Splash: the icon jumps, the liquid flies out in big drops on an arc.
+    async function fxSplash() {
+      const tilt = iconContainer.querySelector('.vessel-tilt');
+      const jolt = fxTween(380, (t) => tilt?.style.setProperty('transform', `translateY(${-Math.sin(t * Math.PI) * 18}%)`, 'important'), alive);
+      await new Promise((r) => setTimeout(r, 160));
+      for (let i = 0; i < 14; i++) {
+        const pt = surfacePoint(iconContainer, liquidEl, 0.35 + Math.random() * 0.3);
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+        fxParticle(iconContainer, { x: pt.x, y: pt.y, size: W * (0.12 + Math.random() * 0.08), color,
+          dx: Math.cos(a) * W * 0.6, dy: Math.sin(a) * W * 0.75, g: W * 1.3, ms: 750 + Math.random() * 250, shrink: 0.7 });
+      }
+      await jolt;
+      tilt?.style.removeProperty('transform');
+      await animateLiquidY(liquidEl, emptyY, dur * 0.55, easeOutCubic);
+    }
+
+    // Burst: the liquid flashes white, a shock ring and sparks fly out, then it's gone.
+    async function fxBurst() {
+      await fxTween(220, (t) => liquidEl.style.setProperty('filter', `brightness(${1 + t * 2.2}) saturate(${1 - t * 0.6})`, 'important'), alive);
+      const f = fxFrame(iconContainer);
+      const c = surfacePoint(iconContainer, liquidEl, 0.5);
+      const cy = (c.y + f.H * 0.8) / 2;
+      const ring = document.createElement('span');
+      ring.className = 'fx-layer fx-ring';
+      const rs = W * 0.4;
+      Object.assign(ring.style, { width: `${rs}px`, height: `${rs}px`, left: `${f.W / 2 - rs / 2}px`, top: `${cy - rs / 2}px`,
+        borderColor: color, boxShadow: `0 0 ${W * 0.12}px ${color}`, borderWidth: `${Math.max(2, W * 0.05)}px` });
+      f.fx.appendChild(ring);
+      fxTween(520, (t) => { ring.style.transform = `scale(${1 + t * 2.4})`; ring.style.opacity = String(1 - t); }, () => true).then(() => ring.remove());
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        fxParticle(iconContainer, { x: f.W / 2, y: cy, size: W * 0.08, color: i % 2 ? '#fff' : color,
+          dx: Math.cos(a) * W * 0.75, dy: Math.sin(a) * W * 0.75, ms: 520, glow: true, shrink: 0.2 });
+      }
+      writeLiquidY(liquidEl, emptyY);
+      await fxTween(420, (t) => liquidEl.style.setProperty('filter', `brightness(${3.2 - t * 2.2})`, 'important'), alive);
+    }
+
+    // Pour: tip over the left edge of the base, surface stays level, one stream with a
+    // highlight from the lip, a puddle with splashes below.
+    async function fxPour() {
+      const tilt = iconContainer.querySelector('.vessel-tilt');
+      const ltilt = iconContainer.querySelector('.liquid-tilt');
+      const svg = iconContainer.querySelector('svg.stat-icon');
+      const shapeEl = svg?.querySelector('.vessel-shell');
+      const f = fxFrame(iconContainer);
+      if (!tilt || !svg || !shapeEl || !f) { await animateLiquidY(liquidEl, emptyY, dur, easeInOutCubic); return; }
+      // Lip marker on the top-left of the shape; the browser tracks it through the tilt.
+      let bb = { x: 0, y: 0, width: 512, height: 512 };
+      try { bb = shapeEl.getBBox(); } catch { /* keep default */ }
+      const lip = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      lip.setAttribute('class', 'fx-lip');
+      lip.setAttribute('r', '0.5');
+      lip.setAttribute('fill', 'none');
+      lip.setAttribute('cx', String(bb.x + bb.width * 0.2));
+      lip.setAttribute('cy', String(bb.y + bb.height * 0.04));
+      svg.appendChild(lip);
+      const shape = f.rel(shapeEl.getBoundingClientRect());
+      const tr = f.rel(tilt.getBoundingClientRect());
+      const pivotX = shape.x + shape.w * 0.22 - tr.x;
+      tilt.style.setProperty('transform-origin', `${pivotX}px ${shape.y + shape.h - tr.y}px`, 'important');
+      const NS = 'http://www.w3.org/2000/svg';
+      const layer = document.createElementNS(NS, 'svg');
+      layer.setAttribute('class', 'fx-layer fx-pour');
+      layer.setAttribute('width', String(f.W));
+      layer.setAttribute('height', String(f.H));
+      const mk = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
+      const puddle = mk('ellipse', { fill: color, opacity: '0' });
+      const stream = mk('path', { fill: 'none', stroke: color, 'stroke-linecap': 'round' });
+      const shine = mk('path', { fill: 'none', stroke: 'rgba(255,255,255,.6)', 'stroke-linecap': 'round' });
+      layer.append(puddle, stream, shine);
+      f.fx.appendChild(layer);
+      const floor = shape.y + shape.h + W * 0.06;
+      const startY = readLiquidY(liquidEl);
+      const MAX = 38;
+      let puddleR = 0;
+      await fxTween(dur, (t) => {
+        const a = t < 0.2 ? easeOutCubic(t / 0.2) * MAX : t > 0.8 ? (1 - easeInOutCubic((t - 0.8) / 0.2)) * MAX : MAX;
+        tilt.style.setProperty('transform', `rotate(${-a}deg)`, 'important');
+        // keep the surface level in the world while the icon tips
+        ltilt?.style.setProperty('transform', `rotate(${a}deg)`, 'important');
+        const flow = Math.max(0, Math.min(1, (t - 0.14) / 0.64));
+        writeLiquidY(liquidEl, startY + (emptyY - startY) * easeInOutCubic(flow));
+        const lp = f.rel(lip.getBoundingClientRect());
+        const lx = lp.x, ly = lp.y;
+        const left = flow > 0 && flow < 1 ? 1 - easeInOutCubic(flow) : 0;
+        const thick = left > 0.02 ? Math.max(1.6, W * 0.11 * Math.sqrt(left)) : 0;
+        const endX = lx - W * 0.12;
+        const fy = Math.max(floor, ly + W * 0.3);
+        stream.setAttribute('d', `M${lx},${ly} C${lx - W * 0.14},${ly} ${endX},${ly + (fy - ly) * 0.35} ${endX},${fy}`);
+        stream.setAttribute('stroke-width', String(thick));
+        shine.setAttribute('d', `M${lx - thick * 0.25},${ly + thick * 0.2} C${lx - W * 0.13},${ly + thick * 0.2} ${endX - thick * 0.25},${ly + (fy - ly) * 0.4} ${endX - thick * 0.25},${fy - thick}`);
+        shine.setAttribute('stroke-width', String(thick * 0.22));
+        if (thick) {
+          puddleR = Math.min(W * 0.34, puddleR + W * 0.01);
+          if (Math.random() < 0.4) fxParticle(iconContainer, { x: endX, y: fy, size: W * 0.07, color, dx: (Math.random() - 0.5) * W * 0.4, dy: -W * 0.3, g: W * 1.2, ms: 360 });
+        }
+        puddle.setAttribute('cx', String(endX));
+        puddle.setAttribute('cy', String(fy + 1));
+        puddle.setAttribute('rx', String(puddleR));
+        puddle.setAttribute('ry', String(Math.max(1, puddleR * 0.18)));
+        puddle.setAttribute('opacity', puddleR ? String(0.9 * (t > 0.82 ? 1 - (t - 0.82) / 0.18 : 1)) : '0');
+      }, alive);
+      writeLiquidY(liquidEl, emptyY);
+    }
+
+    // Steam: the liquid boils, then leaves as soft puffs of steam.
+    async function fxSteam() {
+      let stop = everyMs(iconContainer, 60, () => {
+        if (!alive()) return stop();
+        const pt = surfacePoint(iconContainer, liquidEl, 0.3 + Math.random() * 0.4);
+        fxParticle(iconContainer, { x: pt.x, y: pt.y + Math.random() * W * 0.25, size: W * 0.07, color: 'rgba(255,255,255,.9)', dy: -W * 0.12, ms: 300, shrink: 1.2 });
+      });
+      await new Promise((r) => setTimeout(r, dur * 0.3));
+      stop();
+      stop = everyMs(iconContainer, 70, () => {
+        if (!alive()) return stop();
+        const pt = surfacePoint(iconContainer, liquidEl, 0.3 + Math.random() * 0.4);
+        fxParticle(iconContainer, { x: pt.x, y: pt.y, size: W * 0.22, color: 'rgba(235,245,255,.55)', dx: (Math.random() - 0.5) * W * 0.3,
+          dy: -W * 0.75, ms: 1100, blur: W * 0.02, grow: 2.2 });
+      });
+      await animateLiquidY(liquidEl, emptyY, dur * 0.7, easeInOutCubic);
+      stop();
+    }
+
+    // Pixels: the liquid breaks up from the top in hard steps, square pixels drop out.
+    async function fxPixel() {
+      const startY = readLiquidY(liquidEl);
+      const steps = 9;
+      for (let i = 1; i <= steps && alive(); i++) {
+        const pt = surfacePoint(iconContainer, liquidEl, 0.5);
+        for (let j = 0; j < 9; j++) {
+          fxParticle(iconContainer, { x: pt.x + (Math.random() - 0.5) * W * 0.6, y: pt.y + W * 0.03, size: W * 0.11, square: true,
+            color: j % 4 ? color : '#ffffff', dx: (Math.random() - 0.5) * W * 0.4, dy: -W * (0.1 + Math.random() * 0.2), g: W * 1.3, ms: 600, shrink: 0.9 });
+        }
+        writeLiquidY(liquidEl, startY + (emptyY - startY) * (i / steps));
+        await new Promise((r) => setTimeout(r, dur / steps));
+      }
+    }
+
+    // Soap bubbles: the liquid leaves as big see-through bubbles that rise and pop.
+    async function fxBubbles() {
+      const stop = everyMs(iconContainer, 170, () => {
+        if (!alive()) return stop();
+        const f = fxFrame(iconContainer);
+        const pt = surfacePoint(iconContainer, liquidEl, 0.3 + Math.random() * 0.4);
+        const size = W * (0.22 + Math.random() * 0.16);
+        const b = document.createElement('span');
+        b.className = 'fx-layer fx-soap';
+        Object.assign(b.style, { width: `${size}px`, height: `${size}px`, left: `${pt.x - size / 2}px`, top: `${pt.y - size / 2}px`,
+          borderColor: color, borderWidth: `${Math.max(1.2, W * 0.025)}px`,
+          background: `radial-gradient(circle at 32% 30%, rgba(255,255,255,.85) 0 12%, ${color}33 30%, ${color}22 70%)` });
+        f.fx.appendChild(b);
+        // Rise is capped so bubbles stay near the widget (the OBS source fits it tightly).
+        const rise = f.H * (0.55 + Math.random() * 0.35), wob = W * 0.06, ms = 900 + Math.random() * 400;
+        fxTween(ms, (t) => { b.style.transform = `translate(${Math.sin(t * 9) * wob}px, ${-rise * easeOutCubic(t)}px) scale(${0.6 + t * 0.5})`; }, () => b.isConnected)
+          .then(() => {
+            if (!b.isConnected) return;
+            b.remove();
+            for (let i = 0; i < 5; i++) {
+              const a = Math.random() * Math.PI * 2;
+              fxParticle(iconContainer, { x: pt.x + Math.sin(9) * wob, y: pt.y - rise, size: W * 0.05, color,
+                dx: Math.cos(a) * W * 0.2, dy: Math.sin(a) * W * 0.2, ms: 260 });
+            }
+          });
+      });
+      await animateLiquidY(liquidEl, emptyY, dur, easeInOutCubic);
+      stop();
+    }
+  }
+
   async function animateFill(liquidEl, iconContainer, from, to) {
     if (!liquidEl || !iconContainer) return;
-    const gen = bumpVesselGen(iconContainer);
     if (from === to) {
+      // A repeat of the same count (e.g. a second update for one win) must not cut a
+      // running empty short: that left the vessel without its grey body.
+      if (iconContainer.classList.contains('is-emptying') || liquidEl.classList.contains('is-filling')) return;
+      bumpVesselGen(iconContainer);
       await setLiquidLevel(liquidEl, to, { instant: true });
       return;
     }
+    // Start clean: an interrupted empty or pour must not leave its classes behind.
+    resetVesselVisual(iconContainer, liquidEl);
+    const gen = vesselGen.get(iconContainer);
 
     await setLiquidLevel(liquidEl, from, { instant: true });
     if (!vesselAlive(iconContainer, gen)) return;
@@ -1185,7 +1740,9 @@ document.addEventListener('DOMContentLoaded', () => {
     await new Promise((r) => setTimeout(r, Math.max(240, Math.floor(fillDurationMs * 0.35))));
     if (!vesselAlive(iconContainer, gen)) return;
 
-    if (emptyEffect === 'fade') {
+    if (emptyEffect !== 'fade') {
+      await runEmptyEffect(liquidEl, iconContainer, gen);
+    } else {
       liquidEl.style.opacity = '1';
       liquidEl.style.transition = `opacity ${emptyDurationMs}ms ease`;
       liquidEl.style.opacity = '0';
@@ -1194,16 +1751,6 @@ document.addEventListener('DOMContentLoaded', () => {
         liquidEl.style.transition = '';
         liquidEl.style.opacity = '1';
       }
-    } else if (emptyEffect === 'pour') {
-      await pourOut(liquidEl, iconContainer, gen);
-    } else if (emptyEffect === 'splash') {
-      spawnSplashDroplets(iconContainer);
-      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs, easeInOutCubic);
-    } else if (emptyEffect === 'burst') {
-      spawnSplashDroplets(iconContainer);
-      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs * 0.85, easeOutCubic);
-    } else {
-      await animateLiquidY(liquidEl, emptyLiquidY(liquidEl), emptyDurationMs, easeInOutCubic);
     }
 
     if (!vesselAlive(iconContainer, gen)) return;
@@ -2032,11 +2579,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function nextRotatedRole() {
+    if (currentState.mode !== 'roles_rotate') return;
+    try {
+      const res = await fetch('/api/role/next', { method: 'POST' });
+      if (res.ok) applyRemoteStateOnly(await res.json());
+    } catch {
+      /* keep previous role if offline */
+    }
+  }
+
   function scheduleHide() {
     clearTimeout(hideWidgetTimeout);
     clearTimeout(reappearTimeout);
     // Preview stays always visible so streamers can tweak look live.
-    if (isPreview || alwaysVisible || animStayTime <= 0) return;
+    if (isPreview) return;
+    if (alwaysVisible) {
+      // Never hides; in role rotation the next role comes up after the same stay time.
+      if (currentState.mode === 'roles_rotate' && animStayTime > 0) {
+        hideWidgetTimeout = setTimeout(async () => {
+          await nextRotatedRole();
+          scheduleHide();
+        }, animStayTime * 1000);
+      }
+      return;
+    }
+    if (animStayTime <= 0) return;
     hideWidgetTimeout = setTimeout(() => {
       dom.widget.classList.remove('visible');
       dom.widget.classList.add('hide', `from-${animDirection}`);
@@ -2045,17 +2613,7 @@ document.addEventListener('DOMContentLoaded', () => {
       stopIdleSparks();
       if (reappearDelayMs > 0) {
         reappearTimeout = setTimeout(async () => {
-          if (currentState.mode === 'roles_rotate') {
-            try {
-              const res = await fetch('/api/role/next', { method: 'POST' });
-              if (res.ok) {
-                const snap = await res.json();
-                applyRemoteStateOnly(snap);
-              }
-            } catch {
-              /* keep previous role if offline */
-            }
-          }
+          await nextRotatedRole();
           showWidget(false);
         }, animDurationOut * 1000 + reappearDelayMs);
       }
@@ -2080,6 +2638,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (revealToken !== showToken || dom.widget.classList.contains('hide')) return;
       dom.widget.classList.add('visible');
       if (appearEffect === 'slide') dom.widget.classList.add(`from-${animDirection}`);
+      // Measure once the appear animation has settled.
+      scheduleSizeReport(Math.round(animDurationIn * 1000) + 200);
     };
     requestAnimationFrame(reveal);
     setTimeout(reveal, 60);
@@ -2112,8 +2672,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     animateNumber(dom.wins, previousState.wins, currentState.wins);
     animateNumber(dom.losses, previousState.losses, currentState.losses);
-    if (currentState.wins > previousState.wins) playCardFlip('w');
-    else if (currentState.losses > previousState.losses) playCardFlip('l');
+    // The card turns over only after it has slid in, or the flip replaces the appear motion.
+    const flipKind = currentState.wins > previousState.wins ? 'w'
+      : currentState.losses > previousState.losses ? 'l' : '';
+    clearTimeout(cardFlipDelay);
+    if (flipKind) cardFlipDelay = setTimeout(() => playCardFlip(flipKind), alwaysVisible ? 0 : Math.round(animDurationIn * 1000));
     await Promise.all([
       animateFill(dom.winsLiquid, dom.winsIconContainer, previousState.wins, currentState.wins),
       animateFill(dom.lossesLiquid, dom.lossesIconContainer, previousState.losses, currentState.losses),
@@ -2125,9 +2688,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (snap.settings) applySettings(snap.settings);
     if (settingsOnly) {
       if (alwaysVisible) {
-        clearTimeout(hideWidgetTimeout);
-        clearTimeout(reappearTimeout);
+        // showWidget / scheduleHide also keep the role rotation timer going.
         if (!dom.widget.classList.contains('visible')) showWidget(false);
+        else scheduleHide();
       }
       if (dom.widget.classList.contains('visible') || isPreview) setRankIdle(idlePulse);
       return;
@@ -2179,6 +2742,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function connectWS() {
+    // Admin tiles get everything over postMessage; a socket each would only add load.
+    if (isPreview && new URLSearchParams(location.search).get('nows') === '1') return;
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = new WebSocket(`${proto}://${location.host}/ws`);
     ws.addEventListener('message', (event) => {
@@ -2213,6 +2778,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (msg.type === 'settings') {
         if (preferPreviewLocalSettings()) return;
+        if (lookSwapping || needsLookSwap(msg.settings)) {
+          swapLook(msg);
+          return;
+        }
         applySnapshot(msg, { animate: false, settingsOnly: true });
         return;
       }

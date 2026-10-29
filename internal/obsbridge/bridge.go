@@ -44,6 +44,15 @@ type Bridge struct {
 
 	gameSource   string // OBS input showing the game (frames.go)
 	gameSourceAt time.Time
+
+	sizeHint [2]int // widget size reported by the overlay
+}
+
+// SetSizeHint remembers the widget size, used when the source is created.
+func (b *Bridge) SetSizeHint(width, height int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.sizeHint = [2]int{width, height}
 }
 
 func New() *Bridge {
@@ -262,7 +271,7 @@ func (b *Bridge) EnsureOnScene(sceneName, overlayURL string) (*EnsureResult, err
 		WithInputName(sourceName).
 		WithInputKind("browser_source").
 		WithSceneItemEnabled(enabled).
-		WithInputSettings(browserSettings(overlayURL)))
+		WithInputSettings(b.newSourceSettings(overlayURL)))
 	if err != nil {
 		b.lastErr = err.Error()
 		return nil, err
@@ -282,7 +291,7 @@ func (b *Bridge) applyBrowserSettings(client *goobs.Client, sourceName, overlayU
 	_, err := client.Inputs.SetInputSettings(inputs.NewSetInputSettingsParams().
 		WithInputName(sourceName).
 		WithOverlay(true).
-		WithInputSettings(browserSettings(overlayURL)))
+		WithInputSettings(map[string]any{"url": overlayURL}))
 	if err != nil {
 		return err
 	}
@@ -296,12 +305,17 @@ func (b *Bridge) refreshBrowserNoCache(client *goobs.Client, sourceName string) 
 	return err
 }
 
-func browserSettings(overlayURL string) map[string]any {
-	// Wide enough for long rank labels / role modes (Predator #NNN, Grandmaster + role).
+// newSourceSettings sizes a new Browser Source to the widget when its size is
+// known; the watcher keeps it fitted afterwards. An existing source keeps its size.
+func (b *Bridge) newSourceSettings(overlayURL string) map[string]any {
+	width, height := 960, 180 // wide enough for long ranks until the widget reports in
+	if b.sizeHint[0] > 0 {
+		width, height = b.sizeHint[0], b.sizeHint[1]
+	}
 	return map[string]any{
 		"url":                 overlayURL,
-		"width":               960,
-		"height":              180,
+		"width":               width,
+		"height":              height,
 		"css":                 "",
 		"shutdown":            false,
 		"restart_when_active": true,

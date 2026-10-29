@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -31,6 +33,7 @@ type Server struct {
 	Skins   *skins.Store
 	Hub     *hub.Hub
 	OBS     *obsbridge.Bridge
+	Watch   *obsbridge.Watcher
 	Runtime runtimeinfo.Info
 	WebFS   fs.FS
 	Updater *update.Checker
@@ -47,6 +50,9 @@ type Server struct {
 
 func New(st *store.Store, skinStore *skins.Store, h *hub.Hub, obs *obsbridge.Bridge, info runtimeinfo.Info, webFS fs.FS, updater *update.Checker) *Server {
 	s := &Server{Store: st, Skins: skinStore, Hub: h, OBS: obs, Runtime: info, WebFS: webFS, Updater: updater, mux: http.NewServeMux()}
+	if obs != nil {
+		s.Watch = obsbridge.NewWatcher(obs, s.foldStretch)
+	}
 	s.syncOBSFromSettings()
 	s.routes()
 	return s
@@ -78,6 +84,60 @@ func (s *Server) RefreshOBSOverlay() {
 		return
 	}
 	_, _ = s.OBS.EnsureOnScene(cfg.ObsScene, s.Runtime.OverlayURL)
+}
+
+// WatchOBS keeps the Browser Source fitted to the widget and sharp; blocks until ctx ends.
+func (s *Server) WatchOBS(ctx context.Context) {
+	if s.Watch != nil {
+		s.Watch.Run(ctx)
+	}
+}
+
+// foldStretch takes a stretch made in OBS into the widget scale and returns
+// the factor actually applied (limits can cut it short).
+func (s *Server) foldStretch(factor float64) float64 {
+	cfg := s.Store.Settings()
+	cur := store.ClampScale(cfg.Scale)
+	next := store.ClampScale(int(math.Round(float64(cur) * factor)))
+	if next == cur {
+		return 1
+	}
+	cfg.Scale = next
+	snap, err := s.Store.UpdateSettings(cfg)
+	if err != nil {
+		return 1
+	}
+	s.Hub.Broadcast("settings", snap)
+	return float64(next) / float64(cur)
+}
+
+// overlaySize: the overlay in OBS reports how much room the widget needs.
+func (s *Server) overlaySize(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Width  int  `json:"width"`
+		Height int  `json:"height"`
+		Exact  bool `json:"exact"` // the look changed: fit exactly (else only grow)
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Width < 16 || body.Height < 16 || body.Width > 7680 || body.Height > 4320 {
+		http.Error(w, "size out of range", http.StatusBadRequest)
+		return
+	}
+	if s.OBS != nil {
+		s.OBS.SetSizeHint(body.Width, body.Height)
+	}
+	// Synchronous: the overlay waits for OBS to take the size before it shows again.
+	if s.Watch != nil {
+		s.Watch.SetSize(body.Width, body.Height, body.Exact)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) Handler() http.Handler {
@@ -114,6 +174,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/obs/disconnect", s.obsDisconnect)
 	s.mux.HandleFunc("/api/obs/scenes", s.obsScenes)
 	s.mux.HandleFunc("/api/obs/ensure", s.obsEnsure)
+	s.mux.HandleFunc("/api/overlay/size", s.overlaySize)
 	s.mux.HandleFunc("/api/upload/bg", s.uploadBg)
 	s.mux.HandleFunc("/api/skins", s.customSkins)
 	s.mux.HandleFunc("/api/show", s.showOverlay)
@@ -624,6 +685,9 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		if next.Scale == 0 {
+			next.Scale = s.Store.Settings().Scale
+		}
 		snap, err := s.Store.UpdateSettings(next)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -713,10 +777,10 @@ func (s *Server) obsConnect(w http.ResponseWriter, r *http.Request) {
 	s.syncOBSFromSettings()
 	if err := s.OBS.Connect(); err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
-			"ok":      false,
-			"error":   err.Error(),
-			"status":  s.OBS.Status(),
-			"hint":    "Включи Tools → WebSocket Server в OBS (порт 4455) и укажи пароль в админке.",
+			"ok":     false,
+			"error":  err.Error(),
+			"status": s.OBS.Status(),
+			"hint":   "Включи Tools → WebSocket Server в OBS (порт 4455) и укажи пароль в админке.",
 		})
 		return
 	}
