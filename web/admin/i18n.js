@@ -448,7 +448,7 @@
       'skins.customSave': 'Сохранить текущий вид',
       'skins.customEmpty': 'Пока нет сохранённых скинов.',
       'skins.delete': 'Удалить',
-      'btn.copy': 'Copy',
+      'btn.copy': 'Копировать',
       'msg.updated': 'Обновлено',
       'msg.copied': 'Скопировано',
       'msg.copyFail': 'Не удалось скопировать',

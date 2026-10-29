@@ -1880,3 +1880,8 @@ a.btn-link.donate { background: #f57c00; color: #fff; }
 a.btn-link.donate:hover { background: #d96d00; }
 a.btn-link.boosty { background: #f15f2c; color: #fff; }
 a.btn-link.boosty:hover { background: #d94e1d; }
+
+/* Links styled as buttons get the same text size as real buttons. */
+.actions a { font-size: 13.333px; font-family: inherit; }
+.setup-note a { color: var(--accent); text-decoration: none; margin-right: 12px; }
+.setup-note a:hover { text-decoration: underline; }

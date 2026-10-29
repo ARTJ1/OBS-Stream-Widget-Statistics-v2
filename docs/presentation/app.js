@@ -3,33 +3,51 @@
     ru: {
       "bar.sub": "Статистика для OBS Studio",
       "bar.download": "Скачать",
-      "nav.features": "Что умеет",
+      "nav.look": "Внешний вид",
+      "nav.features": "Возможности",
       "nav.install": "Установка",
-      "hero.kicker": "Для OBS Studio",
+      "nav.setup": "Настройка",
+      "hero.kicker": "Для OBS Studio · Overwatch 2 и Apex Legends",
       "hero.title": "Widget Stats",
-      "hero.lead": "Победы, поражения и ранг на стриме — красиво и удобно. Посмотрите, как это будет выглядеть у вас.",
+      "hero.lead": "Победы, поражения и ранг — прямо на стриме. Красиво, без мерцания, а в Overwatch 2 ещё и считает сам. Бесплатно.",
       "hero.rankUp": "Ранг +",
       "hero.rankDown": "Ранг −",
       "hero.reset": "Сброс",
-      "hero.hint": "Попробуйте кнопки — так же работает на стриме в OBS.",
+      "hero.new": "Новое в 3.0",
+      "hero.newText": "19 видов виджета, новая админка и умнее автоматический ранг",
       "look.kicker": "Внешний вид",
-      "look.title": "Скины и режимы",
-      "look.lead": "Готовые пресеты, свои цвета и анимации. Overwatch с ролями и Apex Legends — выберите игру под стрим.",
+      "look.title": "Соберите свой виджет",
+      "look.lead": "Выберите вид, скин и игру — результат сразу в большом виджете наверху. Всё здесь живое, как на стриме.",
+      "look.new": "Новое",
+      "look.layoutsT": "Вид",
+      "look.layoutsD": "19 вариантов: подробный, компактный, карточка, табло или вся сессия. Нажмите на любой — он появится наверху.",
+      "look.skinsT": "Скин",
+      "look.skinsD": "48 готовых скинов. Здесь — несколько для примера, все остальные в админке: с поиском и живым превью.",
+      "look.moreSkins": "+{n} скинов",
+      "look.moreSkinsD": "в админке, с поиском и превью",
+      "look.gameT": "Игра",
+      "look.gameD": "Overwatch 2 — общий счёт или отдельный по ролям. Apex Legends — свои ранги.",
       "mode.ow": "Overwatch",
       "mode.owRoles": "OW · роли",
       "mode.apex": "Apex Legends",
       "feat.kicker": "Возможности",
       "feat.title": "Что умеет виджет",
-      "feat.f1t": "Без мерцания",
-      "feat.f1d": "Обновления по WebSocket — Browser Source не перезагружается.",
-      "feat.f2t": "Веб-админка",
-      "feat.f2d": "Настройка цветов, шрифтов, анимаций и скинов в браузере.",
-      "feat.f3t": "Lua для OBS",
-      "feat.f3d": "Автозапуск сервера с OBS, хоткеи без лишних окон.",
-      "feat.f4t": "Stream Dock Live",
-      "feat.f4d": "Победы, поражения и ранг на кнопках AJAZZ — Live Mode синхронизирует деку с виджетом.",
-      "feat.icons": "LIVE-иконки Stream Dock",
-      "feat.liveGuide": "Инструкция Live Mode",
+      "feat.autoT": "Автозачёт и автоматический ранг",
+      "feat.autoD": "В Overwatch 2 победа, поражение и ранг считаются сами: виджет читает экран игры. Ничего настраивать не нужно — включается одной галочкой в разделе «Автозачёт».",
+      "feat.studioT": "Удобная админка",
+      "feat.studioD": "Живое превью для каждого вида, всё сохраняется само, есть «Отменить». Настройки, которые вид не использует, скрыты.",
+      "feat.sessionT": "Сессия стрима",
+      "feat.sessionD": "Виджет помнит ранг на начало стрима и показывает, на сколько вы поднялись и как прошли последние игры.",
+      "feat.updateT": "Обновление в один клик",
+      "feat.updateD": "Админка сама сообщает о новой версии и ещё до обновления показывает, что изменится.",
+      "feat.helpT": "Помощь простыми словами",
+      "feat.helpD": "Справка с поиском прямо в админке и кнопка «Написать разработчику».",
+      "feat.flickerT": "Без мерцания",
+      "feat.flickerD": "Обновления по WebSocket — Browser Source в OBS не перезагружается.",
+      "feat.luaT": "Скрипт для OBS",
+      "feat.luaD": "Виджет запускается вместе с OBS, горячие клавиши работают без лишних окон.",
+      "feat.deckT": "Stream Deck и Stream Dock",
+      "feat.deckD": "Win, Loss и ранг на кнопках деки. LIVE-пак показывает счёт и ранг прямо на кнопках.",
       "install.kicker": "Установка",
       "install.title": "Установка за несколько минут",
       "i1.t": "Создайте папку для виджета",
@@ -40,18 +58,24 @@
       "i3.t": "Подключите Lua-скрипт в OBS",
       "i3.d": "Tools → Scripts → «+» → выберите widget_control.lua из папки с exe. Сервер запустится вместе с OBS.",
       "i4.t": "Откройте админку",
-      "i4.d": "Иконка в трее → Open Admin. Здесь настраивается вид и подключение к OBS.",
+      "i4.d": "Иконка в трее → Open Admin. Здесь настраивается всё: вид, скины и подключение к OBS.",
       "i5.t": "Включите WebSocket в OBS",
       "i5.d": "Tools → WebSocket Server Settings → Enable. Порт по умолчанию — 4455.",
       "i6.t": "Поставьте виджет на сцену",
-      "i6.d": "В админке: Подключить OBS → выберите сцену → Поставить виджет на сцену. Установка готова.",
+      "i6.d": "В админке: «Подключения» → «Подключить OBS» → выберите сцену → «Поставить виджет на сцену». Установка готова.",
       "setup.kicker": "Настройка",
       "setup.title": "Под себя",
-      "setup.lead": "Горячие клавиши, внешний вид и скины — после установки.",
+      "setup.lead": "После установки: вид, скин, цвета и горячие клавиши.",
+      "st1.t": "Выберите вид",
+      "st1.d": "Админка → «Вид виджета» → нажмите на любой. Превью справа сразу показывает, как он реагирует на победу и смену ранга. Сохраняется само.",
+      "st2.t": "Подберите скин",
+      "st2.d": "«Скины» → наведите на скин, и превью покажет ваш виджет в нём. Клик — применить. Есть поиск, подборки по настроению и избранное.",
+      "st3.t": "Цвета, шрифт и анимации",
+      "st3.d": "«Цвета и шрифт» и «Анимации» — меняйте что угодно, превью обновляется сразу. Передумали — «Отменить» внизу экрана.",
       "s1.t": "Горячие клавиши в OBS",
-      "s1.d": "На видео — настройка хоткеев прямо в OBS: File → Settings → Hotkeys. Назначьте Win, Loss и Rank — статистика обновляется одним нажатием на стриме.",
+      "s1.d": "File → Settings → Hotkeys. Назначьте Win, Loss и Rank — статистика обновляется одним нажатием на стриме.",
       "s1.deckTitle": "Stream Deck и аналоги",
-      "s1.deckLead": "Те же действия Win / Loss / Rank можно повесить на кнопки деки. URL копируются из админки — блок ниже.",
+      "s1.deckLead": "Те же действия можно повесить на кнопки деки. Ссылки копируются в админке: «Подключения» → «URL для OBS / Stream Deck».",
       "s1.deckAjazz": "Плагин нужен не всем. Если у вас Stream Dock от AJAZZ — поставьте HTTP-плагин. Есть классические иконки и LIVE-пак (цифры побед/поражений и код ранга на кнопках).",
       "s1.plugin": "Плагин HTTP (Live Mode)",
       "s1.gallery": "Иконки · подробнее",
@@ -59,46 +83,81 @@
       "s1.liveGuide": "Инструкция Live Mode",
       "gallery.kicker": "Stream Deck",
       "gallery.lead": "Листайте паки стрелками. Внизу — живой виджет в том же стиле.",
-      "s2.t": "Внешний вид",
-      "s2.d": "Цвета, шрифт, фон и анимации — вкладка «Внешний вид» в админке. Превью обновляется сразу.",
-      "s3.t": "Скины",
-      "s3.d": "Галерея готовых пресетов — один клик, и виджет меняет стиль под стрим.",
       "clip.need": "Видео для этого шага скоро появится",
       "clip.expand": "На весь экран",
+      "foot.getT": "Бесплатно и с открытым кодом",
       "foot.cta": "Скачать бесплатно",
-      "foot.help": "Вопросы и поддержка",
+      "foot.askT": "Вопросы и идеи",
+      "foot.bug": "Сообщить об ошибке",
+      "foot.supportT": "Поддержать автора",
+      "layout.detailed": "Подробный", "layout.mini": "Мини", "layout.card": "Карточка", "layout.badge": "Значок",
+      "layout.strip": "Полоса", "layout.minimal": "Минимал", "layout.column": "Колонка", "layout.ring": "Кольцо",
+      "layout.slant": "Наклон (OW)", "layout.scoreboard": "Табло", "layout.session": "Сессия", "layout.form": "Форма (5 игр)",
+      "layout.ladder": "Лестница", "layout.roles": "Все роли", "layout.hex": "Гекс", "layout.feed": "Килфид",
+      "layout.tug": "Перетягивание", "layout.flip": "Перекидное табло", "layout.tcard": "Коллекционная карта",
+      "hero.download": "Скачать бесплатно",
+      "hero.howto": "Как установить →",
+      "hero.try": "Попробуйте прямо здесь:",
+      "num.layouts": "видов виджета",
+      "num.skins": "готовых скинов",
+      "num.autoV": "Авто",
+      "num.auto": "победы и ранг в Overwatch 2 считаются сами",
+      "num.minV": "5 мин",
+      "num.min": "на установку",
+      "cta.title": "Готовы попробовать на своём стриме?",
+      "cta.lead": "Бесплатно. Установка занимает несколько минут — пошаговая инструкция с видео выше.",
+      "cta.guide": "Инструкция по установке",
+      "foot.releases": "Все версии",
     },
     en: {
       "bar.sub": "Stream stats for OBS Studio",
       "bar.download": "Download",
+      "nav.look": "Look",
       "nav.features": "Features",
-      "nav.install": "Setup",
-      "hero.kicker": "For OBS Studio",
+      "nav.install": "Install",
+      "nav.setup": "Setup",
+      "hero.kicker": "For OBS Studio · Overwatch 2 and Apex Legends",
       "hero.title": "Widget Stats",
-      "hero.lead": "Wins, losses, and rank on stream — polished and easy. See how it looks on your overlay.",
+      "hero.lead": "Wins, losses and rank — right on stream. Good-looking, flicker-free, and in Overwatch 2 it even counts by itself. Free.",
       "hero.rankUp": "Rank +",
       "hero.rankDown": "Rank −",
       "hero.reset": "Reset",
-      "hero.hint": "Try the buttons — same behavior on your OBS stream.",
+      "hero.new": "New in 3.0",
+      "hero.newText": "19 widget layouts, a new control panel and smarter auto rank",
       "look.kicker": "Look",
-      "look.title": "Skins & modes",
-      "look.lead": "Ready-made presets, custom colors and motion. Overwatch roles and Apex Legends — pick your game.",
+      "look.title": "Build your widget",
+      "look.lead": "Pick a layout, a skin and a game — the big widget on top shows the result. Everything here is live, just like on stream.",
+      "look.new": "New",
+      "look.layoutsT": "Layout",
+      "look.layoutsD": "19 options: detailed, compact, card, scoreboard or the whole session. Click any of them to put it on top.",
+      "look.skinsT": "Skin",
+      "look.skinsD": "48 ready-made skins. A few are here as examples; all of them are in the admin, with search and a live preview.",
+      "look.moreSkins": "+{n} skins",
+      "look.moreSkinsD": "in the admin, with search and preview",
+      "look.gameT": "Game",
+      "look.gameD": "Overwatch 2 — one score or a separate one per role. Apex Legends — its own ranks.",
       "mode.ow": "Overwatch",
       "mode.owRoles": "OW · roles",
       "mode.apex": "Apex Legends",
-      "feat.kicker": "More",
-      "feat.title": "What you get",
-      "feat.f1t": "No flicker",
-      "feat.f1d": "WebSocket updates — the Browser Source never reloads.",
-      "feat.f2t": "Web admin",
-      "feat.f2d": "Colors, fonts, motion, and skins in your browser.",
-      "feat.f3t": "OBS Lua script",
-      "feat.f3d": "Server starts with OBS; hotkeys without extra windows.",
-      "feat.f4t": "Stream Dock Live",
-      "feat.f4d": "Wins, losses, and rank on AJAZZ keys — Live Mode keeps the deck in sync with the widget.",
-      "feat.icons": "Stream Dock LIVE icons",
-      "feat.liveGuide": "Live Mode guide",
-      "install.kicker": "Setup",
+      "feat.kicker": "Features",
+      "feat.title": "What the widget does",
+      "feat.autoT": "Auto W/L and auto rank",
+      "feat.autoD": "In Overwatch 2 wins, losses and rank count themselves: the widget reads the game screen. Nothing to set up — one checkbox in the Auto W/L section turns it on.",
+      "feat.studioT": "Easy control panel",
+      "feat.studioD": "A live preview for every layout, everything saves by itself, with Undo. Settings the layout doesn't use are hidden.",
+      "feat.sessionT": "Stream session",
+      "feat.sessionD": "The widget remembers your rank at the start of the stream and shows how far you climbed and how your last games went.",
+      "feat.updateT": "One-click updates",
+      "feat.updateD": "The admin tells you about a new version and shows what changes before you update.",
+      "feat.helpT": "Help in plain words",
+      "feat.helpD": "Searchable help right in the admin and a “Contact the developer” button.",
+      "feat.flickerT": "No flicker",
+      "feat.flickerD": "WebSocket updates — the OBS Browser Source never reloads.",
+      "feat.luaT": "OBS script",
+      "feat.luaD": "The widget starts with OBS; hotkeys work without extra windows.",
+      "feat.deckT": "Stream Deck and Stream Dock",
+      "feat.deckD": "Win, Loss and rank on deck keys. The LIVE pack shows the score and rank right on the keys.",
+      "install.kicker": "Install",
       "install.title": "Install in a few minutes",
       "i1.t": "Create a folder for the widget",
       "i1.d": "Make a dedicated folder for widget-stats.exe and widget_control.lua. If Windows Defender warns during download, add this folder to exclusions — the app has no Microsoft certificate.",
@@ -108,18 +167,24 @@
       "i3.t": "Add the Lua script in OBS",
       "i3.d": "Tools → Scripts → “+” → pick widget_control.lua from the exe folder. The server starts with OBS.",
       "i4.t": "Open the admin panel",
-      "i4.d": "Tray icon → Open Admin. Configure look and OBS connection here.",
+      "i4.d": "Tray icon → Open Admin. Everything is set up here: layout, skins and the OBS connection.",
       "i5.t": "Enable OBS WebSocket",
       "i5.d": "Tools → WebSocket Server Settings → Enable. Default port is 4455.",
       "i6.t": "Place the widget on a scene",
-      "i6.d": "In admin: Connect OBS → pick a scene → Place widget on scene. Install is done.",
+      "i6.d": "In the admin: Connections → Connect OBS → pick a scene → Place widget on scene. Install is done.",
       "setup.kicker": "Setup",
       "setup.title": "Make it yours",
-      "setup.lead": "Hotkeys, look, and skins — after install.",
+      "setup.lead": "After install: layout, skin, colors and hotkeys.",
+      "st1.t": "Pick a layout",
+      "st1.d": "Admin → Layout → click any layout. The preview on the right shows how it reacts to a win and a rank change. It saves by itself.",
+      "st2.t": "Choose a skin",
+      "st2.d": "Skins → hover a skin and the preview shows your widget in it. Click to apply. Search, moods and favorites included.",
+      "st3.t": "Colors, font and motion",
+      "st3.d": "Colours & font and Motion — change anything, the preview updates at once. Changed your mind? Undo at the bottom.",
       "s1.t": "OBS hotkeys",
-      "s1.d": "The clip shows OBS hotkeys: File → Settings → Hotkeys. Bind Win, Loss, and Rank — one key updates stats on stream.",
+      "s1.d": "File → Settings → Hotkeys. Bind Win, Loss and Rank — one key updates stats on stream.",
       "s1.deckTitle": "Stream Deck and similar devices",
-      "s1.deckLead": "The same Win / Loss / Rank actions can sit on deck buttons. Copy the URLs from the admin panel — screenshot below.",
+      "s1.deckLead": "The same actions can sit on deck keys. Copy the links in the admin: Connections → URLs for OBS / Stream Deck.",
       "s1.deckAjazz": "The plugin is optional. For AJAZZ Stream Dock install the HTTP plugin. Classic icons and a LIVE pack (win/loss counts and short rank codes on keys) are available.",
       "s1.plugin": "HTTP plugin (Live Mode)",
       "s1.gallery": "Icons · details",
@@ -127,32 +192,43 @@
       "s1.liveGuide": "Live Mode guide",
       "gallery.kicker": "Stream Deck",
       "gallery.lead": "Browse packs with the arrows. The live widget below matches the style.",
-      "s2.t": "Look",
-      "s2.d": "Colors, font, background, and motion — Look tab in the admin. Preview updates live.",
-      "s3.t": "Skins",
-      "s3.d": "Ready-made presets — one click and the widget matches your stream style.",
       "clip.need": "Video for this step coming soon",
       "clip.expand": "Fullscreen",
+      "foot.getT": "Free and open source",
       "foot.cta": "Download free",
-      "foot.help": "Questions & support",
+      "foot.askT": "Questions and ideas",
+      "foot.bug": "Report a bug",
+      "foot.supportT": "Support the author",
+      "layout.detailed": "Detailed", "layout.mini": "Mini", "layout.card": "Card", "layout.badge": "Badge",
+      "layout.strip": "Strip", "layout.minimal": "Minimal", "layout.column": "Column", "layout.ring": "Ring",
+      "layout.slant": "Slant (OW)", "layout.scoreboard": "Scoreboard", "layout.session": "Session", "layout.form": "Form (last 5)",
+      "layout.ladder": "Ladder", "layout.roles": "All roles", "layout.hex": "Hex", "layout.feed": "Kill feed",
+      "layout.tug": "Tug of war", "layout.flip": "Flip clock", "layout.tcard": "Trading card",
+      "hero.download": "Download free",
+      "hero.howto": "How to install →",
+      "hero.try": "Try it right here:",
+      "num.layouts": "widget layouts",
+      "num.skins": "ready-made skins",
+      "num.autoV": "Auto",
+      "num.auto": "wins and rank count themselves in Overwatch 2",
+      "num.minV": "5 min",
+      "num.min": "to install",
+      "cta.title": "Ready to try it on your stream?",
+      "cta.lead": "Free. Install takes a few minutes — the step-by-step guide with videos is above.",
+      "cta.guide": "Installation guide",
+      "foot.releases": "All versions",
     },
   };
 
   const FEATURED_SKIN_IDS = [
-    "default",
-    "blood-moon",
-    "solar-flare",
-    "ocean-deep",
-    "nordic-frost",
-    "mono-ink",
+    "default", "neon-alley", "gold-rush", "blood-moon", "ocean-deep", "sakura-dusk",
+    "magma-core", "retro-cabinet", "solar-flare", "nordic-frost", "mono-ink",
   ];
 
   const frame = document.getElementById("widgetFrame");
   const skinRow = document.getElementById("skinRow");
   const langBtns = [...document.querySelectorAll(".lang-btn")];
   const modeChips = [...document.querySelectorAll("[data-mode]")];
-  const mainTabs = [...document.querySelectorAll(".section-tab")];
-  const tabPanels = [...document.querySelectorAll(".tab-panel")];
   const ICON_SHEETS = [
     "default", "blood-moon", "solar-flare", "ocean-deep", "nordic-frost", "mono-ink",
     "8bit-arena", "amber-library", "aqua-glass", "ash-veil", "bass-drop", "carbon-race",
@@ -244,7 +320,6 @@
 
   let lang = localStorage.getItem("ws-demo-lang") || "ru";
   let currentSkin = null;
-  let activeTab = localStorage.getItem("ws-demo-tab") || "install";
   let demoState = {
     wins: 0,
     losses: 0,
@@ -270,26 +345,6 @@
     });
   }
 
-  function showTab(id) {
-    activeTab = id;
-    localStorage.setItem("ws-demo-tab", id);
-    mainTabs.forEach((tab) => {
-      const on = tab.dataset.tab === id;
-      tab.classList.toggle("active", on);
-      tab.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    tabPanels.forEach((panel) => {
-      const on = panel.id === `tab-${id}`;
-      panel.classList.toggle("active", on);
-      panel.hidden = !on;
-    });
-    if (id === "install") {
-      setTimeout(syncGuideVideos, 80);
-    } else {
-      document.querySelectorAll("video[data-guide-video]").forEach(pauseGuideVideo);
-    }
-  }
-
   function post(msg) {
     try {
       frame.contentWindow?.postMessage(msg, "*");
@@ -303,8 +358,75 @@
     if (settings.font) window.loadGoogleFont?.(settings.font);
     post({
       type: "widget-preview-settings",
-      settings: { ...settings, fontSize: Math.max(22, settings.fontSize || 18) },
+      settings: { ...settings, layout: currentLayout, fontSize: Math.max(22, settings.fontSize || 18) },
     });
+  }
+
+  // ---------- Layout gallery: one live widget per layout ----------
+  const LAYOUTS = ["detailed", "mini", "card", "badge", "strip", "minimal", "column", "ring", "slant", "scoreboard",
+    "session", "form", "ladder", "roles", "hex", "feed", "tug", "flip", "tcard"];
+  const TILE_STATE = { game: "overwatch", mode: "classic", role: "tank", wins: 7, losses: 4, rank: 21, startRank: 18,
+    recent: ["w", "w", "l", "w", "l", "w", "w", "l", "w", "w"] };
+  const TILE_ACTIONS = ["win", "loss", "rankStepUp", "win"];
+  const layoutGrid = document.getElementById("layoutGrid");
+  let currentLayout = "detailed";
+  let tiles = [];
+
+  function tileSettings(layout) {
+    return { ...(currentSkin?.settings || {}), layout, alwaysVisible: true };
+  }
+
+  function renderLayoutTiles() {
+    if (!layoutGrid) return;
+    layoutGrid.innerHTML = "";
+    tiles = LAYOUTS.map((layout) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "layout-tile" + (layout === currentLayout ? " active" : "");
+      btn.innerHTML = `<div class="layout-stage"><iframe title="${layout}" tabindex="-1" loading="lazy" src="../../web/overlay/index.html?preview=1"></iframe></div>
+        <span class="layout-name" data-i18n="layout.${layout}">${t(`layout.${layout}`)}</span>`;
+      const f = btn.querySelector("iframe");
+      // The widget loads its own offline defaults shortly after "load", so send the demo again.
+      f.addEventListener("load", () => {
+        [0, 700, 1600].forEach((ms) => setTimeout(() => {
+          postTo(f, { type: "widget-preview-settings", settings: tileSettings(layout) });
+          postTo(f, { type: "widget-preview-state", view: { ...TILE_STATE }, state: { ...TILE_STATE } });
+        }, ms));
+      });
+      btn.addEventListener("click", () => {
+        currentLayout = layout;
+        layoutGrid.querySelectorAll(".layout-tile").forEach((el) => el.classList.toggle("active", el === btn));
+        pushSettings(currentSkin?.settings || {});
+        document.getElementById("play")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      layoutGrid.appendChild(btn);
+      return { layout, frame: f };
+    });
+  }
+
+  // Every few seconds one visible tile plays a win, loss or rank-up, so the grid feels alive.
+  let tileTick = 0;
+  setInterval(() => {
+    if (document.hidden || !tiles.length) return;
+    const visible = tiles.filter(({ frame: f }) => {
+      const r = f.getBoundingClientRect();
+      const rail = layoutGrid.getBoundingClientRect();
+      return r.bottom > 0 && r.top < window.innerHeight && r.right > rail.left && r.left < rail.right;
+    });
+    if (!visible.length) return;
+    const tile = visible[tileTick % visible.length];
+    postTo(tile.frame, { type: "widget-preview-demo", action: TILE_ACTIONS[tileTick % TILE_ACTIONS.length] });
+    tileTick += 1;
+  }, 1400);
+
+  document.querySelectorAll("[data-rail]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      layoutGrid.scrollBy({ left: Number(btn.dataset.rail) * layoutGrid.clientWidth * 0.8, behavior: "smooth" });
+    });
+  });
+
+  function restyleLayoutTiles() {
+    tiles.forEach(({ layout, frame: f }) => postTo(f, { type: "widget-preview-settings", settings: tileSettings(layout) }));
   }
 
   function pushState(extra = {}) {
@@ -350,29 +472,39 @@
 
   function renderSkins() {
     const skins = skinsList();
+    if (!currentSkin) currentSkin = skins[0] || null;
     skinRow.innerHTML = "";
-    skins.forEach((skin, i) => {
+    skins.forEach((skin) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "skin-card" + (i === 0 ? " active" : "");
+      btn.className = "skin-card" + (skin === currentSkin ? " active" : "");
+      // Skin descriptions in skins.js are Russian only.
       btn.innerHTML = `
         <div class="skin-swatch" style="background:${skin.preview.bg}">
           <span class="skin-chip" style="background:${skin.preview.wins}"></span>
           <span class="skin-chip" style="background:${skin.preview.losses}"></span>
         </div>
         <strong>${skin.name}</strong>
-        <span>${skin.desc || ""}</span>
+        <span>${lang === "ru" ? skin.desc || "" : ""}</span>
       `;
       btn.addEventListener("click", () => {
         skinRow.querySelectorAll(".skin-card").forEach((el) => el.classList.remove("active"));
         btn.classList.add("active");
         currentSkin = skin;
         pushSettings(skin.settings || {});
+        restyleLayoutTiles();
       });
       skinRow.appendChild(btn);
-      if (i === 0) currentSkin = skin;
     });
+    const total = Array.isArray(window.WIDGET_SKINS) ? window.WIDGET_SKINS.length : 0;
+    if (total > skins.length) {
+      const more = document.createElement("div");
+      more.className = "skin-card skin-more";
+      more.innerHTML = `<strong>${t("look.moreSkins").replace("{n}", total - skins.length)}</strong><span>${t("look.moreSkinsD")}</span>`;
+      skinRow.appendChild(more);
+    }
   }
+
 
   function setMode(mode) {
     modeChips.forEach((c) => c.classList.toggle("active", c.dataset.mode === mode));
@@ -438,10 +570,6 @@
   }
 
   function syncGuideVideos() {
-    if (activeTab !== "install") {
-      document.querySelectorAll("video[data-guide-video]").forEach(pauseGuideVideo);
-      return;
-    }
     document.querySelectorAll(".guide-media.is-ready video[data-guide-video]").forEach((video) => {
       const box = video.closest(".guide-media");
       if (!box) return;
@@ -458,7 +586,6 @@
     if (videoObserver) videoObserver.disconnect();
     videoObserver = new IntersectionObserver(
       (entries) => {
-        if (activeTab !== "install") return;
         entries.forEach((entry) => {
           const video = entry.target.querySelector("video[data-guide-video]");
           if (!video) return;
@@ -561,15 +688,12 @@
     chip.addEventListener("click", () => setMode(chip.dataset.mode));
   });
 
-  mainTabs.forEach((tab) => {
-    tab.addEventListener("click", () => showTab(tab.dataset.tab));
-  });
-
   langBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       lang = btn.dataset.lang;
       localStorage.setItem("ws-demo-lang", lang);
       applyI18n();
+      renderSkins();
     });
   });
 
@@ -622,14 +746,12 @@
   window.addEventListener("scroll", () => syncGuideVideos(), { passive: true });
   window.addEventListener("resize", () => syncGuideVideos());
 
-  if (location.hash === "#install") activeTab = "install";
-
   frame.addEventListener("load", () => bootPreview());
 
   applyI18n();
   renderSkins();
+  renderLayoutTiles();
   mountGuideMedia();
-  showTab(activeTab);
 
   if (frame.contentDocument?.readyState === "complete") bootPreview();
 })();
