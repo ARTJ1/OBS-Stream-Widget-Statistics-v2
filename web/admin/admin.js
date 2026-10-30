@@ -78,6 +78,8 @@ function applyUiLang(lang, { persist = false } = {}) {
   renderCopyLinks({ baseUrl: (overlayUrl || '').replace(/\/overlay\/?$/, '') || location.origin });
   renderSkins();
   renderCustomSkins();
+  populateFonts();
+  renderCustomFonts();
   renderAutoStatus(lastAuto);
   if (persist) {
     saveAllSettings().catch(() => {});
@@ -172,14 +174,77 @@ function buildBgColor() {
 }
 
 function populateFonts() {
+  const current = fontSelect.value;
   fontSelect.innerHTML = '';
   for (const f of window.WIDGET_FONTS || []) {
     const opt = document.createElement('option');
     opt.value = f.id;
-    opt.textContent = f.label + (f.google ? ' (Google)' : '');
+    opt.textContent = f.label + (f.google ? ' (Google)' : f.custom ? ` (${t('look.fontMine')})` : '');
     opt.style.fontFamily = f.id;
     fontSelect.appendChild(opt);
   }
+  if (current) {
+    if (![...fontSelect.options].some((o) => o.value === current)) {
+      const opt = document.createElement('option');
+      opt.value = current;
+      opt.textContent = current;
+      fontSelect.appendChild(opt);
+    }
+    fontSelect.value = current;
+  }
+}
+
+function renderCustomFonts() {
+  const list = document.getElementById('customFontList');
+  list.innerHTML = '';
+  for (const f of (window.WIDGET_FONTS || []).filter((x) => x.custom)) {
+    const chip = document.createElement('span');
+    chip.className = 'font-chip';
+    chip.style.fontFamily = f.id;
+    chip.textContent = f.label;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.dataset.fontFile = f.file;
+    del.title = t('look.fontDelete');
+    del.textContent = '×';
+    chip.appendChild(del);
+    list.appendChild(chip);
+  }
+}
+
+async function reloadCustomFonts() {
+  await window.refreshCustomFonts?.();
+  populateFonts();
+  renderCustomFonts();
+}
+
+async function uploadFontFiles(files) {
+  let last = null;
+  for (const file of files) {
+    const body = new FormData();
+    body.append('file', file);
+    const data = await api('/api/fonts', { method: 'POST', body });
+    last = data.font;
+  }
+  await reloadCustomFonts();
+  if (!last) return;
+  // Pick the new font right away; the change event drives preview and autosave to OBS.
+  fontSelect.value = window.customFontId(last.family);
+  fontSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  setStatusKey('msg.fontUp', true, { name: last.family });
+}
+
+async function deleteFontFile(file) {
+  const item = (window.WIDGET_FONTS || []).find((f) => f.custom && f.file === file);
+  if (!item || !window.confirm(t('look.fontDeleteConfirm', { name: item.label }))) return;
+  await api('/api/fonts?file=' + encodeURIComponent(file), { method: 'DELETE' });
+  const wasSelected = fontSelect.value === item.id;
+  await reloadCustomFonts();
+  if (wasSelected) {
+    fontSelect.value = 'Arial, sans-serif';
+    fontSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  setStatusKey('msg.fontDeleted', true, { name: item.label });
 }
 
 function syncColorSwatches() {
@@ -473,7 +538,7 @@ function fillAppearance(settings) {
       fontSelect.appendChild(opt);
     }
     fontSelect.value = settings.font;
-    window.loadGoogleFont?.(settings.font);
+    window.loadWidgetFont?.(settings.font);
   }
   form.fontSize.value = settings.fontSize || 16;
   setBgPreview(settings.bgImage || '');
@@ -666,7 +731,7 @@ function renderState(snapOrState) {
 
 function pushPreviewSettings() {
   const settings = readAppearance();
-  window.loadGoogleFont?.(settings.font);
+  window.loadWidgetFont?.(settings.font);
   document.querySelectorAll('iframe.widget-preview').forEach((frame) => {
     try {
       frame.contentWindow?.postMessage({ type: 'widget-preview-settings', settings }, '*');
@@ -708,7 +773,7 @@ function schedulePreviewPush() {
   clearTimeout(previewTimer);
   previewTimer = setTimeout(() => {
     syncColorSwatches();
-    window.loadGoogleFont?.(form.font.value);
+    window.loadWidgetFont?.(form.font.value);
     pushPreviewSettings();
   }, 80);
 }
@@ -1246,6 +1311,35 @@ bgFileInput.addEventListener('change', async () => {
   try { await uploadBgFile(file); } catch (err) { setStatus(String(err.message || err)); }
   bgFileInput.value = '';
 });
+const fontDropzone = document.getElementById('fontDropzone');
+const fontFileInput = document.getElementById('fontFileInput');
+fontDropzone.addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-font-file]');
+  if (del) {
+    try { await deleteFontFile(del.dataset.fontFile); } catch (err) { setStatus(String(err.message || err)); }
+    return;
+  }
+  if (e.target.closest('.font-chip')) return;
+  fontFileInput.click();
+});
+fontDropzone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  fontDropzone.classList.add('dragover');
+});
+fontDropzone.addEventListener('dragleave', () => fontDropzone.classList.remove('dragover'));
+fontDropzone.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  fontDropzone.classList.remove('dragover');
+  const files = [...(e.dataTransfer.files || [])];
+  if (!files.length) return;
+  try { await uploadFontFiles(files); } catch (err) { setStatus(String(err.message || err)); }
+});
+fontFileInput.addEventListener('change', async () => {
+  const files = [...(fontFileInput.files || [])];
+  if (!files.length) return;
+  try { await uploadFontFiles(files); } catch (err) { setStatus(String(err.message || err)); }
+  fontFileInput.value = '';
+});
 document.getElementById('bgClearBtn').addEventListener('click', async (e) => {
   e.stopPropagation();
   setBgPreview('');
@@ -1465,7 +1559,9 @@ function applyPreviewOverlayURL(runtime) {
 }
 
 async function boot() {
+  await window.refreshCustomFonts?.();
   populateFonts();
+  renderCustomFonts();
   const [snap, runtime] = await Promise.all([api('/api/snapshot'), api('/api/runtime')]);
   if (runtime?.version) knownAppVersion = runtime.version;
   renderState(snap);

@@ -711,8 +711,8 @@ document.addEventListener('DOMContentLoaded', () => {
     layout = LAYOUTS.includes(merged.layout) ? merged.layout : 'detailed';
     applyCardFx(merged.cardFx);
 
-    if (typeof window.loadGoogleFont === 'function') {
-      window.loadGoogleFont(merged.font || 'Arial, sans-serif');
+    if (typeof window.loadWidgetFont === 'function') {
+      window.loadWidgetFont(merged.font || 'Arial, sans-serif');
     }
 
     const winsColor = merged.winsColor || '#00ff00';

@@ -292,6 +292,12 @@
                 <div class="form-grid">
               <label><span data-i18n="look.font">Шрифт</span> <select name="font" id="fontSelect"></select></label>
               <label><span data-i18n="look.fontSize">Размер шрифта</span> <input name="fontSize" type="number" min="10" max="64" value="16"></label>
+              <div class="full dropzone" id="fontDropzone">
+                <p><strong data-i18n="look.customFonts">Свои шрифты</strong> <span data-i18n="look.customFontsHint">— перетащи сюда файл шрифта или кликни</span></p>
+                <p class="drop-hint" data-i18n="look.customFontsFormats">TTF / OTF / WOFF / WOFF2 · хранятся в папке программы и работают без интернета</p>
+                <div class="font-chips" id="customFontList"></div>
+                <input id="fontFileInput" type="file" accept=".ttf,.otf,.woff,.woff2" multiple hidden>
+              </div>
               <label><span data-i18n="look.scale">Масштаб на сцене, %</span> <input name="scale" type="number" min="25" max="500" step="5" value="100"></label>
               <p class="setup-note full" data-i18n="look.scaleNote">Растяните виджет мышкой в OBS — масштаб подстроится сам, а текст останется чётким.</p>
               <label data-uses="vessels" class="full"><span data-i18n="look.vesselStyle">Стиль иконок (пара)</span>

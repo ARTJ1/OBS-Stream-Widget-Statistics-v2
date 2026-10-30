@@ -1142,6 +1142,28 @@ h2 { font-size: 18px; margin-bottom: 16px; }
 }
 .dropzone p { margin: 0 0 6px; color: var(--drop-text); }
 .drop-hint { color: var(--muted) !important; font-size: 12px; }
+.font-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 8px; }
+.font-chips:empty { display: none; }
+.font-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--chip-text);
+  font-size: 15px;
+  cursor: default;
+}
+.font-chip button {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 14px/1 var(--font);
+}
+.font-chip button:hover { background: var(--danger); color: #fff; }
 #bgPreviewImg {
   display: block;
   max-width: 100%;

@@ -40,9 +40,53 @@ window.WIDGET_FONTS = [
   { id: "'Space Grotesk', sans-serif", label: 'Space Grotesk', google: 'Space+Grotesk:wght@400;600;700' },
 ];
 
-window.loadGoogleFont = function loadGoogleFont(fontId) {
+// User-uploaded fonts live in the app's data folder (served from /uploads/fonts/) and work offline.
+window.customFontId = (family) => `'${family}', sans-serif`;
+
+let customFontsFetchedAt = 0;
+let customFontsPending = null;
+
+function renderCustomFontFaces(fonts) {
+  let style = document.getElementById('custom-font-faces');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'custom-font-faces';
+    document.head.appendChild(style);
+  }
+  style.textContent = fonts
+    .map((f) => `@font-face{font-family:'${f.family}';src:url('${encodeURI(f.url)}');font-display:swap;}`)
+    .join('\n');
+}
+
+window.refreshCustomFonts = function refreshCustomFonts() {
+  if (customFontsPending) return customFontsPending;
+  customFontsPending = fetch('/api/fonts', { cache: 'no-store' })
+    .then((res) => (res.ok ? res.json() : { fonts: [] }))
+    .catch(() => ({ fonts: [] }))
+    .then((data) => {
+      const fonts = Array.isArray(data?.fonts) ? data.fonts : [];
+      const list = (window.WIDGET_FONTS || []).filter((f) => !f.custom);
+      for (const f of fonts) {
+        list.push({ id: window.customFontId(f.family), label: f.family, custom: true, file: f.file, url: f.url });
+      }
+      window.WIDGET_FONTS = list;
+      renderCustomFontFaces(fonts);
+      customFontsFetchedAt = Date.now();
+      return fonts;
+    })
+    .finally(() => { customFontsPending = null; });
+  return customFontsPending;
+};
+
+window.loadWidgetFont = function loadWidgetFont(fontId) {
+  if (!fontId) return;
   const item = (window.WIDGET_FONTS || []).find((f) => f.id === fontId);
-  if (!item || !item.google) return;
+  if (!item) {
+    // Unknown font may be one uploaded after this page loaded (e.g. OBS overlay vs admin upload).
+    if (Date.now() - customFontsFetchedAt > 3000) window.refreshCustomFonts();
+    return;
+  }
+  if (!item.google) return;
   const id = 'gf-' + item.google.replace(/[^a-z0-9]+/gi, '-');
   if (document.getElementById(id)) return;
   const link = document.createElement('link');
@@ -51,3 +95,5 @@ window.loadGoogleFont = function loadGoogleFont(fontId) {
   link.href = 'https://fonts.googleapis.com/css2?family=' + item.google + '&display=swap';
   document.head.appendChild(link);
 };
+
+window.refreshCustomFonts();
