@@ -176,6 +176,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/obs/ensure", s.obsEnsure)
 	s.mux.HandleFunc("/api/overlay/size", s.overlaySize)
 	s.mux.HandleFunc("/api/upload/bg", s.uploadBg)
+	s.mux.HandleFunc("/api/fonts", s.fontsHandler)
 	s.mux.HandleFunc("/api/skins", s.customSkins)
 	s.mux.HandleFunc("/api/show", s.showOverlay)
 	s.mux.HandleFunc("/api/version", s.getVersion)
