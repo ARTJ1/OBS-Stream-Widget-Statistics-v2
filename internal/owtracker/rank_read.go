@@ -348,6 +348,61 @@ func brightTextGray(src image.Image) *image.Gray {
 	return g
 }
 
+// localTextGray keeps what is brighter than its own surroundings: the label
+// fading in (or out) over a bright background, too faint for a fixed or
+// crop-wide threshold. Black on white.
+func localTextGray(src image.Image) *image.Gray {
+	const rad = 30 // box around each pixel: a few strokes of the scaled label
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	lum := make([]int, w*h) // darkest channel: white text stays high, colors drop
+	gray := make([]bool, w*h)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, gg, bb, _ := src.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			mx, mn := int(max(r, gg, bb)>>8), int(min(r, gg, bb)>>8)
+			lum[y*w+x], gray[y*w+x] = mn, mx-mn <= 70
+		}
+	}
+	sum := make([]int, (w+1)*(h+1)) // summed-area table for the box means
+	for y := 0; y < h; y++ {
+		row := 0
+		for x := 0; x < w; x++ {
+			row += lum[y*w+x]
+			sum[(y+1)*(w+1)+x+1] = sum[y*(w+1)+x+1] + row
+		}
+	}
+	diff := make([]int, w*h)
+	var hist [256]int
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			x0, y0, x1, y1 := max(0, x-rad), max(0, y-rad), min(w, x+rad+1), min(h, y+rad+1)
+			box := sum[y1*(w+1)+x1] - sum[y0*(w+1)+x1] - sum[y1*(w+1)+x0] + sum[y0*(w+1)+x0]
+			d := lum[y*w+x] - box/((x1-x0)*(y1-y0))
+			if d < 0 || !gray[y*w+x] {
+				d = 0
+			}
+			diff[y*w+x] = min(d, 255)
+			hist[diff[y*w+x]]++
+		}
+	}
+	// As in brightTextGray: the top percent is the text's own level.
+	top, acc := 255, 0
+	for top > 0 && acc+hist[top] < w*h/100 {
+		acc += hist[top]
+		top--
+	}
+	thr := max(12, top*35/100)
+	g := image.NewGray(image.Rect(0, 0, w, h))
+	for i, d := range diff {
+		g.Pix[i] = 255
+		if d >= thr {
+			g.Pix[i] = 0
+		}
+	}
+	return g
+}
+
 // rankOCR is the OCR step of ReadRankScreen (a Windows OCR process in production).
 type rankOCR interface {
 	Recognize(pngPath string) (map[string]string, error)
@@ -406,7 +461,7 @@ func ReadRankScreen(ocr rankOCR, workDir string, frame image.Image) (RankRead, e
 	}
 	upright := deskew(label, rankLabelShear)
 	tries := []try{{upright, r.Lang}, {label, r.Lang}, {whiteTextGray(label), r.Lang},
-		{brightTextGray(upright), r.Lang}}
+		{brightTextGray(upright), r.Lang}, {localTextGray(upright), r.Lang}}
 	if lo, ok := ocr.(rankLangOCR); ok && len(lo.Langs()) > 1 {
 		tries = append(tries, try{upright, ""})
 	}

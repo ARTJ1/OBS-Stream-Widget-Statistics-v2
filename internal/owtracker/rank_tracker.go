@@ -27,6 +27,21 @@ func (t *Tracker) SetRankHandler(fn func(RankRead)) {
 	t.autoMu.Unlock()
 }
 
+// SetRankPrior gives the rank stored for a role before the match (a widget
+// ladder index; ok false when unknown): the reader then expects that rank or
+// its neighbour in the match result's direction.
+func (t *Tracker) SetRankPrior(fn func(role string) (int, bool)) {
+	t.autoMu.Lock()
+	t.rankPrior = fn
+	t.autoMu.Unlock()
+}
+
+func (t *Tracker) getRankPrior() func(role string) (int, bool) {
+	t.autoMu.Lock()
+	defer t.autoMu.Unlock()
+	return t.rankPrior
+}
+
 // SetRankAuto turns auto rank on or off (persisted in auto.json).
 func (t *Tracker) SetRankAuto(on bool) {
 	t.rankOn.Store(on)
@@ -62,9 +77,18 @@ func (t *Tracker) rankTick(gameForeground bool, now time.Time) time.Duration {
 	if !t.rank.active() {
 		t.setRankWatching(false)
 	}
-	// A fixed frame rate, not a fixed pause: players who click Continue at once
-	// leave the screen up for a second or two.
-	if wait := rankPoll - time.Since(now); wait > rankMinPause {
+	return rankDelay(r, t.rank.burst(now), time.Since(now))
+}
+
+// rankDelay is the pause before the next frame: a fixed frame rate (players
+// who click Continue at once leave the screen up for a second or two), and
+// right away in the first moments of the screen while the label is not read
+// (fading in, or a player leaving the match shows it for a fraction of a second).
+func rankDelay(r RankRead, burst bool, took time.Duration) time.Duration {
+	if burst && r.Role != "" && !r.Valid() {
+		return rankMinPause
+	}
+	if wait := rankPoll - took; wait > rankMinPause {
 		return wait
 	}
 	return rankMinPause

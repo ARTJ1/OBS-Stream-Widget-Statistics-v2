@@ -21,7 +21,7 @@ func NewRankScanner(workDir string) *RankScanner {
 func (s *RankScanner) Close() { s.ocr.Close() }
 
 // Start opens the post-match watch (call when a win/loss is counted).
-func (s *RankScanner) Start(at time.Time) { s.w.start(at) }
+func (s *RankScanner) Start(at time.Time, expect func(RankRead) bool) { s.w.start(at, expect) }
 
 func (s *RankScanner) Active() bool { return s.w.active() }
 
@@ -38,4 +38,9 @@ func (s *RankScanner) Frame(frame image.Image, at time.Time) (read, confirmed Ra
 	}
 	confirmed, ok = s.w.observe(at, read)
 	return read, confirmed, ok, nil
+}
+
+// Delay is the live pause before the next frame after read (took: its time).
+func (s *RankScanner) Delay(read RankRead, at time.Time, took time.Duration) time.Duration {
+	return rankDelay(read, s.w.burst(at), took)
 }

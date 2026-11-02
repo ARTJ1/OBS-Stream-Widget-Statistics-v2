@@ -125,6 +125,7 @@ type Tracker struct {
 	rankOn   atomic.Bool
 	rank     rankWatch // Run goroutine only
 	onRank   func(RankRead)
+	rankPrior func(role string) (int, bool) // guarded by autoMu
 	lastRank *RankResult // guarded by autoMu
 	lastRankMiss *RankResult // guarded by autoMu
 	rankSeen     RankRead  // Run goroutine only: last role read in this watch

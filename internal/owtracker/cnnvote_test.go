@@ -86,6 +86,14 @@ func TestVoteMixedFramesDoNotCount(t *testing.T) {
 	}
 }
 
+func TestVoteFlashThenSkippedDefeat(t *testing.T) {
+	// Defeat fly-in read as victory for a frame, then 1 s of defeat before the
+	// player skips the screen (1:43:48 in the SerGRIZZLY stream).
+	if o, _ := feed(t, cat(rep(none, 4), rep(win, 1), rep(loss, 4), rep(none, 8))); o != OutcomeLoss {
+		t.Fatalf("got %q, want loss", o)
+	}
+}
+
 func TestVoteFlashThenShortVictory(t *testing.T) {
 	// Worst case: flash read as defeat, then only 1.5 s of victory. The strict
 	// rule may miss it (streamer presses the hotkey) but must never count defeat.
