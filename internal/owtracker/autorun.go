@@ -179,7 +179,7 @@ func (t *Tracker) handleRead(read BannerRead) {
 			t.onResult(outcome)
 		}
 		if t.rankOn.Load() {
-			t.rank.start(now)
+			t.rank.start(now, RankExpect(outcome, t.getRankPrior()))
 			t.rankSeen = RankRead{}
 			t.setRankWatching(true)
 		}

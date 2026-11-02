@@ -939,6 +939,29 @@ func (s *Store) SetAutoRank(role string, rank int) (snap Snapshot, old int, appl
 	return s.snapLocked(), old, true, nil
 }
 
+// AutoRankPrior is the rank SetAutoRank would replace for role (ok false when
+// the mode has nowhere to put it): auto rank expects the match to end on it or
+// next to it.
+func (s *Store) AutoRankPrior(role string) (int, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.state.Game != GameOverwatch {
+		return 0, false
+	}
+	switch s.state.Mode {
+	case ModeRolesShared, ModeRolesSplit, ModeRolesRotate:
+		if !isValidRole(role) {
+			return 0, false
+		}
+		return s.getRole(role).Rank, true
+	default:
+		if role != AutoRoleOpen && !isValidRole(role) {
+			return 0, false
+		}
+		return s.state.Rank, true
+	}
+}
+
 // MoveRoleResult moves one win or loss between roles (split mode only): the auto
 // result was counted on the selected role before the game showed the role played.
 func (s *Store) MoveRoleResult(from, to, outcome string) (Snapshot, bool, error) {

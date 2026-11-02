@@ -13,7 +13,10 @@ import (
 //   - a result is reported only after cnnRun frames IN A ROW vote the same with
 //     p >= cnnStrongP, and no frame voted the opposite result (p >= cnnFrameP) in
 //     the last cnnOppositeWindow (the victory fly-in flash can look like defeat
-//     for a frame; this turns it into a short delay instead of a wrong count)
+//     for a frame; this turns it into a short delay instead of a wrong count),
+//     unless the strong run after them is more than twice as long: the defeat
+//     fly-in can look like victory for a frame too, and a player who skips the
+//     screen leaves only ~1 s of banner, gone before the window passes
 //   - autoFlow then requires two such reports in a row (~1 s of agreeing frames)
 //     and counts once per match. Measured on a 6 h stream: stricter beats faster —
 //     a wrong count is worse than a miss (the streamer still has the hotkey).
@@ -82,10 +85,17 @@ func (v *cnnVote) add(at time.Time, win, loss float32) BannerRead {
 			return r
 		}
 	}
+	strong, opposite := 0, 0
+	for i := n - 1; i >= 0 && v.frames[i].label == f.label && v.frames[i].p >= cnnStrongP; i-- {
+		strong++
+	}
 	for _, of := range v.frames {
 		if of.label != "" && of.label != f.label {
-			return r
+			opposite++
 		}
+	}
+	if opposite > 0 && strong <= 2*opposite {
+		return r
 	}
 	r.Outcome = f.label
 	return r

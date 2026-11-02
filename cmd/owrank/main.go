@@ -36,6 +36,12 @@ func main() {
 	limit := flag.Duration("limit", 0, "scan only this much video (0 = all)")
 	all := flag.Bool("all", false, "ground truth: read every frame, no banner needed")
 	thumbs := flag.String("thumbs", "", "save a JPEG of every frame with a role read here")
+	hwaccel := flag.String("hwaccel", "auto", "ffmpeg -hwaccel (none = CPU decoding, faster for several videos at once)")
+	noExpect := flag.Bool("noexpect", false, "ignore the rank before the match (the old reader)")
+	realtime := flag.Bool("realtime", false, "read frames at the live widget's pace: banner every 250 ms, rank as the live reader (use -fps 20)")
+	watch := flag.String("watch", "", "save one JPEG per second of every post-match watch here (one folder per match)")
+	noRank := flag.Bool("norank", false, "count matches only (fast: no rank reader)")
+	banner := flag.Bool("banner", false, "print the banner CNN's win/loss odds for every frame that looks like a banner")
 	flag.Parse()
 	if *video == "" {
 		flag.Usage()
@@ -55,8 +61,10 @@ func main() {
 	if *thumbs != "" {
 		_ = os.MkdirAll(*thumbs, 0o755)
 	}
+	var watchDir string
+	var busyUntil, nextBanner time.Duration
 
-	args := []string{"-v", "error", "-hwaccel", "auto"}
+	args := []string{"-v", "error", "-hwaccel", *hwaccel}
 	if *start > 0 {
 		args = append(args, "-ss", fmt.Sprint(start.Seconds()))
 	}
@@ -82,6 +90,9 @@ func main() {
 	var matches, ranks, ocrN int
 	var ocrTime time.Duration
 	var countedAt time.Duration
+	// Like the widget: the last rank read per role is the next match's prior.
+	known := map[string]int{}
+	prior := func(role string) (int, bool) { r, ok := known[role]; return r, ok }
 	began := time.Now()
 	for i := 0; ; i++ {
 		if _, err := io.ReadFull(rd, buf); err != nil {
@@ -107,10 +118,15 @@ func main() {
 		}
 
 		if rs.Active() {
+			if *realtime && vt < busyUntil {
+				continue // the live reader is still busy with the last frame
+			}
 			t0 := time.Now()
 			r, conf, ok, err := rs.Frame(frame, at)
-			ocrTime += time.Since(t0)
+			took := time.Since(t0)
+			ocrTime += took
 			ocrN++
+			busyUntil = vt + took + rs.Delay(r, at, took) // the live reader's pace
 			if err != nil {
 				log.Fatalf("ocr: %v", err)
 			}
@@ -118,8 +134,12 @@ func main() {
 				fmt.Printf("%s   read role=%-7s rank=%-14s label=%q\n", clock(vt), r.Role, rankName(r), r.RankText)
 				saveThumb(*thumbs, vt, frame)
 			}
+			if watchDir != "" && (r.Role != "" || i%int(*fps) == 0) {
+				saveThumb(watchDir, vt, frame)
+			}
 			if ok {
 				ranks++
+				known[conf.Role] = conf.Rank
 				fmt.Printf("%s RANK %s %s (+%s after the banner)\n", clock(vt), conf.Role, rankName(conf), (vt - countedAt).Round(time.Second))
 			} else if !rs.Active() {
 				fmt.Printf("%s RANK none (watch ended)\n", clock(vt))
@@ -129,12 +149,33 @@ func main() {
 		if cs.Cooling(at) {
 			continue
 		}
+		if *realtime {
+			if vt < nextBanner {
+				continue
+			}
+			nextBanner = vt + 250*time.Millisecond // the live banner poll
+		}
 		small := resize.Resize(480, 270, frame, resize.Bilinear)
-		if _, outcome, counted := cs.Frame(small, at); counted {
+		br, outcome, counted := cs.Frame(small, at)
+		if *banner && (br.WinP >= 0.1 || br.LossP >= 0.1) {
+			fmt.Printf("%s.%03d banner win=%.2f loss=%.2f vote=%q\n", clock(vt), vt.Milliseconds()%1000, br.WinP, br.LossP, br.Outcome)
+		}
+		if counted {
 			matches++
 			countedAt = vt
 			fmt.Printf("%s COUNTED %s\n", clock(vt), outcome)
-			rs.Start(at)
+			expect := owtracker.RankExpect(outcome, prior)
+			if *noExpect {
+				expect = nil
+			}
+			if !*noRank {
+				rs.Start(at, expect)
+			}
+			if *watch != "" {
+				s := int(vt.Seconds())
+				watchDir = filepath.Join(*watch, fmt.Sprintf("%dh%02dm%02ds_%s", s/3600, s/60%60, s%60, outcome))
+				_ = os.MkdirAll(watchDir, 0o755)
+			}
 		}
 	}
 	_ = cmd.Wait()

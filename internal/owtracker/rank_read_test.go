@@ -112,7 +112,7 @@ func TestRankWatch(t *testing.T) {
 	var w rankWatch
 
 	// Two equal reads do not commit while the screen is up; the screen closing does.
-	w.start(now)
+	w.start(now, nil)
 	w.observe(at(0), animating)
 	w.observe(at(250*time.Millisecond), em3)
 	if _, ok := w.observe(at(500*time.Millisecond), em3); ok {
@@ -129,14 +129,14 @@ func TestRankWatch(t *testing.T) {
 	}
 
 	// A single read commits once the screen is gone.
-	w.start(now)
+	w.start(now, nil)
 	w.observe(at(0), em3)
 	if got, ok := w.observe(at(rankGoneAfter), RankRead{}); !ok || got != em3 {
 		t.Fatalf("lone read: %+v %v", got, ok)
 	}
 
 	// Nothing read: the watch ends after the search window with no rank.
-	w.start(now)
+	w.start(now, nil)
 	if _, ok := w.observe(at(rankSearchFor-time.Second), RankRead{}); ok || !w.active() {
 		t.Fatal("ended before the search window")
 	}
@@ -155,7 +155,7 @@ func TestRankWatchRankUp(t *testing.T) {
 	em2 := RankRead{Role: "damage", Tier: "Emerald", Division: 2, Rank: RankIndex("Emerald", 2)}
 	em1 := RankRead{Role: "damage", Tier: "Emerald", Division: 1, Rank: RankIndex("Emerald", 1)}
 	var w rankWatch
-	w.start(now)
+	w.start(now, nil)
 	tick := time.Duration(0)
 	feed := func(r RankRead, n int) (RankRead, bool) {
 		for i := 0; i < n; i++ {
@@ -187,7 +187,7 @@ func TestRankWatchPastSearchWindow(t *testing.T) {
 	now := time.Now()
 	em1 := RankRead{Role: "tank", Tier: "Gold", Division: 1, Rank: RankIndex("Gold", 1)}
 	var w rankWatch
-	w.start(now)
+	w.start(now, nil)
 	d := rankSearchFor - time.Second
 	for ; d < rankSearchFor+5*time.Second; d += rankPoll {
 		if got, ok := w.observe(now.Add(d), em1); ok {
@@ -200,12 +200,78 @@ func TestRankWatchPastSearchWindow(t *testing.T) {
 
 	// A screen that never closes and never settles (label always animating)
 	// still ends at rankWatchMax.
-	w.start(now)
+	w.start(now, nil)
 	w.observe(now.Add(time.Minute), em1)
 	for d := time.Minute; d < rankWatchMax; d += time.Second {
 		w.observe(now.Add(d), RankRead{Role: "tank"})
 	}
 	if got, ok := w.observe(now.Add(rankWatchMax), RankRead{Role: "tank"}); !ok || got != em1 {
 		t.Fatalf("at the cap: %+v %v", got, ok)
+	}
+}
+
+// With the rank before the match known, a lone read in the expected set (same
+// rank, or one division in the result's direction) beats other lone reads; a
+// confirmed read still wins (the stored rank is stale after a skipped screen).
+func TestRankWatchExpected(t *testing.T) {
+	now := time.Now()
+	gold := func(div int) RankRead {
+		return RankRead{Role: "support", Tier: "Gold", Division: div, Rank: RankIndex("Gold", div)}
+	}
+	prior := func(role string) (int, bool) { return RankIndex("Gold", 3), role == "support" }
+	run := func(outcome Outcome, reads ...RankRead) RankRead {
+		var w rankWatch
+		w.start(now, RankExpect(outcome, prior))
+		d := time.Duration(0)
+		for _, r := range reads {
+			w.observe(now.Add(d), r)
+			d += rankPoll
+		}
+		got, _ := w.observe(now.Add(d+rankGoneAfter), RankRead{})
+		return got
+	}
+	blank := RankRead{Role: "support"}
+	// Win: a lone Gold 2 beats a lone Gold 5 (not possible after a win).
+	if got := run(OutcomeWin, gold(2), blank, gold(5)); got != gold(2) {
+		t.Errorf("win: got %+v, want Gold 2", got)
+	}
+	// Loss: Gold 4 is expected, Gold 2 is not.
+	if got := run(OutcomeLoss, gold(4), blank, gold(2)); got != gold(4) {
+		t.Errorf("loss: got %+v, want Gold 4", got)
+	}
+	// Stale prior (the last screen was skipped): Gold 2 -> Gold 1 shown, both
+	// confirmed; the latest confirmed read wins over the expected Gold 2.
+	if got := run(OutcomeWin, gold(2), gold(2), gold(1), gold(1)); got != gold(1) {
+		t.Errorf("stale prior: got %+v, want Gold 1", got)
+	}
+	// Nothing expected: the most seen read, as before.
+	if got := run(OutcomeWin, gold(1)); got != gold(1) {
+		t.Errorf("unexpected only: got %+v, want Gold 1", got)
+	}
+}
+
+// The reader keeps its frame rate, except right after the screen shows with
+// the label not read yet: then frames come back to back, for rankBurstFor.
+func TestRankDelay(t *testing.T) {
+	em3 := RankRead{Role: "damage", Tier: "Emerald", Division: 3, Rank: RankIndex("Emerald", 3)}
+	took := 50 * time.Millisecond
+	if d := rankDelay(RankRead{}, false, took); d != rankPoll-took {
+		t.Errorf("no screen: %s", d)
+	}
+	if d := rankDelay(em3, true, took); d != rankPoll-took {
+		t.Errorf("rank read: %s", d)
+	}
+	if d := rankDelay(RankRead{Role: "damage"}, true, took); d != rankMinPause {
+		t.Errorf("label not read yet: %s", d)
+	}
+	if d := rankDelay(RankRead{Role: "damage"}, false, took); d != rankPoll-took {
+		t.Errorf("label never read, past the burst: %s", d)
+	}
+	now := time.Now()
+	var w rankWatch
+	w.start(now, nil)
+	w.observe(now.Add(10*time.Second), RankRead{Role: "damage"})
+	if !w.burst(now.Add(10*time.Second+rankBurstFor-time.Millisecond)) || w.burst(now.Add(10*time.Second+rankBurstFor)) {
+		t.Error("burst window")
 	}
 }

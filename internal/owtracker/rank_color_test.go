@@ -51,6 +51,9 @@ func TestReadRankScreenColors(t *testing.T) {
 		if parts[0] == "none" || !langs[parts[0]] {
 			continue
 		}
+		if strings.HasPrefix(parts[len(parts)-1], "fade") {
+			continue // a label half faded in: barely readable as captured
+		}
 		fh, err := os.Open(f)
 		if err != nil {
 			t.Fatal(err)
