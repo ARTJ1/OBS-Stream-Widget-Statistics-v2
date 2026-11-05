@@ -55,7 +55,20 @@
     </header>
 
     <section class="update-banner" id="updateBanner" hidden>
-      <div class="update-head">
+      <div class="update-run" id="updateRun" hidden>
+        <h3 id="updateRunTitle"></h3>
+        <p class="update-sub" id="updateRunText"></p>
+        <p class="update-detail" id="updateRunDetail" hidden></p>
+        <div class="update-bar" id="updateBar"><i id="updateBarFill"></i></div>
+        <ol class="update-steps" id="updateSteps"></ol>
+        <p class="update-safe" id="updateRunSafe" hidden></p>
+        <div class="actions" id="updateFailActions" hidden>
+          <button type="button" id="updateRetryBtn" class="primary" data-i18n="update.retry">Повторить</button>
+          <a id="updateManualLink" class="update-manual" href="https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/latest" target="_blank" rel="noopener" data-i18n="update.manual">Скачать вручную</a>
+          <button type="button" id="updateCloseBtn" class="update-close" data-i18n="update.close">Закрыть</button>
+        </div>
+      </div>
+      <div class="update-head" id="updateHead">
         <div class="update-title">
           <div class="update-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg></div>
           <div>

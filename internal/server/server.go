@@ -29,17 +29,18 @@ import (
 )
 
 type Server struct {
-	Store   *store.Store
-	Skins   *skins.Store
-	Hub     *hub.Hub
-	OBS     *obsbridge.Bridge
-	Watch   *obsbridge.Watcher
-	Runtime runtimeinfo.Info
-	WebFS   fs.FS
-	Updater *update.Checker
-	OnQuit  func()
-	Auto    *owtracker.Tracker
-	mux     *http.ServeMux
+	Store     *store.Store
+	Skins     *skins.Store
+	Hub       *hub.Hub
+	OBS       *obsbridge.Bridge
+	Watch     *obsbridge.Watcher
+	Runtime   runtimeinfo.Info
+	WebFS     fs.FS
+	Updater   *update.Checker
+	UpdateJob *update.Job
+	OnQuit    func()
+	Auto      *owtracker.Tracker
+	mux       *http.ServeMux
 
 	// Last auto win/loss, so auto rank can move it to the role actually played.
 	autoMu      sync.Mutex
@@ -49,7 +50,7 @@ type Server struct {
 }
 
 func New(st *store.Store, skinStore *skins.Store, h *hub.Hub, obs *obsbridge.Bridge, info runtimeinfo.Info, webFS fs.FS, updater *update.Checker) *Server {
-	s := &Server{Store: st, Skins: skinStore, Hub: h, OBS: obs, Runtime: info, WebFS: webFS, Updater: updater, mux: http.NewServeMux()}
+	s := &Server{Store: st, Skins: skinStore, Hub: h, OBS: obs, Runtime: info, WebFS: webFS, Updater: updater, UpdateJob: update.NewJob(st.Dir()), mux: http.NewServeMux()}
 	if obs != nil {
 		s.Watch = obsbridge.NewWatcher(obs, s.foldStretch)
 	}
@@ -182,6 +183,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/version", s.getVersion)
 	s.mux.HandleFunc("/api/update/check", s.updateCheck)
 	s.mux.HandleFunc("/api/update/apply", s.updateApply)
+	s.mux.HandleFunc("/api/update/status", s.updateStatus)
 	s.mux.HandleFunc("/api/automation/toggle", s.automationToggle)
 	s.mux.HandleFunc("/api/automation/rank", s.automationRank)
 	s.mux.HandleFunc("/api/automation/status", s.automationStatus)
@@ -647,28 +649,26 @@ func (s *Server) updateApply(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "updater unavailable", http.StatusInternalServerError)
 		return
 	}
-	info := s.Updater.Check(true)
-	if !info.Available {
-		http.Error(w, "no update available", http.StatusConflict)
-		return
-	}
-	if err := update.Apply(info, s.Store.Dir()); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":      true,
-		"message": "update staged; restarting widget-stats.exe",
-		"latest":  info.Latest,
-	})
-	go func() {
-		time.Sleep(400 * time.Millisecond)
+	s.UpdateJob.Start(func() update.Info { return s.Updater.Check(true) }, s.Store.Dir(), func() {
 		if s.OnQuit != nil {
 			s.OnQuit()
 			return
 		}
 		os.Exit(0)
-	}()
+	})
+	writeJSON(w, http.StatusAccepted, map[string]bool{"ok": true})
+}
+
+func (s *Server) updateStatus(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+	case http.MethodDelete:
+		s.UpdateJob.Dismiss()
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.UpdateJob.Status())
 }
 
 func (s *Server) settings(w http.ResponseWriter, r *http.Request) {

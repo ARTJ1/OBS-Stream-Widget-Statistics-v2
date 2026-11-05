@@ -34,6 +34,7 @@ let lastSnap = null;
 let statusI18n = null; // { key, vars, ok }
 let obsStatusI18n = null; // { key, vars, ok }
 let latestUpdateInfo = null;
+let updateRun = null;
 
 const OW_DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Emerald', 'Diamond', 'Master', 'Grandmaster', 'Champion'];
 const APEX_DIVISIONS = ['Rookie', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master'];
@@ -112,6 +113,7 @@ function setObsStatusKey(key, ok = false, vars) {
 
 function refreshLocalizedDynamicUI() {
   if (latestUpdateInfo?.available && latestUpdateInfo?.latest) renderUpdateBanner(latestUpdateInfo);
+  renderUpdateRun();
   if (statusI18n?.key) {
     statusEl.textContent = t(statusI18n.key, statusI18n.vars || undefined);
     statusEl.classList.toggle('ok', !!statusI18n.ok);
@@ -2485,15 +2487,18 @@ let knownAppVersion = '';
 let awaitingServerRestart = false;
 let updateWaitTimer = 0;
 
-async function fetchAppVersion() {
+async function fetchVersionInfo() {
   try {
     const res = await fetch('/api/version', { cache: 'no-store' });
-    if (!res.ok) return '';
-    const data = await res.json();
-    return String(data.version || '');
+    if (!res.ok) return {};
+    return await res.json();
   } catch {
-    return '';
+    return {};
   }
+}
+
+async function fetchAppVersion() {
+  return String((await fetchVersionInfo()).version || '');
 }
 
 function reloadAdminFresh(ver) {
@@ -2520,40 +2525,170 @@ async function maybeReloadAfterUpdate() {
   }
 }
 
-function waitForServerRestart({ expectVersion = '', previousVersion = '' } = {}) {
+function waitForServerRestart() {
   awaitingServerRestart = true;
-  if (previousVersion) knownAppVersion = previousVersion;
+  const previousVersion = knownAppVersion;
   clearInterval(updateWaitTimer);
-  setStatusKey('update.waiting', true);
-  const banner = document.getElementById('updateBanner');
-  if (banner) banner.hidden = true;
   let tries = 0;
   updateWaitTimer = setInterval(async () => {
     tries += 1;
-    setStatusKey('update.waiting', true);
-    statusEl.textContent = `${t('update.waiting')} (${tries})`;
-    // Keep key so language switch still rewrites the base phrase
-    statusI18n = { key: 'update.waiting', vars: null, ok: true };
     const ver = await fetchAppVersion();
-    if (!ver) return;
-    const ready = (expectVersion && ver === expectVersion)
-      || (previousVersion && ver !== previousVersion);
-    if (ready) {
+    if (ver && previousVersion && ver !== previousVersion) {
       clearInterval(updateWaitTimer);
       awaitingServerRestart = false;
-      setStatusKey('update.reloading', true);
       reloadAdminFresh(ver);
       return;
+    }
+    if (ver) {
+      // Still the old version: it either has not closed yet or came back after a failed install.
+      const st = await api('/api/update/status').catch(() => null);
+      if (st?.phase === 'failed') {
+        clearInterval(updateWaitTimer);
+        awaitingServerRestart = false;
+        setUpdateRun(st);
+        return;
+      }
     }
     if (tries > 120) {
       clearInterval(updateWaitTimer);
       awaitingServerRestart = false;
-      const btn = document.getElementById('updateApplyBtn');
-      if (btn) btn.disabled = false;
-      setStatusKey('update.timeout', false);
+      setUpdateRun({ phase: 'failed', code: 'restart', latest: updateRun?.latest });
     }
   }, 1000);
 }
+
+// The update card: what the app is doing right now, or why it did not work.
+let updatePollTimer = 0;
+const UPDATE_STEPS = ['update.stepDownload', 'update.stepCheck', 'update.stepRestart'];
+const UPDATE_PHASE_STEP = { downloading: 0, verifying: 1, restarting: 2 };
+
+function updateMb(bytes) {
+  return (Number(bytes || 0) / (1024 * 1024)).toFixed(0);
+}
+
+function setUpdateRun(next) {
+  updateRun = next;
+  if (next) {
+    const banner = document.getElementById('updateBanner');
+    if (banner) banner.hidden = false;
+  }
+  renderUpdateRun();
+}
+
+function renderUpdateRun() {
+  const banner = document.getElementById('updateBanner');
+  const box = document.getElementById('updateRun');
+  if (!banner || !box) return;
+  const run = updateRun;
+  const failed = run?.phase === 'failed';
+  banner.classList.toggle('is-failed', failed);
+  box.hidden = !run;
+  document.getElementById('updateHead').hidden = !!run;
+  if (run) document.getElementById('updateNotes').hidden = true;
+  if (!run) return;
+
+  const latest = run.latest || latestUpdateInfo?.latest || '';
+  let title;
+  let text;
+  let percent = 0;
+  if (failed) {
+    title = t('update.failedTitle');
+    text = t(`update.err.${run.code}`);
+    if (text === `update.err.${run.code}`) text = t('update.err.unknown');
+  } else if (run.phase === 'downloading') {
+    title = t('update.runDownload', { latest });
+    text = run.total
+      ? t('update.runDownloadSub', { done: updateMb(run.done), total: updateMb(run.total) })
+      : t('update.runConnecting');
+    percent = run.total ? Math.round((run.done / run.total) * 100) : 0;
+  } else if (run.phase === 'verifying') {
+    title = t('update.runCheck');
+    text = t('update.runCheckSub');
+    percent = 100;
+  } else {
+    title = t('update.runRestart');
+    text = t('update.runRestartSub');
+    percent = 100;
+  }
+  document.getElementById('updateRunTitle').textContent = title;
+  document.getElementById('updateRunText').textContent = text;
+  const detail = document.getElementById('updateRunDetail');
+  detail.textContent = run.detail || '';
+  // Known causes already have a translated message; raw text is only for the unexpected.
+  detail.hidden = !(failed && run.code === 'unknown' && run.detail);
+  document.getElementById('updateBar').hidden = failed;
+  document.getElementById('updateBarFill').style.width = `${percent}%`;
+
+  // A failure marks the step it stopped on.
+  const failStep = run.code === 'locked' || run.code === 'restart' ? 2 : run.code === 'start' ? 1 : 0;
+  const current = failed ? failStep : UPDATE_PHASE_STEP[run.phase] ?? 0;
+  document.getElementById('updateSteps').innerHTML = UPDATE_STEPS.map((key, i) => {
+    const cls = i < current ? 'done' : i === current ? (failed ? 'fail' : 'now') : '';
+    return `<li class="${cls}">${i < current ? '✓ ' : ''}${t(key)}</li>`;
+  }).join('');
+
+  // After a failed restart nothing may be running, so don't promise otherwise.
+  const alive = failed && run.code !== 'restart';
+  const safe = document.getElementById('updateRunSafe');
+  safe.textContent = alive ? t('update.safe', { current: knownAppVersion || latestUpdateInfo?.current || '' }) : '';
+  safe.hidden = !alive;
+  document.getElementById('updateFailActions').hidden = !failed;
+  document.getElementById('updateRetryBtn').hidden = !alive;
+  if (latestUpdateInfo?.htmlUrl) document.getElementById('updateManualLink').href = latestUpdateInfo.htmlUrl;
+}
+
+function pollUpdateStatus() {
+  clearInterval(updatePollTimer);
+  updatePollTimer = setInterval(async () => {
+    let st;
+    try {
+      st = await api('/api/update/status');
+    } catch {
+      // The server is gone: the swap is under way.
+      clearInterval(updatePollTimer);
+      if (updateRun) updateRun = { ...updateRun, phase: 'restarting' };
+      renderUpdateRun();
+      waitForServerRestart();
+      return;
+    }
+    if (st.phase === 'idle') return;
+    setUpdateRun(st);
+    if (st.phase === 'failed') {
+      clearInterval(updatePollTimer);
+    } else if (st.phase === 'restarting') {
+      clearInterval(updatePollTimer);
+      waitForServerRestart();
+    }
+  }, 500);
+}
+
+async function startUpdate() {
+  setUpdateRun({ phase: 'downloading', latest: latestUpdateInfo?.latest });
+  try {
+    await api('/api/update/apply', { method: 'POST' });
+    pollUpdateStatus();
+  } catch (err) {
+    setUpdateRun({ phase: 'failed', code: 'unknown', detail: String(err.message || err) });
+  }
+}
+
+// A page opened or reloaded mid-update picks up where the app is; a failed install shows here too.
+async function resumeUpdateRun() {
+  const st = await api('/api/update/status').catch(() => null);
+  if (!st || st.phase === 'idle') return;
+  setUpdateRun(st);
+  if (st.phase === 'restarting') waitForServerRestart();
+  else if (st.phase !== 'failed') pollUpdateStatus();
+}
+
+document.getElementById('updateRetryBtn')?.addEventListener('click', startUpdate);
+document.getElementById('updateCloseBtn')?.addEventListener('click', async () => {
+  await api('/api/update/status', { method: 'DELETE' }).catch(() => {});
+  setUpdateRun(null);
+  const banner = document.getElementById('updateBanner');
+  if (latestUpdateInfo?.available && latestUpdateInfo?.latest) renderUpdateBanner(latestUpdateInfo);
+  else if (banner) banner.hidden = true;
+});
 
 // Release notes come from docs/releases/vX.Y.Z.md: an optional summary line, then
 // "What's new" bullets and "What happens when you update" bullets. Everything after
@@ -2624,6 +2759,7 @@ function renderUpdateBanner(info) {
   const gh = document.getElementById('updateGhLink');
   gh.href = info.htmlUrl || `https://github.com/ARTJ1/OBS-Stream-Widget-Statistics-v2/releases/tag/${info.latest}`;
   document.getElementById('updateNotes').hidden = false;
+  if (updateRun) renderUpdateRun();
 }
 
 document.getElementById('updateMoreBtn')?.addEventListener('click', () => {
@@ -2649,6 +2785,7 @@ async function checkForUpdates({ forceBanner = false } = {}) {
       if (info.error) setStatus(String(info.error));
       else if (forceBanner && !info.skipped) setStatusKey('update.none', true);
     }
+    await resumeUpdateRun();
   } catch {
     /* offline / no github */
   }
@@ -2658,44 +2795,7 @@ document.getElementById('updateLaterBtn')?.addEventListener('click', () => {
   const banner = document.getElementById('updateBanner');
   if (banner) banner.hidden = true;
 });
-function isUpdateRestartDrop(err) {
-  const msg = String(err?.message || err || '').toLowerCase();
-  if (!msg) return true;
-  if (/download|incomplete|too small|too many redirects|status \d{3}/.test(msg)) return false;
-  return /failed to fetch|network|load failed|connection|abort|reset|empty response/.test(msg);
-}
-
-document.getElementById('updateApplyBtn')?.addEventListener('click', async () => {
-  const btn = document.getElementById('updateApplyBtn');
-  const prev = knownAppVersion || latestUpdateInfo?.current || '';
-  const expect = latestUpdateInfo?.latest || '';
-  try {
-    if (btn) btn.disabled = true;
-    setStatusKey('update.applying', true);
-    let staged = false;
-    try {
-      await api('/api/update/apply', { method: 'POST' });
-      staged = true;
-    } catch (err) {
-      if (isUpdateRestartDrop(err)) staged = true;
-      else {
-        setStatusKey('update.failed', false, { msg: String(err.message || err) });
-        if (btn) btn.disabled = false;
-        return;
-      }
-    }
-    if (!staged) {
-      setStatusKey('update.failed', false, { msg: t('update.failedUnknown') });
-      if (btn) btn.disabled = false;
-      return;
-    }
-    setStatusKey('update.done', true);
-    waitForServerRestart({ expectVersion: expect, previousVersion: prev });
-  } catch (err) {
-    setStatus(String(err.message || err));
-    if (btn) btn.disabled = false;
-  }
-});
+document.getElementById('updateApplyBtn')?.addEventListener('click', startUpdate);
 
 document.getElementById('gameSelect')?.addEventListener('change', async (e) => {
   try {

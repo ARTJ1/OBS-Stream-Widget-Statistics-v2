@@ -28,6 +28,9 @@ import (
 )
 
 func main() {
+	if update.HandleFinishArgs(os.Args[1:]) {
+		return
+	}
 	started := time.Now()
 	dataDir := dataDirPath()
 	lock, err := runtimeinfo.AcquireLockWait(dataDir, 15*time.Second)
@@ -61,6 +64,7 @@ func main() {
 	if exePath, err := os.Executable(); err == nil {
 		update.CleanupJunk(filepath.Dir(exePath))
 	}
+	go update.CleanupStaging(dataDir)
 	srv := server.New(st, skinStore, h, obs, info, webassets.FS, updater)
 	srv.Auto = owtracker.New(dataDir, func(outcome owtracker.Outcome) {
 		if srv.Store.State().Game != store.GameOverwatch {

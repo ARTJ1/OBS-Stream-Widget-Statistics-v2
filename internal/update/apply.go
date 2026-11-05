@@ -2,6 +2,7 @@ package update
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -11,8 +12,12 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 )
+
+// stallTimeout aborts a download attempt that stopped receiving data.
+var stallTimeout = 30 * time.Second
 
 // maxUpdateBytes caps release downloads (safety limit for widget-stats.exe).
 const maxUpdateBytes = 512 << 20
@@ -98,9 +103,12 @@ func CleanupJunk(exeDir string) {
 
 // Apply downloads the new exe and widget_control.lua from the release.
 // Lua is written next to the exe (and obs/ if used), plus any path saved in data/lua_path.txt.
-func Apply(info Info, dataDir string) error {
+func Apply(info Info, dataDir string, report func(phase string, done, total int64)) error {
 	if !info.Available {
 		return fmt.Errorf("no update available")
+	}
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("auto-apply is only supported on Windows")
 	}
 	exeURLs := info.ExeURLs()
 	if len(exeURLs) == 0 {
@@ -118,41 +126,52 @@ func Apply(info Info, dataDir string) error {
 	exeDir := filepath.Dir(exe)
 	CleanupJunk(exeDir)
 
+	// A folder we can't write to (Program Files) should fail now, not after the app closed.
+	probe := exe + ".new"
+	if err := os.WriteFile(probe, nil, 0o644); err != nil {
+		return &Failure{CodeWrite, err}
+	}
+	_ = os.Remove(probe)
+
 	staging := filepath.Join(dataDir, "update-staging")
 	_ = os.RemoveAll(staging)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
-		return err
+		return &Failure{CodeWrite, err}
 	}
-	defer func() { _ = os.RemoveAll(staging) }()
 
 	client := downloadClient()
 	newExe := filepath.Join(staging, "widget-stats.exe")
-	if err := downloadWithRetry(client, exeURLs, newExe); err != nil {
-		return fmt.Errorf("download exe: %w", err)
+	onBytes := func(done, total int64) { report(PhaseDownloading, done, total) }
+	if err := downloadWithRetry(client, exeURLs, newExe, onBytes); err != nil {
+		_ = os.RemoveAll(staging)
+		return &Failure{failureCodeOr(err, CodeDownload), fmt.Errorf("download exe: %w", err)}
 	}
 
-	// Lua ships with every release — always fetch and apply when the asset exists.
+	// Lua ships with every release — always fetch it when the asset exists. It is
+	// applied only after the new exe has started, so a failed start changes nothing.
+	tmpLua := ""
 	if luaURLs := info.LuaURLs(); len(luaURLs) > 0 {
-		tmpLua := filepath.Join(staging, "widget_control.lua")
-		if err := downloadWithRetry(client, luaURLs, tmpLua); err != nil {
+		p := filepath.Join(staging, "widget_control.lua")
+		if err := downloadWithRetry(client, luaURLs, p, nil); err != nil {
 			log.Printf("update: widget_control.lua download failed: %v", err)
-		} else if n, err := applyLuaFile(tmpLua, luaUpdateTargets(exeDir, dataDir)); err != nil {
+		} else {
+			tmpLua = p
+		}
+	}
+
+	report(PhaseVerifying, 0, 0)
+	if err := startSwap(exe, newExe, dataDir); err != nil {
+		CleanupStaging(dataDir)
+		return &Failure{CodeStart, err}
+	}
+	if tmpLua != "" {
+		if n, err := applyLuaFile(tmpLua, luaUpdateTargets(exeDir, dataDir)); err != nil {
 			log.Printf("update: widget_control.lua apply failed: %v", err)
 		} else if n > 0 {
 			log.Printf("update: widget_control.lua updated (%d path(s))", n)
 		}
 	}
-
-	finalNew := exe + ".new"
-	_ = os.Remove(finalNew)
-	if err := copyFile(newExe, finalNew); err != nil {
-		return fmt.Errorf("stage exe: %w", err)
-	}
-
-	if runtime.GOOS != "windows" {
-		return fmt.Errorf("auto-apply is only supported on Windows")
-	}
-	return scheduleWindowsReplace(exe, finalNew, os.Getpid())
+	return nil
 }
 
 func copyFile(src, dst string) error {
@@ -259,11 +278,11 @@ func applyLuaFile(src string, targets []string) (int, error) {
 	return updated, nil
 }
 
-func downloadWithRetry(client *http.Client, urls []string, dest string) error {
+func downloadWithRetry(client *http.Client, urls []string, dest string, onBytes func(done, total int64)) error {
 	var last error
 	for attempt := 0; attempt < 5; attempt++ {
 		for _, u := range urls {
-			if err := downloadOnce(client, u, dest); err != nil {
+			if err := downloadOnce(client, u, dest, onBytes); err != nil {
 				last = err
 				_ = os.Remove(dest)
 				continue
@@ -278,8 +297,49 @@ func downloadWithRetry(client *http.Client, urls []string, dest string) error {
 	return last
 }
 
-func downloadOnce(client *http.Client, url, dest string) error {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func failureCodeOr(err error, fallback string) string {
+	if code := failureCode(err); code != CodeUnknown {
+		return code
+	}
+	return fallback
+}
+
+// progressWriter counts bytes for the admin page and keeps the stall watchdog quiet.
+type progressWriter struct {
+	w        io.Writer
+	done     int64
+	total    int64
+	watchdog *time.Timer
+	onBytes  func(done, total int64)
+}
+
+func (p *progressWriter) Write(b []byte) (int, error) {
+	n, err := p.w.Write(b)
+	p.done += int64(n)
+	p.watchdog.Reset(stallTimeout)
+	if p.onBytes != nil {
+		p.onBytes(p.done, p.total)
+	}
+	return n, err
+}
+
+func downloadOnce(client *http.Client, url, dest string, onBytes func(done, total int64)) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var stalled atomic.Bool
+	watchdog := time.AfterFunc(stallTimeout, func() {
+		stalled.Store(true)
+		cancel()
+	})
+	defer watchdog.Stop()
+	netErr := func(err error) error {
+		if stalled.Load() {
+			return &Failure{CodeStalled, fmt.Errorf("no data for %s: %w", stallTimeout, err)}
+		}
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
@@ -289,7 +349,7 @@ func downloadOnce(client *http.Client, url, dest string) error {
 
 	res, err := client.Do(req)
 	if err != nil {
-		return err
+		return netErr(err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -301,14 +361,15 @@ func downloadOnce(client *http.Client, url, dest string) error {
 	_ = os.Remove(tmp)
 	f, err := os.Create(tmp)
 	if err != nil {
-		return err
+		return &Failure{CodeWrite, err}
 	}
 
-	written, err := io.Copy(f, io.LimitReader(res.Body, maxUpdateBytes))
+	counter := &progressWriter{w: f, total: res.ContentLength, watchdog: watchdog, onBytes: onBytes}
+	written, err := io.Copy(counter, io.LimitReader(res.Body, maxUpdateBytes))
 	closeErr := f.Close()
 	if err != nil {
 		_ = os.Remove(tmp)
-		return err
+		return netErr(err)
 	}
 	if closeErr != nil {
 		_ = os.Remove(tmp)
