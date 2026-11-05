@@ -159,6 +159,60 @@ body {
 .update-banner [hidden] {
   display: none !important;
 }
+.update-run {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+.update-run .update-sub {
+  margin: 0;
+}
+.update-banner.is-failed {
+  border-color: var(--danger);
+  background: var(--panel);
+}
+.update-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.update-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.update-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+.update-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.update-steps .done { color: var(--ok); }
+.update-steps .now { color: var(--accent); font-weight: 600; }
+.update-steps .fail { color: var(--danger); font-weight: 600; }
+.update-safe {
+  margin: 0;
+  color: var(--ok);
+  font-size: 13px;
+}
+.update-run .actions a.update-manual,
+.update-run .actions button.update-close {
+  background: var(--btn-soft);
+  color: var(--btn-soft-text);
+}
 .update-head {
   display: flex;
   flex-wrap: wrap;
