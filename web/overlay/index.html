@@ -80,8 +80,10 @@
         <div class="rank-fx-layer" id="rankFxLayer" aria-hidden="true"></div>
         <!-- Win-rate ring around the rank icon (ring layout only). -->
         <svg class="wr-ring" viewBox="0 0 72 72" aria-hidden="true">
+          <circle class="lfx-halo" cx="36" cy="36" r="33"/>
           <circle class="wr-ring-loss" cx="36" cy="36" r="33"/>
           <circle class="wr-ring-win" id="wrRingWin" cx="36" cy="36" r="33"/>
+          <circle class="lfx-mark" id="lfxMark" cx="36" cy="3" r="3.4"/>
         </svg>
         <img id="rankImageUnder" class="rank-img rank-img-under" src="assets/uploads/Bronze.png" alt="">
         <img id="rankImage" class="rank-img rank-img-over" src="assets/uploads/Bronze.png" alt="Rank">
@@ -112,6 +114,17 @@
     <div class="tcard-stars" id="tcardStars" aria-hidden="true"></div>
     <div class="tcard-back" id="tcardBack" aria-hidden="true"></div>
     <div class="tcard-shine" id="tcardShine" aria-hidden="true"></div>
+    <!-- Layout reactions (settings.layoutFx): their own layer, plus the flip clock's word row. -->
+    <div class="lfx-word" id="lfxWord" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="lfx-layer" id="lfxLayer" aria-hidden="true">
+      <span class="lfx-live"></span>
+      <svg class="lfx-hex" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line x1="50" y1="1.5" x2="98.5" y2="25.5"/><line x1="98.5" y1="25.5" x2="98.5" y2="74.5"/>
+        <line x1="98.5" y1="74.5" x2="50" y2="98.5"/><line x1="50" y1="98.5" x2="1.5" y2="74.5"/>
+        <line x1="1.5" y1="74.5" x2="1.5" y2="25.5"/><line x1="1.5" y1="25.5" x2="50" y2="1.5"/>
+        <polygon class="lfx-hexline" points="50,1.5 98.5,25.5 98.5,74.5 50,98.5 1.5,74.5 1.5,25.5"/>
+      </svg>
+    </div>
   </div>
   <!-- SVG filters for rank FX (fire / melt / frost / etc.) -->
   <svg class="fx-defs" aria-hidden="true" width="0" height="0" style="position:absolute;overflow:hidden">

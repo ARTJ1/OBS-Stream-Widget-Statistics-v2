@@ -89,8 +89,15 @@
   }
 
   const cardOptions = document.getElementById('cardOptions');
+  const layoutFxOptions = document.getElementById('layoutFxOptions');
+  let layoutFxShown = '';
   function markActiveLayout() {
     if (cardOptions) cardOptions.hidden = layoutSelect.value !== 'tcard';
+    // Re-draw the reaction switches only when the layout changes (keeps focus while ticking).
+    if (layoutFxShown !== layoutSelect.value) {
+      layoutFxShown = layoutSelect.value;
+      window.AdminLayoutFx?.render(layoutFxShown);
+    }
     applyLayoutParts();
     layoutGrid.querySelectorAll('.layout-tile').forEach((tile) => {
       tile.classList.toggle('active', tile.dataset.layout === layoutSelect.value);
@@ -153,6 +160,7 @@
     window.scrollTo({ top: 0 });
   });
   window.addEventListener('admin-i18n', () => {
+    window.AdminLayoutFx?.render(layoutSelect.value);
     labelLayouts();
     applyLayoutParts();
     if (saveState.dataset.state) saveState.textContent = t(saveState.dataset.state);
@@ -224,6 +232,15 @@
     pushPreviewSettings();
     scheduleSave();
     setTimeout(() => sendPreviewDemo('win'), 120);
+  });
+  layoutFxOptions?.addEventListener('change', (e) => {
+    const input = e.target.closest('input[name="layoutFx"]');
+    if (!input) return;
+    const kind = window.AdminLayoutFx?.onChange(input);
+    pushPreviewSettings();
+    scheduleSave();
+    // Show the switch that was just turned on: its own game result, or a win for details.
+    if (input.checked && kind !== 'idle') setTimeout(() => sendPreviewDemo(kind === 'loss' ? 'loss' : 'win'), 120);
   });
   form.addEventListener('input', scheduleSave);
   form.addEventListener('change', scheduleSave);

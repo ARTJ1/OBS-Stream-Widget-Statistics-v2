@@ -3558,3 +3558,355 @@ html.solo-icons #statSep,
 html.solo-rank .widget > :not(.rank-section),
 html.solo-rank #rankValue,
 html.solo-rank .rank-delta { display: none !important; }
+
+/* ===== Layout reactions (settings.layoutFx): optional, each its own switch =====
+   The widget itself reacts to a counted win / loss (and, if picked, moves gently at
+   rest). Motion uses the individual translate / rotate / scale properties, so it adds
+   to the appear transform and survives "always visible" (transform: none !important).
+   The rest motion runs here; a win / loss reaction is played from these keyframes by
+   widget.js on top of it (composite: add), so the two blend and nothing jumps. */
+body.lfx-3d { perspective: 800px; }
+/* detailed */
+@keyframes lfx-detailed-win {
+  18% { translate: 0 .06em; scale: 1.03 .95 }
+  45% { translate: 0 -.4em; scale: .98 1.03 }
+  72% { translate: 0 0; scale: 1.03 .96 }
+  86% { scale: .99 1.01 }
+}
+@keyframes lfx-detailed-loss {
+  12% { translate: -.35em 0; rotate: -2deg }
+  30% { translate: .18em 0; rotate: 1deg }
+  48% { translate: -.08em 0; rotate: -.4deg }
+  66% { translate: .04em 0; rotate: 0deg }
+}
+@keyframes lfx-detailed-idle {
+  0%,100% { translate: 0 0 }
+  50% { translate: 0 -.14em }
+}
+body.layout-detailed.lfx-detailed-idle .widget { animation: lfx-detailed-idle 4.5s ease-in-out infinite; }
+body.layout-detailed.lfx-detailed-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-detailed-idle 4.5s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* mini */
+@keyframes lfx-mini-win {
+  20% { scale: 1.16 .88 }
+  40% { scale: .94 1.07 }
+  60% { scale: 1.04 .97 }
+  80% { scale: .99 1.01 }
+}
+@keyframes lfx-mini-loss {
+  25% { scale: 1 .82; translate: 0 .1em }
+  60% { scale: 1 .9; translate: 0 .05em }
+}
+@keyframes lfx-mini-idle {
+  0%,20%,40%,100% { scale: 1 }
+  10% { scale: 1.045 }
+  30% { scale: 1.03 }
+}
+body.layout-mini.lfx-mini-idle .widget { animation: lfx-mini-idle 3.2s ease-in-out infinite; }
+body.layout-mini.lfx-mini-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-mini-idle 3.2s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* card */
+@keyframes lfx-card-win {
+  30% { rotate: 1 0 0 -16deg; translate: 0 -.1em }
+  60% { rotate: 1 0 0 5deg }
+  80% { rotate: 1 0 0 -2deg }
+}
+@keyframes lfx-card-loss {
+  25% { rotate: 1 0 0 14deg; translate: 0 .12em; scale: .97 }
+  65% { rotate: 1 0 0 -3deg }
+}
+@keyframes lfx-card-idle {
+  0%,100% { rotate: -1.6deg; translate: .12em 0 }
+  50% { rotate: 1.6deg; translate: -.12em 0 }
+}
+body.layout-card.lfx-card-idle .widget { animation: lfx-card-idle 4s ease-in-out infinite; }
+body.layout-card.lfx-card-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-card-idle 4s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* strip */
+@keyframes lfx-strip-win {
+  20% { translate: .5em 0; scale: 1.02 1 }
+  55% { translate: -.12em 0 }
+  80% { translate: .04em 0 }
+}
+@keyframes lfx-strip-loss {
+  10% { translate: -.2em 0 }
+  20% { translate: .25em 0 }
+  30% { translate: -.1em 0 }
+  40% { translate: .12em 0 }
+  55% { translate: -.05em 0 }
+  70% { translate: 0 0 }
+}
+/* minimal */
+@keyframes lfx-minimal-win {
+  35% { translate: 0 -.45em }
+  60% { translate: 0 -.4em }
+}
+@keyframes lfx-minimal-loss {
+  20% { translate: 0 .35em }
+  40% { translate: 0 -.08em }
+  55% { translate: 0 .12em }
+  70% { translate: 0 0 }
+}
+@keyframes lfx-minimal-idle {
+  0%,100% { translate: 0 0 }
+  25% { translate: .08em -.12em }
+  50% { translate: 0 -.18em }
+  75% { translate: -.08em -.08em }
+}
+body.layout-minimal.lfx-minimal-idle .widget { animation: lfx-minimal-idle 7s ease-in-out infinite; }
+body.layout-minimal.lfx-minimal-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-minimal-idle 7s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* column */
+@keyframes lfx-column-win {
+  25% { scale: .95 1.08; translate: 0 -.15em }
+  55% { scale: 1.02 .97; translate: 0 0 }
+  80% { scale: .995 1.01 }
+}
+@keyframes lfx-column-loss {
+  25% { scale: 1.05 .9; translate: 0 .15em }
+  60% { scale: .98 1.02; translate: 0 0 }
+}
+@keyframes lfx-column-idle {
+  0%,100% { rotate: -1.1deg; translate: .15em 0 }
+  50% { rotate: 1.1deg; translate: -.15em 0 }
+}
+body.layout-column.lfx-column-idle .widget { animation: lfx-column-idle 4.4s ease-in-out infinite; }
+body.layout-column.lfx-column-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-column-idle 4.4s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* ring */
+@keyframes lfx-ring-win {
+  15% { scale: 1.04 .94 }
+  35% { translate: 0 -.45em; scale: .98 1.03 }
+  55% { translate: 0 0; scale: 1.03 .96 }
+  70% { translate: 0 -.15em; scale: 1 }
+  85% { translate: 0 0 }
+}
+@keyframes lfx-ring-loss {
+  30% { translate: -.35em 0; rotate: -6deg }
+  70% { translate: .06em 0; rotate: 1deg }
+}
+@keyframes lfx-ring-idle {
+  0%,100% { rotate: -1.2deg }
+  50% { rotate: 1.2deg }
+}
+body.layout-ring.lfx-ring-idle .widget { animation: lfx-ring-idle 3.6s ease-in-out infinite; }
+body.layout-ring.lfx-ring-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-ring-idle 3.6s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* slant */
+@keyframes lfx-slant-win {
+  18% { translate: .7em 0; scale: 1.04 .97 }
+  50% { translate: -.08em 0; scale: 1 }
+}
+@keyframes lfx-slant-loss {
+  10% { rotate: -2.5deg }
+  25% { rotate: 2deg }
+  40% { rotate: -1.4deg }
+  55% { rotate: .9deg }
+  70% { rotate: -.4deg }
+}
+@keyframes lfx-slant-idle {
+  0%,100% { rotate: 0 1 0 -9deg }
+  50% { rotate: 0 1 0 -6deg }
+}
+body.layout-slant.lfx-slant-idle .widget { animation: lfx-slant-idle 5s ease-in-out infinite; }
+body.layout-slant.lfx-slant-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-slant-idle 5s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* scoreboard */
+@keyframes lfx-scoreboard-win {
+  8% { translate: .05em -.04em; scale: 1.02 }
+  16% { translate: -.05em .04em }
+  24% { translate: .05em .03em; scale: 1.03 }
+  32% { translate: -.04em -.04em }
+  40% { translate: .04em .03em }
+  48% { translate: -.03em -.02em; scale: 1.02 }
+  56% { translate: .03em .02em }
+  64% { translate: -.02em 0 }
+  72% { translate: .01em 0; scale: 1 }
+}
+@keyframes lfx-scoreboard-loss {
+  15% { scale: .97; filter: brightness(.55) }
+  30% { filter: brightness(1) }
+  45% { filter: brightness(.6) }
+  60% { scale: 1; filter: none }
+}
+/* session */
+@keyframes lfx-session-win {
+  25%,70% { translate: 0 -.28em }
+}
+@keyframes lfx-session-loss {
+  25%,70% { translate: 0 .22em }
+}
+/* form */
+@keyframes lfx-form-win {
+  15% { rotate: 1 0 0 16deg }
+  35% { rotate: 1 0 0 -4deg }
+  55% { rotate: 1 0 0 12deg }
+  75% { rotate: 1 0 0 -2deg }
+}
+@keyframes lfx-form-loss {
+  12% { rotate: 0 1 0 -16deg }
+  34% { rotate: 0 1 0 14deg }
+  56% { rotate: 0 1 0 -10deg }
+  78% { rotate: 0 1 0 5deg }
+}
+@keyframes lfx-form-idle {
+  0%,100% { rotate: 0 1 0 -3deg }
+  50% { rotate: 0 1 0 3deg }
+}
+body.layout-form.lfx-form-idle .widget { animation: lfx-form-idle 5s ease-in-out infinite; }
+body.layout-form.lfx-form-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-form-idle 5s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* ladder */
+@keyframes lfx-ladder-win {
+  15%,30% { translate: 0 -.18em }
+  45%,70% { translate: 0 -.36em }
+}
+@keyframes lfx-ladder-loss {
+  15% { translate: 0 .3em; rotate: 2.5deg }
+  40% { translate: 0 .1em; rotate: -1deg }
+}
+/* roles */
+@keyframes lfx-roles-win {
+  25% { translate: .4em 0; rotate: 0 1 0 10deg }
+  60% { translate: -.06em 0; rotate: 0 1 0 0deg }
+}
+@keyframes lfx-roles-loss {
+  15% { scale: .96 }
+  30% { translate: -.1em 0 }
+  45% { translate: .08em 0 }
+  60% { translate: -.04em 0; scale: 1 }
+}
+/* hex */
+@keyframes lfx-hex-loss {
+  20% { scale: .88; rotate: -6deg }
+  50% { scale: 1.05; rotate: 2deg }
+}
+@keyframes lfx-hex-idle {
+  0%,100% { scale: 1 }
+  50% { scale: 1.025 }
+}
+body.layout-hex.lfx-hex-idle .widget { animation: lfx-hex-idle 3s ease-in-out infinite; }
+body.layout-hex.lfx-hex-idle .widget.widget-fx-frost.widget-fx-active { animation: lfx-hex-idle 3s ease-in-out infinite, widgetFrostPulse 2s ease-out; }
+/* feed */
+@keyframes lfx-feed-win {
+  22% { translate: .7em 0 }
+  60% { translate: -.08em 0 }
+}
+@keyframes lfx-feed-loss {
+  10% { translate: -.15em 0 }
+  25% { translate: .15em 0 }
+  40% { translate: -.08em 0 }
+  55% { translate: .06em 0 }
+  70% { translate: 0 0 }
+}
+/* tug */
+@keyframes lfx-tug-win {
+  25% { translate: .35em 0; rotate: 2deg }
+  60% { translate: -.06em 0; rotate: -.5deg }
+}
+@keyframes lfx-tug-loss {
+  25% { translate: -.35em 0; rotate: -2deg }
+  60% { translate: .06em 0; rotate: .5deg }
+}
+/* flip */
+@keyframes lfx-flip-win {
+  10% { translate: 0 .08em }
+  20% { translate: 0 0 }
+  35% { translate: 0 .06em }
+  45% { translate: 0 0 }
+  60% { translate: 0 .04em }
+  70% { translate: 0 0 }
+}
+@keyframes lfx-flip-loss {
+  10% { translate: 0 .08em }
+  20% { translate: 0 0 }
+  35% { translate: 0 .06em }
+  45% { translate: 0 0 }
+  60% { translate: 0 .04em }
+  70% { translate: 0 0 }
+}
+
+/* Details drawn in their own layer (or on a layout's own part), never on the rank. */
+@property --lfx-a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.lfx-layer { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 8; overflow: hidden; }
+body.layout-minimal .lfx-layer { overflow: visible; }
+.lfx-layer > span, .lfx-layer > svg { position: absolute; pointer-events: none; }
+.lfx-layer > .lfx-live, .lfx-layer > .lfx-hex { display: none; }
+/* Detailed: a light runs once around the panel edge */
+.lfx-layer.lfx-trace::after { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 2px; background: conic-gradient(from var(--lfx-a), transparent 0 62%, var(--lfx-c) 86%, #fff 90%, transparent 92%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: lfxTrace 1.3s cubic-bezier(.4,0,.3,1) forwards; }
+@keyframes lfxTrace { 0% { --lfx-a: 0deg; opacity: 1; } 85% { opacity: 1; } 100% { --lfx-a: 360deg; opacity: 0; } }
+/* Mini: the W / L letter (the number's ::after) spins like a coin; a glow runs along the inner edge */
+body.layout-mini #wins.lfx-coin::after, body.layout-mini #losses.lfx-coin::after { display: inline-block; animation: lfxCoin .9s cubic-bezier(.3,.6,.3,1); }
+@keyframes lfxCoin { to { transform: rotateY(720deg); } }
+.lfx-layer.lfx-glow::before { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px var(--lfx-c), inset 0 0 14px var(--lfx-c); animation: lfxGlow .9s ease-out forwards; }
+@keyframes lfxGlow { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+/* Card: a glint runs along the win-rate fill; a curtain of the result colour passes down */
+body.layout-card .wr-bar.lfx-run i { background-image: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent); background-size: 45% 100%; background-repeat: no-repeat; animation: lfxRun 1s ease-in-out; }
+@keyframes lfxRun { from { background-position: -60% 0; } to { background-position: 160% 0; } }
+.lfx-layer.lfx-curtain::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--lfx-c) 60%, transparent), color-mix(in srgb, var(--lfx-c) 8%, transparent) 70%, transparent); animation: lfxCurtain 1.4s cubic-bezier(.5,0,.3,1) forwards; }
+@keyframes lfxCurtain { 0% { transform: translateY(-101%); opacity: 1; } 45% { transform: translateY(0); opacity: .9; } 100% { transform: translateY(101%); opacity: 0; } }
+/* Strip: an on-air dot in the corner */
+body.layout-strip.lfx-strip-live .lfx-layer > .lfx-live { display: block; top: .3em; left: .3em; width: .36em; height: .36em; border-radius: 50%; background: #ff3347; box-shadow: 0 0 6px #ff3347; animation: lfxLive 1.8s ease-in-out infinite; }
+@keyframes lfxLive { 50% { opacity: .3; transform: scale(.8); } }
+body.layout-strip.lfx-strip-live .lfx-layer > .lfx-live.lfx-fast { background: var(--lfx-c); box-shadow: 0 0 10px var(--lfx-c); animation: lfxLive .3s 5; }
+/* Minimal: "+1" floats up beside the number */
+.lfx-dmg { font-weight: 900; font-size: 1.1em; line-height: 1; text-shadow: 0 2px 4px #000; white-space: nowrap; animation: lfxDmg 1.2s cubic-bezier(.2,.8,.3,1) forwards; }
+@keyframes lfxDmg { 0% { opacity: 0; transform: translateY(20%) scale(.6); } 20% { opacity: 1; transform: translateY(-40%) scale(1.2); } 100% { opacity: 0; transform: translateY(-180%) scale(1); } }
+/* Column: a band of light rides up (win) or down (loss) */
+.lfx-layer.lfx-up::before, .lfx-layer.lfx-down::before { content: ''; position: absolute; left: 0; right: 0; height: 35%; background: linear-gradient(transparent, color-mix(in srgb, var(--lfx-c) 55%, transparent), transparent); mix-blend-mode: screen; }
+.lfx-layer.lfx-up::before { animation: lfxUp .9s ease-in-out forwards; }
+.lfx-layer.lfx-down::before { animation: lfxDown .9s ease-in-out forwards; }
+@keyframes lfxUp { from { top: 100%; } to { top: -35%; } }
+@keyframes lfxDown { from { top: -35%; } to { top: 100%; } }
+/* Ring: a halo that breathes with the win streak; a mark on the end of the win arc */
+.wr-ring .lfx-halo, .wr-ring .lfx-mark { display: none; }
+body.layout-ring.lfx-ring-breath .wr-ring .lfx-halo { display: inline; fill: none; stroke: var(--wins-color); stroke-width: calc(6px + var(--lfx-st, 0) * 1.6px); opacity: calc(.06 + var(--lfx-st, 0) * .07); filter: blur(1.5px); animation: lfxHalo calc(2.8s - var(--lfx-st, 0) * .35s) ease-in-out infinite; }
+@keyframes lfxHalo { 50% { opacity: calc(.14 + var(--lfx-st, 0) * .12); } }
+body.layout-ring.lfx-ring-mark .wr-ring .lfx-mark { display: inline; fill: #fff; stroke: var(--wins-color); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; transition: cx .9s cubic-bezier(.3,.8,.3,1), cy .9s cubic-bezier(.3,.8,.3,1); }
+.wr-ring .lfx-mark.lfx-pulse { animation: lfxMark 1.2s ease-out; }
+@keyframes lfxMark { 30% { transform: scale(2); filter: drop-shadow(0 0 3px #fff); } }
+/* Scoreboard: a dot-matrix grid flickers over the number once it has counted */
+.lfx-led { background: radial-gradient(circle, transparent 42%, rgba(6,8,14,.92) 50%) 0 0 / 3px 3px; animation: lfxLed .9s steps(1) forwards; }
+@keyframes lfxLed { 0% { opacity: 1; } 20% { opacity: .3; } 35% { opacity: 1; } 55% { opacity: .5; } 70% { opacity: 1; } 100% { opacity: 0; } }
+/* Session: the SESSION label (the stats' ::before) lights up */
+body.layout-session .stats.lfx-lab::before { animation: lfxLab 1.3s ease-out; }
+body.layout-session .stats.lfx-lab.lfx-w::before { --lfx-lab: var(--wins-color); }
+body.layout-session .stats.lfx-lab.lfx-l::before { --lfx-lab: var(--losses-color); }
+@keyframes lfxLab { 20% { color: var(--lfx-lab); opacity: 1; text-shadow: 0 0 8px currentColor; } }
+/* Form: tiles flip one after another (Domino) */
+.form-pips .pip.lfx-dom { animation: lfxDom .5s ease-in-out both; }
+@keyframes lfxDom { 0% { transform: rotateX(0); } 50% { transform: rotateX(90deg); filter: brightness(1.8); } 100% { transform: rotateX(0); } }
+.lfx-ghost .pip { margin: 0; }
+/* Ladder: the next tier calls when it is one or two steps away; steps pressed like keys */
+body.layout-ladder.lfx-lad-near .widget.lfx-near #ladderNext { opacity: 1; animation: lfxNear 1.6s ease-in-out infinite; }
+@keyframes lfxNear { 50% { transform: scale(1.18); filter: drop-shadow(0 0 6px var(--rank-text-color)); } }
+body.layout-ladder.lfx-lad-near .widget.lfx-near .ladder-steps .step:not(.on):not(.cur) { animation: lfxNearStep 1.6s ease-in-out infinite; }
+@keyframes lfxNearStep { 50% { background: color-mix(in srgb, var(--rank-text-color) 55%, transparent); } }
+.ladder-steps .step.lfx-key { animation: lfxKey .5s ease-out; }
+@keyframes lfxKey { 30% { transform: translateY(.18em); background: #fff; box-shadow: 0 0 8px #fff; } }
+/* Roles: a scanner beam over the played row; other roles fade back */
+.lfx-scan { left: -40%; width: 40%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--lfx-c) 55%, transparent), transparent); animation: lfxScan .8s ease-in-out forwards; }
+@keyframes lfxScan { to { left: 100%; } }
+body.layout-roles.lfx-rol-dim .roles-list .role-row > * { filter: grayscale(1) blur(.4px); opacity: .32; transition: filter .4s, opacity .4s; }
+body.layout-roles.lfx-rol-dim .roles-hl { animation: lfxBreath 3s ease-in-out infinite; }
+@keyframes lfxBreath { 50% { opacity: .55; } }
+/* Hex: edges light up with the win streak; the contour flashes once */
+body.layout-hex.lfx-hex-edges .lfx-layer > .lfx-hex, body.layout-hex.lfx-hex-pulse .lfx-layer > .lfx-hex { display: block; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.lfx-hex line { stroke: transparent; stroke-width: 3; stroke-linecap: round; vector-effect: non-scaling-stroke; transition: stroke .3s; }
+body.layout-hex.lfx-hex-edges .lfx-hex line.on { stroke: var(--wins-color); filter: drop-shadow(0 0 3px var(--wins-color)); }
+.lfx-hex line.lfx-fresh { animation: lfxEdge .7s ease-out; }
+@keyframes lfxEdge { 0% { stroke: #fff; stroke-width: 6; } }
+.lfx-hexline { fill: none; stroke: var(--lfx-c); stroke-width: 3; vector-effect: non-scaling-stroke; opacity: 0; }
+.lfx-hexline.lfx-go { animation: lfxHexPulse 1.3s ease-out; }
+@keyframes lfxHexPulse { 20% { opacity: 1; } 100% { opacity: 0; } }
+/* Kill feed: the new row flashes white; a crosshair stamps on a 3+ win streak */
+.feed-list .lfx-ff { animation: lfxFF .7s ease-out; }
+@keyframes lfxFF { 0% { background-color: #fff; color: #111; } }
+.lfx-xhair { width: 1.3em; height: 1.3em; translate: -100% -50%; animation: lfxX .55s cubic-bezier(.3,1.6,.5,1) both; }
+.lfx-xhair svg { width: 100%; height: 100%; stroke: #ff9d4d; stroke-width: 2.2; fill: none; filter: drop-shadow(0 0 3px #ff9d4d); }
+.lfx-xhair b { position: absolute; right: 110%; top: 50%; transform: translateY(-50%); color: #ff9d4d; font-weight: 900; font-size: .8em; }
+@keyframes lfxX { from { transform: scale(2.4) rotate(-90deg); opacity: 0; } }
+/* Tug of war: the rope jerks; the pulled part fills with light */
+.tug-rope.lfx-jerk { animation: lfxJerk .6s ease-out; }
+@keyframes lfxJerk { 15% { transform: scaleY(1.7) translateX(var(--lfx-jx)); } 35% { transform: scaleY(.7) translateX(calc(var(--lfx-jx) * -.5)); } 60% { transform: scaleY(1.2); } }
+.lfx-tens { position: absolute; top: -2px; bottom: -2px; border-radius: .3em; background: var(--lfx-c); box-shadow: 0 0 10px var(--lfx-c); mix-blend-mode: screen; animation: lfxTens 1.4s ease-out forwards; pointer-events: none; }
+@keyframes lfxTens { 0% { opacity: 0; } 20% { opacity: .75; } 100% { opacity: 0; } }
+/* Flip clock: a row of four flaps under the board while the option is on (WIN / LOSS after a game) */
+.lfx-word { display: none; }
+body.layout-flip.lfx-fl-word .widget { grid-template-areas: "digits digits digits digits digits" ". role dial name ." "word word word word word"; }
+body.layout-flip.lfx-fl-word .lfx-word { grid-area: word; display: flex; justify-content: center; gap: .14em; position: relative; z-index: 1; perspective: 300px; }
+.lfx-word i { width: .95em; height: 1.25em; border-radius: .14em; display: grid; place-items: center; font-style: normal; font-weight: 900; color: var(--rank-text-color); background: linear-gradient(var(--tile-top) 50%, var(--tile-bottom) 50%); }
+.lfx-word i.lfx-flap { animation: lfxFlap .34s ease-in-out; }
+@keyframes lfxFlap { 50% { transform: rotateX(-90deg); filter: brightness(.6); } }
