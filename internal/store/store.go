@@ -105,7 +105,10 @@ type Settings struct {
 
 	Layout string `json:"layout"` // detailed | mini | card | badge | strip | minimal | column | ring | slant | scoreboard | session | form | ladder | roles | hex | feed | tug | flip | tcard
 	// CardFx: trading-card reactions, comma list of stars|flip|heat|shine|float, or "none".
-	CardFx         string `json:"cardFx"`
+	CardFx string `json:"cardFx"`
+	// LayoutFx: reactions of every other layout (the widget moving on a win / loss, and
+	// layout details), comma list of ids like detailed-win or form-belt, or "none".
+	LayoutFx       string `json:"layoutFx"`
 	IconColor      string `json:"iconColor"`
 	VesselStyle    string `json:"vesselStyle"` // classic|royal|rage|inferno|toxic|nova|fang|hard|grim|solid|sharp|award|medal|miraqlesan
 	SeparatorColor string `json:"separatorColor"`
@@ -153,6 +156,16 @@ const maxRecent = 10
 // DefaultCardFx are the trading-card reactions on out of the box.
 const DefaultCardFx = "stars,flip,heat"
 
+// DefaultLayoutFx are the layout reactions on out of the box: every win / loss motion and
+// the details that only play after a game. Motion at rest and the rest are opt-in.
+// Keep in step with LAYOUT_FX_DEFAULT in web/overlay/widget.js.
+const DefaultLayoutFx = "detailed-win,detailed-loss,mini-win,mini-loss,card-win,card-loss," +
+	"strip-win,strip-loss,minimal-win,minimal-loss,column-win,column-loss,ring-win,ring-loss,slant-win,slant-loss," +
+	"scoreboard-win,scoreboard-loss,session-win,session-loss,form-win,form-loss,ladder-win,ladder-loss," +
+	"roles-win,roles-loss,hex-loss,feed-win,feed-loss,tug-win,tug-loss,flip-win,flip-loss," +
+	"det-trace,mini-coin,mini-grow,card-wr,card-curtain,min-dmg,col-lift,ring-mark,sb-led,ses-label," +
+	"form-belt,lad-near,lad-piano,rol-slide,rol-scan,hex-edges,hex-pulse,feed-flash,feed-cross,tug-jerk,tug-tension"
+
 func (s *Store) pushRecent(r string) {
 	s.recent = append(s.recent, r)
 	if len(s.recent) > maxRecent {
@@ -187,6 +200,7 @@ func DefaultSettings() Settings {
 		AppearEffect:    "slide",
 		Layout:          "detailed",
 		CardFx:          DefaultCardFx,
+		LayoutFx:        DefaultLayoutFx,
 		FillStyle:       "liquid",
 		RankFx:          "classic",
 		AnimDirection:   "left",
@@ -500,6 +514,9 @@ func (s *Store) clamp() {
 	}
 	if s.settings.CardFx == "" {
 		s.settings.CardFx = DefaultCardFx
+	}
+	if s.settings.LayoutFx == "" {
+		s.settings.LayoutFx = DefaultLayoutFx
 	}
 	switch s.settings.Layout {
 	case "detailed", "mini", "card", "badge", "strip", "minimal", "column", "ring", "slant", "scoreboard", "session",

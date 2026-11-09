@@ -212,6 +212,11 @@
               <label class="card-opt"><input type="checkbox" name="cardFx" value="float"><span><b data-i18n="card.float">Парение</b><span data-i18n="card.floatHint">Карта медленно покачивается в 3D, пока ничего не происходит.</span></span></label>
             </div>
           </section>
+          <section class="panel card-options" id="layoutFxOptions" hidden>
+            <h2 data-i18n="lfx.title">Реакции вида</h2>
+            <p class="setup-note" data-i18n="lfx.note">Виджет оживает после засчитанной игры. Включи то, что нравится, — кнопки «Победа» и «Поражение» в превью покажут сразу. На смену ранга реакции не срабатывают: там играет анимация ранга.</p>
+            <div id="layoutFxOpts"></div>
+          </section>
         </section>
 
         <section class="tab-panel" data-panel="skins">
@@ -769,6 +774,7 @@
   <script src="/overlay/vessel-shapes.js"></script>
   <script src="skins.js"></script>
   <script src="faq.js"></script>
+  <script src="layout-fx.js"></script>
   <script src="admin.js"></script>
   <script src="studio.js"></script>
 <script src="fx-picker.js"></script>

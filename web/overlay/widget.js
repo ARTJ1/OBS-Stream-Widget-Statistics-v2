@@ -108,6 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
     tcardBack: document.getElementById('tcardBack'),
     tcardShine: document.getElementById('tcardShine'),
     wrValue: document.getElementById('wrValue'),
+    lfxLayer: document.getElementById('lfxLayer'),
+    lfxWord: document.getElementById('lfxWord'),
+    lfxMark: document.getElementById('lfxMark'),
   };
 
   const ROLE_ICONS = {
@@ -280,7 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let streak = 0;
     for (let i = all.length - 1; i >= 0 && all[i] === all[all.length - 1]; i--) streak++;
     const label = streak >= 2 ? `<span class="streak ${all[all.length - 1]}">${streak}${all[all.length - 1] === 'w' ? 'W' : 'L'} streak</span>` : '';
-    dom.formPips.innerHTML = pips.join('') + label;
+    const html = pips.join('') + label;
+    if (html === formPipsHtml) return;
+    // The Conveyor reaction (layoutFx form-belt) drops the tile that just left.
+    formPrevFirstPip = dom.formPips.querySelector('.pip')?.outerHTML || '';
+    formPipsHtml = html;
+    dom.formPips.innerHTML = html;
   }
 
   // Division steps inside the current tier, and the next tier's icon.
@@ -312,7 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const roles = currentState.roles;
     const byRole = currentState.game !== 'apex' && currentState.mode !== 'classic' && roles;
     const active = ROLES_ROWS.indexOf(currentState.role);
-    dom.widget.style.setProperty('--active-row', String(byRole && active >= 0 ? active + 1 : 1));
+    const prevRow = Number(dom.widget.style.getPropertyValue('--active-row')) || 0;
+    const row = byRole && active >= 0 ? active + 1 : 1;
+    dom.widget.style.setProperty('--active-row', String(row));
     if (!byRole) {
       dom.rolesList.innerHTML = '';
       return;
@@ -328,6 +338,14 @@ document.addEventListener('DOMContentLoaded', () => {
         + `<img class="rank-cell" src="${info.img}" alt="">`
         + `<span class="name-cell">${info.display}</span>${wl}</span>`;
     }).join('');
+    // Highlight slides over from the old row (layoutFx rol-slide); it is redrawn in place.
+    const hl = dom.rolesList.querySelector('.roles-hl');
+    if (hasLayoutFx('rol-slide') && prevRow && prevRow !== row && hl && typeof hl.animate === 'function') {
+      const em = parseFloat(getComputedStyle(dom.widget).fontSize) || 16;
+      const gap = parseFloat(getComputedStyle(dom.widget).rowGap) || 0;
+      const pitch = hl.offsetHeight - 0.3 * em + gap;
+      hl.animate([{ transform: `translateY(${(prevRow - row) * pitch}px)` }, { transform: 'none' }], { duration: 480, easing: 'cubic-bezier(.5,1.4,.4,1)' });
+    }
   }
 
   // Kill feed: newest result on top (next to the live rank), two older ones below.
@@ -446,6 +464,396 @@ document.addEventListener('DOMContentLoaded', () => {
     CARD_FX.forEach((id) => document.body.classList.toggle(`card-fx-${id}`, cardFx.has(id)));
   }
 
+  // ===== Layout reactions (settings.layoutFx) =====
+  // Every layout but the trading card can react to a counted win / loss: the widget
+  // itself moves (<layout>-win / -loss, optionally <layout>-idle at rest) and a few
+  // layout details animate. Each id is its own switch in the admin. Nothing here
+  // runs on a rank change: the rank effect owns that moment.
+  // [duration ms, easing] of each win / loss reaction; the keyframes live in widget.css
+  // (@keyframes lfx-<id>). <layout>-idle runs from CSS alone.
+  const LAYOUT_FX_MOTION = {
+    'detailed-win': [750, 'cubic-bezier(.3,.7,.4,1)'], 'detailed-loss': [700, 'ease-out'], 'detailed-idle': 0,
+    'mini-win': [800, 'ease-out'], 'mini-loss': [1000, 'ease-in-out'], 'mini-idle': 0,
+    'card-win': [900, 'ease-in-out'], 'card-loss': [900, 'ease-in-out'], 'card-idle': 0,
+    'strip-win': [700, 'ease-out'], 'strip-loss': [600, 'steps(1,end)'],
+    'minimal-win': [1400, 'ease-in-out'], 'minimal-loss': [900, 'ease-out'], 'minimal-idle': 0,
+    'column-win': [800, 'ease-out'], 'column-loss': [800, 'ease-out'], 'column-idle': 0,
+    'ring-win': [1000, 'ease-in-out'], 'ring-loss': [1000, 'ease-in-out'], 'ring-idle': 0,
+    'slant-win': [600, 'cubic-bezier(.2,.8,.3,1)'], 'slant-loss': [900, 'ease-out'], 'slant-idle': 0,
+    'scoreboard-win': [900, 'linear'], 'scoreboard-loss': [900, 'steps(1,end)'],
+    'session-win': [1200, 'ease-in-out'], 'session-loss': [1200, 'ease-in-out'],
+    'form-win': [1000, 'ease-in-out'], 'form-loss': [1000, 'ease-in-out'], 'form-idle': 0,
+    'ladder-win': [1300, 'ease-out'], 'ladder-loss': [1000, 'ease-out'],
+    'roles-win': [800, 'ease-out'], 'roles-loss': [500, 'ease-out'],
+    'hex-loss': [700, 'ease-out'], 'hex-idle': 0,
+    'feed-win': [700, 'cubic-bezier(.2,.8,.3,1)'], 'feed-loss': [500, 'steps(1,end)'],
+    'tug-win': [1000, 'ease-in-out'], 'tug-loss': [1000, 'ease-in-out'],
+    'flip-win': [600, 'linear'], 'flip-loss': [600, 'linear'],
+  };
+  const LAYOUT_FX_DETAILS = [
+    'det-trace', 'mini-coin', 'mini-grow', 'card-wr', 'card-curtain', 'strip-live', 'min-dmg', 'col-lift',
+    'ring-breath', 'ring-mark', 'sb-led', 'ses-label', 'form-belt', 'form-domino', 'lad-near', 'lad-piano',
+    'rol-slide', 'rol-scan', 'rol-dim', 'hex-edges', 'hex-pulse', 'feed-flash', 'feed-cross', 'tug-jerk',
+    'tug-tension', 'fl-word',
+  ];
+  const LAYOUT_FX_ALL = new Set([...Object.keys(LAYOUT_FX_MOTION), ...LAYOUT_FX_DETAILS]);
+  // On out of the box: every win / loss reaction and the details that only play after a
+  // game. Motion at rest, the always-blinking LIVE dot, the dimmed roles, Domino (it shares
+  // the tiles with the Conveyor) and the extra flap row are opt-in.
+  const LAYOUT_FX_OFF_BY_DEFAULT = new Set(['strip-live', 'ring-breath', 'rol-dim', 'form-domino', 'fl-word']);
+  const LAYOUT_FX_DEFAULT = [...LAYOUT_FX_ALL]
+    .filter((id) => !id.endsWith('-idle') && !LAYOUT_FX_OFF_BY_DEFAULT.has(id)).join(',');
+  // 3D turns need a perspective on the page. It is on only while it is needed: all the
+  // time for a 3D motion at rest, otherwise just for the length of a 3D win / loss turn.
+  // A page-wide perspective that stays on turns every flat widget into a 3D layer, and
+  // each rank idle sparkle then re-draws it with a visible twitch.
+  const LAYOUT_FX_3D = new Set(['card-win', 'card-loss', 'slant-idle', 'form-win', 'form-loss', 'form-idle', 'roles-win']);
+  let lfx3dTurns = 0;
+  let layoutFx = new Set();
+  let formPrevFirstPip = '';
+  let formPipsHtml = '';
+
+  function applyLayoutFx(value) {
+    const raw = value == null || value === '' ? LAYOUT_FX_DEFAULT : String(value);
+    layoutFx = new Set(raw.split(',').map((s) => s.trim()).filter((id) => LAYOUT_FX_ALL.has(id)));
+    // Conveyor and Domino move the same tiles: one at a time.
+    if (layoutFx.has('form-belt')) layoutFx.delete('form-domino');
+    const body = document.body;
+    [...body.classList].filter((c) => c.startsWith('lfx-')).forEach((c) => body.classList.remove(c));
+    layoutFx.forEach((id) => body.classList.add(`lfx-${id}`));
+    updateLayoutFx3d();
+  }
+  const hasLayoutFx = (id) => layout !== 'tcard' && layoutFx.has(id);
+
+  function updateLayoutFx3d() {
+    const idle3d = layoutFx.has(`${layout}-idle`) && LAYOUT_FX_3D.has(`${layout}-idle`);
+    const on = idle3d || lfx3dTurns > 0;
+    document.body.classList.toggle('lfx-3d', on);
+    if (!on || !dom.widget) return;
+    // Look at the widget straight on, wherever OBS has it (layout box: the appear
+    // transform may still have it off screen).
+    const z = widgetZoom || 1;
+    const x = dom.widget.offsetLeft + (dom.widget.offsetWidth * z) / 2;
+    const y = dom.widget.offsetTop + (dom.widget.offsetHeight * z) / 2;
+    document.body.style.perspectiveOrigin = `${Math.round(x)}px ${Math.round(y)}px`;
+  }
+
+  const lfxKick = (el, cls, ms, delay = 0) => {
+    if (!el) return;
+    setTimeout(() => {
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+      clearTimeout(el.lfxOff?.[cls]);
+      el.lfxOff = { ...el.lfxOff, [cls]: setTimeout(() => el.classList.remove(cls), ms) };
+    }, delay);
+  };
+  const lfxLater = (fn, delay) => setTimeout(fn, delay);
+  // Position of an element inside the widget, in the widget's own (unscaled) pixels.
+  const lfxOffset = (el) => {
+    let x = 0; let y = 0; let n = el;
+    while (n && n !== dom.widget) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+  };
+  const lfxSpawn = (cls, style, ms, html = '', parent = dom.lfxLayer) => {
+    if (!parent) return null;
+    const e = document.createElement('span');
+    e.className = cls;
+    e.innerHTML = html;
+    Object.entries(style).forEach(([k, v]) => e.style.setProperty(k, v));
+    parent.appendChild(e);
+    setTimeout(() => e.remove(), ms);
+    return e;
+  };
+  function winStreak() {
+    const recent = currentState.recent || [];
+    let n = 0;
+    for (let i = recent.length - 1; i >= 0 && recent[i] === 'w'; i--) n++;
+    return n;
+  }
+
+  // State the details show at rest: streak glow, ring mark, ladder "almost there", hex edges.
+  function syncLayoutFxState() {
+    if (!dom.widget) return;
+    const streak = winStreak();
+    dom.widget.style.setProperty('--lfx-st', String(Math.min(streak, 5)));
+    if (dom.lfxMark && layout === 'ring') {
+      const w = currentState.wins || 0;
+      const l = currentState.losses || 0;
+      const a = (w + l ? w / (w + l) : 0) * Math.PI * 2;
+      dom.lfxMark.setAttribute('cx', (36 + 33 * Math.cos(a)).toFixed(2));
+      dom.lfxMark.setAttribute('cy', (36 + 33 * Math.sin(a)).toFixed(2));
+    }
+    if (layout === 'ladder' && dom.ladderSteps) {
+      const left = dom.ladderSteps.querySelectorAll('.step:not(.on):not(.cur)').length;
+      dom.widget.classList.toggle('lfx-near', !dom.ladderSteps.hidden && !!dom.ladderSteps.children.length && left <= 1 && !dom.ladderNext.hidden);
+    } else {
+      dom.widget.classList.remove('lfx-near');
+    }
+    dom.lfxLayer?.querySelectorAll('.lfx-hex line').forEach((ln, i) => ln.classList.toggle('on', i < Math.min(streak, 6)));
+  }
+
+  // A counted game: kind is 'win' or 'loss'; delay lets the widget finish sliding in.
+  function playLayoutFx(kind, delay) {
+    if (!dom.widget || layout === 'tcard') return;
+    if (isRankTransitionAnimating || dom.widget.classList.contains('widget-fx-active')) return;
+    const w = dom.widget;
+    const win = kind === 'win';
+    const color = win ? 'var(--wins-color)' : 'var(--losses-color)';
+    const num = win ? dom.wins : dom.losses;
+    const counted = delay + numberAnimMs;
+    w.style.setProperty('--lfx-c', color);
+    updateLayoutFx3d();
+
+    const motion = `${layout}-${kind}`;
+    if (hasLayoutFx(motion)) playLayoutMotion(motion, delay);
+    const L = dom.lfxLayer;
+    switch (layout) {
+      case 'detailed':
+        if (hasLayoutFx('det-trace')) lfxKick(L, 'lfx-trace', 1400, delay);
+        break;
+      case 'mini':
+        if (hasLayoutFx('mini-coin')) lfxKick(num, 'lfx-coin', 950, counted);
+        if (hasLayoutFx('mini-grow')) lfxKick(L, 'lfx-glow', 950, delay);
+        break;
+      case 'card':
+        if (hasLayoutFx('card-wr')) lfxKick(w.querySelector('.wr-bar'), 'lfx-run', 1100, delay + 300);
+        if (hasLayoutFx('card-curtain')) lfxKick(L, 'lfx-curtain', 1450, delay);
+        break;
+      case 'strip':
+        if (hasLayoutFx('strip-live')) lfxKick(L?.querySelector('.lfx-live'), 'lfx-fast', 1600, delay);
+        break;
+      case 'minimal':
+        if (hasLayoutFx('min-dmg')) lfxLater(() => {
+          const p = lfxOffset(num);
+          lfxSpawn('lfx-dmg', { left: `${p.x + p.w + 6}px`, top: `${p.y}px`, color }, 1300, '+1');
+        }, delay);
+        break;
+      case 'column':
+        if (hasLayoutFx('col-lift')) lfxKick(L, win ? 'lfx-up' : 'lfx-down', 1000, delay);
+        break;
+      case 'ring':
+        if (hasLayoutFx('ring-mark')) lfxKick(dom.lfxMark, 'lfx-pulse', 1250, delay + 650);
+        break;
+      case 'scoreboard':
+        if (hasLayoutFx('sb-led')) lfxLater(() => {
+          const p = lfxOffset(num);
+          lfxSpawn('lfx-led', { left: `${p.x - 3}px`, top: `${p.y - 2}px`, width: `${p.w + 6}px`, height: `${p.h + 4}px` }, 950);
+        }, counted + 100);
+        break;
+      case 'session':
+        if (hasLayoutFx('ses-label')) {
+          const stats = w.querySelector('.stats');
+          stats?.classList.toggle('lfx-w', win);
+          stats?.classList.toggle('lfx-l', !win);
+          lfxKick(stats, 'lfx-lab', 1300, delay);
+        }
+        break;
+      case 'form':
+        if (hasLayoutFx('form-belt')) playFormBelt(delay);
+        else if (hasLayoutFx('form-domino')) {
+          w.querySelectorAll('.form-pips .pip').forEach((p, i) => {
+            p.style.animationDelay = `${i * 90}ms`;
+            lfxKick(p, 'lfx-dom', 600 + i * 90, delay);
+          });
+        }
+        break;
+      case 'ladder':
+        if (hasLayoutFx('lad-piano')) {
+          const steps = [...w.querySelectorAll('.ladder-steps .step')];
+          (win ? steps : steps.reverse()).forEach((s, i) => lfxKick(s, 'lfx-key', 520, delay + i * 70));
+        }
+        break;
+      case 'roles':
+        if (hasLayoutFx('rol-scan')) lfxLater(() => {
+          const hl = w.querySelector('.roles-hl');
+          if (!hl) return;
+          const p = lfxOffset(hl);
+          lfxSpawn('lfx-scan', { top: `${p.y}px`, height: `${p.h}px` }, 950);
+        }, delay);
+        break;
+      case 'hex':
+        if (hasLayoutFx('hex-edges') && win) {
+          const lit = L?.querySelectorAll('.lfx-hex line.on');
+          if (lit?.length) lfxKick(lit[lit.length - 1], 'lfx-fresh', 750, delay);
+        }
+        if (hasLayoutFx('hex-pulse')) lfxKick(L?.querySelector('.lfx-hexline'), 'lfx-go', 1300, delay);
+        break;
+      case 'feed':
+        if (hasLayoutFx('feed-flash')) {
+          w.querySelectorAll('.feed-list [style*="--row:1"]:not(.feed-sizer)').forEach((r) => lfxKick(r, 'lfx-ff', 750, delay));
+        }
+        if (hasLayoutFx('feed-cross') && win && winStreak() >= 3) lfxLater(() => {
+          const tag = w.querySelector('.feed-list .feed-tag[style*="--row:1"]');
+          if (!tag) return;
+          const p = lfxOffset(tag);
+          lfxSpawn('lfx-xhair', { left: `${p.x + p.w - 4}px`, top: `${p.y + p.h / 2}px` }, 2600,
+            `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 1v6M12 17v6M1 12h6M17 12h6"/></svg><b>×${winStreak()}</b>`);
+        }, delay);
+        break;
+      case 'tug': {
+        const rope = w.querySelector('.tug-rope');
+        if (hasLayoutFx('tug-jerk') && rope) {
+          rope.style.setProperty('--lfx-jx', win ? '4px' : '-4px');
+          lfxKick(rope, 'lfx-jerk', 650, delay);
+        }
+        if (hasLayoutFx('tug-tension') && rope) lfxLater(() => {
+          const at = parseFloat(dom.tugKnot?.style.left) || 50;
+          lfxSpawn('lfx-tens', win ? { left: `${at}%`, right: '0' } : { left: '0', width: `${at}%` }, 1500, '', rope);
+        }, delay + 650);
+        break;
+      }
+      case 'flip':
+        if (hasLayoutFx('fl-word') && dom.lfxWord) playFlipWord(win ? 'WIN ' : 'LOSS', delay + 450);
+        break;
+      default:
+        break;
+    }
+  }
+
+  // A win / loss reaction is added on top of whatever the widget is doing (rest motion,
+  // appear slide), starting and ending at "no change": it blends in and out, no jump.
+  // Its keyframes are read once from widget.css (@keyframes lfx-<id>).
+  const LFX_IDENTITY = { translate: '0px 0px', rotate: '0deg', scale: '1', filter: 'none' };
+  const lfxFrameCache = new Map();
+  function lfxKeyframes(id) {
+    if (lfxFrameCache.has(id)) return lfxFrameCache.get(id);
+    let rule = null;
+    for (const sheet of document.styleSheets) {
+      let rules;
+      try { rules = sheet.cssRules; } catch { continue; }
+      rule = [...rules].find((r) => r.type === CSSRule.KEYFRAMES_RULE && r.name === `lfx-${id}`) || null;
+      if (rule) break;
+    }
+    if (!rule) {
+      lfxFrameCache.set(id, null);
+      return null;
+    }
+    const byOffset = new Map();
+    const props = new Set();
+    for (const kf of rule.cssRules) {
+      const vals = {};
+      for (let i = 0; i < kf.style.length; i++) {
+        const prop = kf.style[i];
+        vals[prop] = kf.style.getPropertyValue(prop);
+        props.add(prop);
+      }
+      kf.keyText.split(',').forEach((key) => {
+        const k = key.trim();
+        const off = k === 'from' ? 0 : k === 'to' ? 1 : parseFloat(k) / 100;
+        byOffset.set(off, { ...(byOffset.get(off) || {}), ...vals });
+      });
+    }
+    [0, 1].forEach((off) => {
+      const f = byOffset.get(off) || {};
+      props.forEach((prop) => { if (!(prop in f)) f[prop] = LFX_IDENTITY[prop] ?? ''; });
+      byOffset.set(off, f);
+    });
+    const frames = [...byOffset.entries()].sort((a, b) => a[0] - b[0]).map(([offset, v]) => ({ offset, ...v }));
+    lfxFrameCache.set(id, frames);
+    return frames;
+  }
+  // A win / loss reaction starts from the pose the widget is in right now and ends in
+  // that same pose. The rest motion holds still meanwhile and then goes on from there,
+  // so the two flow into each other with no jump. (Adding the reaction on top of the
+  // running rest motion is not an option: Chrome adds the wrong rest angle to a turn.)
+  const LFX_POSE_PROPS = ['translate', 'rotate', 'scale', 'filter'];
+  let lfxMotionAnim = null;
+  function restMotion() {
+    const name = `lfx-${layout}-idle`;
+    return dom.widget.getAnimations().find((a) => a.animationName === name) || null;
+  }
+  const lfxPair = (v) => {
+    const parts = String(v).trim().split(/\s+/);
+    return [parts[0], parts[1] || (parts[0].endsWith('px') || parts[0].endsWith('em') || parts[0].endsWith('%') ? '0px' : parts[0])];
+  };
+  // Reaction offset plus the current pose: translate adds, scale multiplies.
+  function lfxOnPose(prop, value, pose) {
+    if (prop === 'translate') {
+      const len = (t) => (/^-?[\d.]+$/.test(t) ? `${t}px` : t); // a bare 0 is not a length in calc()
+      const [x, y] = lfxPair(value).map(len);
+      const [px, py] = lfxPair(pose).map(len);
+      return `calc(${x} + ${px}) calc(${y} + ${py})`;
+    }
+    if (prop === 'scale') {
+      const [x, y] = lfxPair(value).map(Number);
+      const [px, py] = lfxPair(pose).map(Number);
+      return `${x * px} ${y * py}`;
+    }
+    return value;
+  }
+  function startLayoutMotion(id) {
+    const def = LAYOUT_FX_MOTION[id];
+    const frames = def && lfxKeyframes(id);
+    if (!frames || typeof dom.widget.animate !== 'function') return;
+    const [duration, easing] = def;
+    const rest = restMotion();
+    rest?.pause();
+    lfxMotionAnim?.cancel();
+    const cs = getComputedStyle(dom.widget);
+    const pose = {};
+    LFX_POSE_PROPS.forEach((prop) => {
+      const v = cs.getPropertyValue(prop);
+      pose[prop] = v && v !== 'none' ? v : LFX_IDENTITY[prop];
+    });
+    const props = new Set(frames.flatMap((f) => Object.keys(f).filter((k) => LFX_POSE_PROPS.includes(k))));
+    const out = frames.map((f) => {
+      const o = { offset: f.offset, easing };
+      props.forEach((prop) => {
+        if (f.offset === 0 || f.offset === 1) o[prop] = pose[prop];
+        else if (prop in f) o[prop] = lfxOnPose(prop, f[prop], pose[prop]);
+      });
+      return o;
+    });
+    const anim = dom.widget.animate(out, { duration });
+    lfxMotionAnim = anim;
+    const is3d = LAYOUT_FX_3D.has(id);
+    if (is3d) {
+      lfx3dTurns += 1;
+      updateLayoutFx3d();
+    }
+    const done = () => {
+      if (is3d) {
+        lfx3dTurns = Math.max(0, lfx3dTurns - 1);
+        updateLayoutFx3d();
+      }
+      if (lfxMotionAnim !== anim) return; // a newer reaction took over
+      lfxMotionAnim = null;
+      restMotion()?.play();
+    };
+    anim.finished.then(done, done);
+  }
+  function playLayoutMotion(id, delay) {
+    lfxLater(() => startLayoutMotion(id), delay);
+  }
+
+  // Conveyor: the oldest tile drops off, the rest slide over, the new one lands from above.
+  // The tiles are already redrawn, so each one starts from where it used to be.
+  function playFormBelt(delay) {
+    const pips = [...(dom.formPips?.querySelectorAll('.pip') || [])];
+    if (pips.length < 2 || typeof pips[0].animate !== 'function') return;
+    const step = pips[1].offsetLeft - pips[0].offsetLeft;
+    const opts = { delay, fill: 'backwards' };
+    pips.slice(0, -1).forEach((p) => p.animate([{ transform: `translateX(${step}px)` }, { transform: 'none' }], { ...opts, duration: 420, easing: 'cubic-bezier(.4,0,.2,1)' }));
+    pips[pips.length - 1].animate(
+      [{ transform: 'translateY(-1.4em)', opacity: 0 }, { transform: 'translateY(.1em)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }],
+      { ...opts, duration: 480, easing: 'ease-out' },
+    );
+    if (!formPrevFirstPip || !dom.lfxLayer) return;
+    const p = lfxOffset(pips[0]);
+    const ghost = lfxSpawn('lfx-ghost', { left: `${p.x}px`, top: `${p.y}px` }, delay + 480, formPrevFirstPip);
+    ghost?.animate(
+      [{ transform: 'none', opacity: 1 }, { transform: `translate(${-step * 0.6}px, .6em) rotate(-25deg)`, opacity: 0 }],
+      { delay, duration: 420, easing: 'ease-in', fill: 'both' },
+    );
+  }
+
+  function playFlipWord(text, delay) {
+    const tiles = [...dom.lfxWord.children];
+    tiles.forEach((t, i) => lfxLater(() => { t.textContent = text[i].trim(); lfxKick(t, 'lfx-flap', 360); }, delay + i * 120));
+    tiles.forEach((t, i) => lfxLater(() => { t.textContent = ''; lfxKick(t, 'lfx-flap', 360); }, delay + 2600 + i * 120));
+  }
+
   // Card back text shrinks to the card's width (wide and pixel fonts run long).
   function fitCardBack() {
     const room = dom.tcardBack.clientWidth * 0.86;
@@ -554,6 +962,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFlip();
     renderCardStars();
     renderCardHeat();
+    syncLayoutFxState();
     fitRankName();
     fitPreviewWidget();
   }
@@ -710,6 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     vesselStyleId = merged.vesselStyle || 'classic';
     layout = LAYOUTS.includes(merged.layout) ? merged.layout : 'detailed';
     applyCardFx(merged.cardFx);
+    applyLayoutFx(merged.layoutFx);
 
     if (typeof window.loadWidgetFont === 'function') {
       window.loadWidgetFont(merged.font || 'Arial, sans-serif');
@@ -796,16 +1206,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const put = (prop, [v, p]) => (v ? el.style.setProperty(prop, v, p) : el.style.removeProperty(prop));
     const transition = keep('transition');
     const transform = keep('transform');
-    const moves = ['translate', 'scale'].map(keep);
+    const moves = ['translate', 'scale', 'rotate'].map(keep);
     el.style.setProperty('transition', 'none', 'important');
     el.style.setProperty('transform', 'none', 'important');
     el.style.setProperty('translate', 'none', 'important');
     el.style.setProperty('scale', 'none', 'important');
+    el.style.setProperty('rotate', 'none', 'important');
     const r = el.getBoundingClientRect();
     const ow = el.offsetWidth;
     put('transform', transform);
     put('translate', moves[0]);
     put('scale', moves[1]);
+    put('rotate', moves[2]);
     void el.offsetWidth; // settle the old transform while transitions are still off
     put('transition', transition);
     // Older Chromium (OBS) may report a zoomed element in its own unzoomed pixels.
@@ -2677,6 +3089,8 @@ document.addEventListener('DOMContentLoaded', () => {
       : currentState.losses > previousState.losses ? 'l' : '';
     clearTimeout(cardFlipDelay);
     if (flipKind) cardFlipDelay = setTimeout(() => playCardFlip(flipKind), alwaysVisible ? 0 : Math.round(animDurationIn * 1000));
+    // Layout reactions: a counted game only, never in the same update as a rank change.
+    if (flipKind && !shouldAnimateRank) playLayoutFx(flipKind === 'w' ? 'win' : 'loss', alwaysVisible ? 0 : Math.round(animDurationIn * 1000));
     await Promise.all([
       animateFill(dom.winsLiquid, dom.winsIconContainer, previousState.wins, currentState.wins),
       animateFill(dom.lossesLiquid, dom.lossesIconContainer, previousState.losses, currentState.losses),

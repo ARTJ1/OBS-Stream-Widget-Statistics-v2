@@ -532,6 +532,7 @@ function fillAppearance(settings) {
   fillSeparatorColor(settings.separatorColor || 'rgba(255,255,255,0.55)');
   if (form.layout) form.layout.value = settings.layout || 'detailed';
   fillCardFx(settings.cardFx);
+  window.AdminLayoutFx?.fill(settings.layoutFx);
   if (settings.font) {
     if (![...fontSelect.options].some((o) => o.value === settings.font)) {
       const opt = document.createElement('option');
@@ -610,6 +611,7 @@ function readAppearance() {
     separatorColor: buildSeparatorColor(),
     layout: form.layout?.value || 'detailed',
     cardFx: readCardFx(),
+    layoutFx: window.AdminLayoutFx?.read() || '',
     skinId: selectedSkinId,
     uiLang,
     uiTheme,
@@ -1027,6 +1029,7 @@ function skinPreviewSettings(skin) {
   if (!skin.id.startsWith('custom_')) {
     merged.layout = base.layout;
     merged.cardFx = base.cardFx;
+    merged.layoutFx = base.layoutFx;
   }
   return merged;
 }
