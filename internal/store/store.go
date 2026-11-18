@@ -118,9 +118,13 @@ type Settings struct {
 	NeonColor     string `json:"neonColor"`
 	NeonTextColor string `json:"neonTextColor"`
 	NeonWaveColor string `json:"neonWaveColor"`
-	AppearEffect  string `json:"appearEffect"` // slide | fade | bounce | zoom
-	FillStyle     string `json:"fillStyle"`    // liquid | solid | glow | bubble
-	RankFx        string `json:"rankFx"`
+	// Neon glow strength in percent (0 = none, 100 = default, up to 200): numbers and
+	// lines, and the W: / L: letters on their own.
+	NeonGlow     int    `json:"neonGlow"`
+	NeonTextGlow int    `json:"neonTextGlow"`
+	AppearEffect string `json:"appearEffect"` // slide | fade | bounce | zoom
+	FillStyle    string `json:"fillStyle"`    // liquid | solid | glow | bubble
+	RankFx       string `json:"rankFx"`
 
 	FillLimit       int    `json:"fillLimit"`
 	FillDurationMs  int    `json:"fillDurationMs"`
@@ -182,7 +186,20 @@ const (
 	DefaultNeonColor     = "#3ff0e6"
 	DefaultNeonTextColor = "#f3ecff"
 	DefaultNeonWaveColor = "#ff4fd8"
+	DefaultNeonGlow      = 100
+	MaxNeonGlow          = 200
 )
+
+// clampNeonGlow keeps a neon glow strength within 0..MaxNeonGlow percent.
+func clampNeonGlow(v int) int {
+	if v < 0 {
+		return 0
+	}
+	if v > MaxNeonGlow {
+		return MaxNeonGlow
+	}
+	return v
+}
 
 // withNeonFx adds the neon layout defaults to a reaction list saved before it existed.
 func withNeonFx(v string) string {
@@ -231,6 +248,8 @@ func DefaultSettings() Settings {
 		NeonColor:       DefaultNeonColor,
 		NeonTextColor:   DefaultNeonTextColor,
 		NeonWaveColor:   DefaultNeonWaveColor,
+		NeonGlow:        DefaultNeonGlow,
+		NeonTextGlow:    DefaultNeonGlow,
 		AppearEffect:    "slide",
 		Layout:          "detailed",
 		CardFx:          DefaultCardFx,
@@ -562,6 +581,8 @@ func (s *Store) clamp() {
 	if !isHexColor(s.settings.NeonWaveColor) {
 		s.settings.NeonWaveColor = DefaultNeonWaveColor
 	}
+	s.settings.NeonGlow = clampNeonGlow(s.settings.NeonGlow)
+	s.settings.NeonTextGlow = clampNeonGlow(s.settings.NeonTextGlow)
 	switch s.settings.Layout {
 	case "detailed", "mini", "card", "badge", "strip", "minimal", "column", "ring", "slant", "scoreboard", "session",
 		"form", "ladder", "roles", "hex", "feed", "tug", "flip", "tcard", "neon":

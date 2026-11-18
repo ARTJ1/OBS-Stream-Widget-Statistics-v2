@@ -9,6 +9,8 @@
   --neon-color: #3ff0e6;
   --neon-text: #f3ecff;
   --neon-wave: #ff4fd8;
+  --neon-glow: 1;      /* glow strength of numbers and lines, 0..2 */
+  --neon-text-glow: 1; /* glow strength of the W: / L: letters, 0..2 */
   --font: 'Arial', sans-serif;
   --font-size: 16px;
   /* Opaque panel colour and flip-tile faces; JS sets --bg-solid from the skin. */
@@ -3927,6 +3929,14 @@ body.layout-flip.lfx-fl-word .lfx-word { grid-area: word; display: flex; justify
    neon-breathe / neon-flicker plays; neon-win / neon-loss react to a counted game. */
 .neon-lines,
 .neon-k { display: none; }
+body.layout-neon {
+  /* Glow colours fade out below strength 1; above it only the glow radius grows. */
+  --ng-c: color-mix(in srgb, var(--neon-color) calc(min(var(--neon-glow), 1) * 100%), transparent);
+  --ng-c60: color-mix(in srgb, var(--neon-color) calc(min(var(--neon-glow), 1) * 60%), transparent);
+  --ng-c50: color-mix(in srgb, var(--neon-color) calc(min(var(--neon-glow), 1) * 50%), transparent);
+  --ng-w: color-mix(in srgb, var(--neon-wave) calc(min(var(--neon-glow), 1) * 100%), transparent);
+  --ntg-c: color-mix(in srgb, var(--neon-color) calc(min(var(--neon-text-glow), 1) * 100%), transparent);
+}
 body.layout-neon .widget {
   background: none !important;
   box-shadow: none;
@@ -3947,7 +3957,7 @@ body.layout-neon #rankValue {
   font-size: 1.55em;
   font-weight: 800;
   padding-bottom: 0;
-  text-shadow: 0 0 0.16em var(--neon-color), 0 0 0.4em color-mix(in srgb, var(--neon-color) 60%, transparent);
+  text-shadow: 0 0 calc(0.16em * var(--neon-glow)) var(--ng-c), 0 0 calc(0.4em * var(--neon-glow)) var(--ng-c60);
 }
 body.layout-neon .stats { gap: 1em; }
 body.layout-neon .stat-item { display: flex; align-items: baseline; gap: 0.3em; }
@@ -3958,7 +3968,7 @@ body.layout-neon #losses {
   font-size: 1.35em;
   min-width: 1ch;
   text-align: left;
-  text-shadow: 0 0 0.22em var(--neon-color), 0 0 0.5em color-mix(in srgb, var(--neon-color) 50%, transparent);
+  text-shadow: 0 0 calc(0.22em * var(--neon-glow)) var(--ng-c), 0 0 calc(0.5em * var(--neon-glow)) var(--ng-c50);
 }
 body.layout-neon .neon-k {
   display: inline-block;
@@ -3969,7 +3979,7 @@ body.layout-neon .neon-k {
   background-image: linear-gradient(90deg, var(--neon-text) 0 36%, var(--neon-color) 45% 55%, var(--neon-text) 64% 100%);
   background-size: 700% 100%;
   background-position: 100% 0;
-  filter: drop-shadow(0 0 0.12em var(--neon-color)) drop-shadow(0 0 0.3em var(--neon-color));
+  filter: drop-shadow(0 0 calc(0.12em * var(--neon-text-glow)) var(--ntg-c)) drop-shadow(0 0 calc(0.3em * var(--neon-text-glow)) var(--ntg-c));
 }
 body.layout-neon .neon-lines {
   display: block;
@@ -3986,7 +3996,7 @@ body.layout-neon .neon-lines {
   left: 0;
   right: 0;
   height: max(2px, 0.18em);
-  filter: drop-shadow(0 0 0.18em var(--neon-color)) drop-shadow(0 0 0.38em var(--neon-color));
+  filter: drop-shadow(0 0 calc(0.18em * var(--neon-glow)) var(--ng-c)) drop-shadow(0 0 calc(0.38em * var(--neon-glow)) var(--ng-c));
 }
 .neon-line.top { top: 0.3em; }
 .neon-line.bottom { bottom: 0.3em; }
@@ -4031,13 +4041,13 @@ body.layout-neon.lfx-neon-flicker .neon-line.bottom { animation-delay: -3.3s; }
 body.layout-neon.lfx-neon-flicker .stat-item + .stat-item .neon-k { animation-delay: 0.3s; }
 @keyframes neonWave { from { left: -110%; } to { left: 100%; } }
 @keyframes neonLineGlow {
-  0%, 100% { filter: drop-shadow(0 0 0.18em var(--neon-color)) drop-shadow(0 0 0.38em var(--neon-color)); }
-  50% { filter: drop-shadow(0 0 0.18em var(--neon-wave)) drop-shadow(0 0 0.38em var(--neon-wave)); }
+  0%, 100% { filter: drop-shadow(0 0 calc(0.18em * var(--neon-glow)) var(--ng-c)) drop-shadow(0 0 calc(0.38em * var(--neon-glow)) var(--ng-c)); }
+  50% { filter: drop-shadow(0 0 calc(0.18em * var(--neon-glow)) var(--ng-w)) drop-shadow(0 0 calc(0.38em * var(--neon-glow)) var(--ng-w)); }
 }
 @keyframes neonLetters {
-  0%, 20% { background-position: 100% 0; filter: drop-shadow(0 0 0.12em var(--neon-color)) drop-shadow(0 0 0.3em var(--neon-color)); }
-  40% { filter: drop-shadow(0 0 0.16em var(--neon-color)) drop-shadow(0 0 0.5em var(--neon-color)); }
-  60%, 100% { background-position: 0% 0; filter: drop-shadow(0 0 0.12em var(--neon-color)) drop-shadow(0 0 0.3em var(--neon-color)); }
+  0%, 20% { background-position: 100% 0; filter: drop-shadow(0 0 calc(0.12em * var(--neon-text-glow)) var(--ntg-c)) drop-shadow(0 0 calc(0.3em * var(--neon-text-glow)) var(--ntg-c)); }
+  40% { filter: drop-shadow(0 0 calc(0.16em * var(--neon-text-glow)) var(--ntg-c)) drop-shadow(0 0 calc(0.5em * var(--neon-text-glow)) var(--ntg-c)); }
+  60%, 100% { background-position: 0% 0; filter: drop-shadow(0 0 calc(0.12em * var(--neon-text-glow)) var(--ntg-c)) drop-shadow(0 0 calc(0.3em * var(--neon-text-glow)) var(--ntg-c)); }
 }
 @keyframes neonBreathe { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
 @keyframes neonFlicker {

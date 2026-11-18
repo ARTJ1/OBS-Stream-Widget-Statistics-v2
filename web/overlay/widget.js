@@ -1174,6 +1174,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.style.setProperty('--neon-color', merged.neonColor || '#3ff0e6');
     document.documentElement.style.setProperty('--neon-text', merged.neonTextColor || '#f3ecff');
     document.documentElement.style.setProperty('--neon-wave', merged.neonWaveColor || '#ff4fd8');
+    const glow = (v) => String(Math.min(200, Math.max(0, Number.isFinite(Number(v)) ? Number(v) : 100)) / 100);
+    document.documentElement.style.setProperty('--neon-glow', glow(merged.neonGlow));
+    document.documentElement.style.setProperty('--neon-text-glow', glow(merged.neonTextGlow));
     document.documentElement.style.setProperty('--font', merged.font || 'Arial, sans-serif');
     document.documentElement.style.setProperty('--font-size', `${merged.fontSize || 16}px`);
     document.documentElement.style.setProperty('--animation-duration-in', `${animDurationIn}s`);
