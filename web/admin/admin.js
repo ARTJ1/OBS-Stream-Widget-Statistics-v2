@@ -249,6 +249,14 @@ async function deleteFontFile(file) {
   setStatusKey('msg.fontDeleted', true, { name: item.label });
 }
 
+// Neon layout colours out of the box (keep in step with internal/store DefaultNeon*).
+const NEON_DEFAULTS = { neonColor: '#3ff0e6', neonTextColor: '#f3ecff', neonWaveColor: '#ff4fd8' };
+document.getElementById('neonColorsReset')?.addEventListener('click', () => {
+  Object.entries(NEON_DEFAULTS).forEach(([name, value]) => { if (form[name]) form[name].value = value; });
+  syncColorSwatches();
+  form.dispatchEvent(new Event('change', { bubbles: true }));
+});
+
 function syncColorSwatches() {
   const bg = buildBgColor();
   form.bgColor.value = bg;
@@ -260,6 +268,10 @@ function syncColorSwatches() {
   document.getElementById('rankSwatch').style.color = form.rankTextColor.value;
   const iconSwatch = document.getElementById('iconSwatch');
   if (iconSwatch && form.iconColor) iconSwatch.style.color = form.iconColor.value;
+  [['neonSwatch', 'neonColor'], ['neonTextSwatch', 'neonTextColor'], ['neonWaveSwatch', 'neonWaveColor']].forEach(([id, name]) => {
+    const el = document.getElementById(id);
+    if (el && form[name]) el.style.color = form[name].value;
+  });
   if (form.separatorColor) form.separatorColor.value = buildSeparatorColor();
 }
 
@@ -527,6 +539,9 @@ function fillAppearance(settings) {
   if (settings.lossesColor?.startsWith('#')) form.lossesColor.value = settings.lossesColor;
   if (settings.rankTextColor?.startsWith('#')) form.rankTextColor.value = settings.rankTextColor;
   if (form.iconColor && settings.iconColor?.startsWith('#')) form.iconColor.value = settings.iconColor;
+  Object.keys(NEON_DEFAULTS).forEach((name) => {
+    if (form[name] && settings[name]?.startsWith('#')) form[name].value = settings[name];
+  });
   if (form.vesselStyle) form.vesselStyle.value = settings.vesselStyle || 'classic';
   updateVesselCredit();
   fillSeparatorColor(settings.separatorColor || 'rgba(255,255,255,0.55)');
@@ -607,6 +622,9 @@ function readAppearance() {
     lossesColor: form.lossesColor.value,
     rankTextColor: form.rankTextColor.value,
     iconColor: form.iconColor?.value || '#ffffff',
+    neonColor: form.neonColor?.value || NEON_DEFAULTS.neonColor,
+    neonTextColor: form.neonTextColor?.value || NEON_DEFAULTS.neonTextColor,
+    neonWaveColor: form.neonWaveColor?.value || NEON_DEFAULTS.neonWaveColor,
     vesselStyle: form.vesselStyle?.value || 'classic',
     separatorColor: buildSeparatorColor(),
     layout: form.layout?.value || 'detailed',
@@ -707,7 +725,9 @@ function renderModeRole(view) {
   renderRoleCycle(view);
 }
 
-function renderState(snapOrState) {
+// live: the change came from the stream (a +1, rank step, hotkey, auto): the preview plays
+// it like the widget in OBS does instead of jumping to the new numbers.
+function renderState(snapOrState, { live = false } = {}) {
   if (snapOrState?.state || snapOrState?.view || snapOrState?.settings) {
     lastSnap = snapOrState;
     if (typeof updateShowUI === 'function' && motionForm.staySec) updateShowUI();
@@ -730,7 +750,7 @@ function renderState(snapOrState) {
   document.getElementById('winsSwatch').textContent = String(view.wins);
   document.getElementById('lossesSwatch').textContent = String(view.losses);
   renderModeRole(view);
-  pushPreviewState(snapOrState);
+  pushPreviewState(snapOrState, { live });
 }
 
 function pushPreviewSettings() {
@@ -743,7 +763,7 @@ function pushPreviewSettings() {
   });
 }
 
-function pushPreviewState(snapOrState) {
+function pushPreviewState(snapOrState, { live = false } = {}) {
   const source = snapOrState || lastSnap;
   if (!source) return;
   const view = viewFromSnap(source);
@@ -758,7 +778,7 @@ function pushPreviewState(snapOrState) {
   };
   document.querySelectorAll('iframe.widget-preview').forEach((frame) => {
     try {
-      frame.contentWindow?.postMessage({ type: 'widget-preview-state', view, state }, '*');
+      frame.contentWindow?.postMessage({ type: 'widget-preview-state', view, state, live }, '*');
     } catch { /* ignore */ }
   });
 }
@@ -1192,7 +1212,7 @@ document.querySelectorAll('[data-action]').forEach((btn) => {
   btn.addEventListener('click', async () => {
     try {
       const snap = await api(btn.dataset.action, { method: 'POST' });
-      renderState(snap);
+      renderState(snap, { live: true });
       setStatusKey('msg.updated', true);
     } catch (err) {
       setStatus(String(err.message || err));
@@ -1209,7 +1229,7 @@ document.getElementById('rankApplyBtn').addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rank }),
     });
-    renderState(snap);
+    renderState(snap, { live: true });
     setStatusKey('msg.rankUpdated', true);
   } catch (err) {
     setStatus(String(err.message || err));
@@ -1224,9 +1244,15 @@ copyList.addEventListener('click', async (e) => {
 copyOverlayBtn.addEventListener('click', () => copyText(overlayUrl));
 
 /** Credit the artist under the preview when the chosen icon pair has one. */
+// Layouts drawn by someone: the credit card under the preview names them (studio.js).
+const LAYOUT_AUTHORS = {
+  neon: { name: 'RosesBlue', url: 'https://www.twitch.tv/rosesblue_' },
+};
+
 function updateVesselCredit() {
   const card = document.getElementById('vesselCredit');
   if (!card) return;
+  if (LAYOUT_AUTHORS[form.layout?.value]) return; // the layout's author is shown instead
   const pair = window.VesselShapes?.PAIRS?.[form.vesselStyle?.value];
   const author = pair && pair.author;
   card.hidden = !author;
@@ -1528,6 +1554,9 @@ document.getElementById('previewFrameSkins')?.addEventListener('load', () => {
   pushPreviewState(lastSnap);
 });
 
+// Socket messages for a change on stream (see internal/server Broadcast): the preview plays them.
+const LIVE_MSG_TYPES = new Set(['win', 'loss', 'rank', 'reset', 'state']);
+
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -1539,7 +1568,7 @@ function connectWS() {
   });
   ws.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
-    if (msg.state || msg.view) renderState(msg);
+    if (msg.state || msg.view) renderState(msg, { live: LIVE_MSG_TYPES.has(msg.type) });
     // The widget can be rescaled from OBS (stretching the source); keep the form in
     // step so the next save does not put the old scale back.
     const scale = msg.type === 'settings' ? msg.settings?.scale : 0;

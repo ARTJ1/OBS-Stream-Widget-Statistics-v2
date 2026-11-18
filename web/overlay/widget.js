@@ -18,7 +18,7 @@ const OW_RANKS = [
 const LAYOUTS = [
   'detailed', 'mini', 'card', 'badge', 'strip', 'minimal', 'column',
   'ring', 'slant', 'scoreboard', 'session', 'form', 'ladder', 'roles', 'hex',
-  'feed', 'tug', 'flip', 'tcard',
+  'feed', 'tug', 'flip', 'tcard', 'neon',
 ];
 // Layouts with little room use abbreviated tier names ("Dia 3", "GM 1").
 const SHORT_NAME_LAYOUTS = new Set(['mini', 'column', 'scoreboard']);
@@ -65,6 +65,10 @@ function generateApexTier(type) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const isPreview = new URLSearchParams(location.search).get('preview') === '1';
+  // The admin's main preview (iframe.widget-preview): the admin page feeds it the stats.
+  const ADMIN_PREVIEW = (() => {
+    try { return !!window.frameElement?.classList.contains('widget-preview'); } catch { return false; }
+  })();
   const PREVIEW_LAYOUT = isPreview ? new URLSearchParams(location.search).get('layout') : null;
   const PREVIEW_STILL = isPreview && new URLSearchParams(location.search).get('still') === '1';
   if (isPreview) {
@@ -110,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wrValue: document.getElementById('wrValue'),
     lfxLayer: document.getElementById('lfxLayer'),
     lfxWord: document.getElementById('lfxWord'),
+    neonLines: document.getElementById('neonLines'),
     lfxMark: document.getElementById('lfxMark'),
   };
 
@@ -185,6 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rank.type === 'Top' || rank.type === 'Predator') {
       return { ...rank, display: `#${rank.level}` };
     }
+    // Neon shows the division only; the rank icon next to it names the tier.
+    if (layout === 'neon') return { ...rank, display: rank.roman || String(rank.level) };
     const name = SHORT_NAME_LAYOUTS.has(layout) ? (RANK_SHORT[rank.type] || rank.type) : rank.type;
     if (rank.roman) {
       return { ...rank, display: `${name} ${rank.roman}` };
@@ -418,24 +425,38 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFlipSide('l', parseInt(dom.losses.textContent, 10) || 0);
   }
 
-  // Trading card: 1-5 stars by tier, spread over the game's tier ladder. A star
-  // gained since the last render pops in.
-  let cardStarsShown = 0;
+  // Trading card: 1-5 stars by tier, spread over the game's tier ladder; or, with the
+  // "streak" switch, one star per win in a row (up to 5), all out after a loss.
+  // A star gained since the last render pops in; stars lost to a loss fade out.
+  let cardStarsShown = -1;
+  let cardStarsMode = '';
   function renderCardStars() {
     if (!dom.tcardStars || layout !== 'tcard') return;
-    const ranks = activeRanks();
-    const tiers = [...new Set(ranks.map((r) => r.type))];
-    const rank = ranks[currentState.rank || 0];
-    const tier = Math.max(0, tiers.indexOf(rank ? rank.type : tiers[0]));
-    const stars = Math.max(1, Math.ceil(((tier + 1) * 5) / tiers.length));
-    if (stars === cardStarsShown && dom.tcardStars.children.length) return;
-    const gained = cardFx.has('stars') && cardStarsShown > 0 && stars > cardStarsShown;
+    const byStreak = cardFx.has('streak');
+    let stars;
+    if (byStreak) {
+      stars = Math.min(winStreak(), 5);
+    } else {
+      const ranks = activeRanks();
+      const tiers = [...new Set(ranks.map((r) => r.type))];
+      const rank = ranks[currentState.rank || 0];
+      const tier = Math.max(0, tiers.indexOf(rank ? rank.type : tiers[0]));
+      stars = Math.max(1, Math.ceil(((tier + 1) * 5) / tiers.length));
+    }
+    const mode = byStreak ? 'streak' : 'tier';
+    if (stars === cardStarsShown && mode === cardStarsMode && dom.tcardStars.children.length) return;
+    // Switching what the stars count is not a game: no pop / fade then.
+    const sameMode = mode === cardStarsMode && cardStarsShown >= 0;
+    const gained = sameMode && cardFx.has('stars') && stars > cardStarsShown && (byStreak || cardStarsShown > 0);
+    const lost = sameMode && byStreak && cardFx.has('stars') && stars < cardStarsShown;
     dom.tcardStars.innerHTML = [0, 1, 2, 3, 4].map((i) => {
       const cls = i < stars ? 'on' : '';
       const pop = gained && i >= cardStarsShown && i < stars ? ' pop' : '';
-      return `<span class="${cls}${pop}">★</span>`;
+      const drop = lost && i >= stars && i < cardStarsShown ? ' drop' : '';
+      return `<span class="${cls}${pop}${drop}">★</span>`;
     }).join('');
     cardStarsShown = stars;
+    cardStarsMode = mode;
   }
 
   // Trading card: the foil heats up with a win streak (spins faster, glows).
@@ -456,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Which card reactions are on (settings.cardFx); float is CSS-only via a body class.
-  const CARD_FX = ['stars', 'flip', 'heat', 'shine', 'float'];
+  const CARD_FX = ['stars', 'flip', 'heat', 'shine', 'float', 'streak'];
   let cardFx = new Set(['stars', 'flip', 'heat']);
   function applyCardFx(value) {
     const list = String(value || 'stars,flip,heat').split(',').map((s) => s.trim());
@@ -494,13 +515,15 @@ document.addEventListener('DOMContentLoaded', () => {
     'det-trace', 'mini-coin', 'mini-grow', 'card-wr', 'card-curtain', 'strip-live', 'min-dmg', 'col-lift',
     'ring-breath', 'ring-mark', 'sb-led', 'ses-label', 'form-belt', 'form-domino', 'lad-near', 'lad-piano',
     'rol-slide', 'rol-scan', 'rol-dim', 'hex-edges', 'hex-pulse', 'feed-flash', 'feed-cross', 'tug-jerk',
-    'tug-tension', 'fl-word',
+    'tug-tension', 'fl-word', 'neon-win', 'neon-loss', 'neon-wave', 'neon-breathe', 'neon-flicker',
   ];
+  // Neon at rest: one of these (the admin keeps them exclusive; the first one wins here).
+  const NEON_REST = ['neon-wave', 'neon-breathe', 'neon-flicker'];
   const LAYOUT_FX_ALL = new Set([...Object.keys(LAYOUT_FX_MOTION), ...LAYOUT_FX_DETAILS]);
   // On out of the box: every win / loss reaction and the details that only play after a
   // game. Motion at rest, the always-blinking LIVE dot, the dimmed roles, Domino (it shares
   // the tiles with the Conveyor) and the extra flap row are opt-in.
-  const LAYOUT_FX_OFF_BY_DEFAULT = new Set(['strip-live', 'ring-breath', 'rol-dim', 'form-domino', 'fl-word']);
+  const LAYOUT_FX_OFF_BY_DEFAULT = new Set(['strip-live', 'ring-breath', 'rol-dim', 'form-domino', 'fl-word', 'neon-breathe', 'neon-flicker']);
   const LAYOUT_FX_DEFAULT = [...LAYOUT_FX_ALL]
     .filter((id) => !id.endsWith('-idle') && !LAYOUT_FX_OFF_BY_DEFAULT.has(id)).join(',');
   // 3D turns need a perspective on the page. It is on only while it is needed: all the
@@ -518,6 +541,8 @@ document.addEventListener('DOMContentLoaded', () => {
     layoutFx = new Set(raw.split(',').map((s) => s.trim()).filter((id) => LAYOUT_FX_ALL.has(id)));
     // Conveyor and Domino move the same tiles: one at a time.
     if (layoutFx.has('form-belt')) layoutFx.delete('form-domino');
+    const rest = NEON_REST.find((id) => layoutFx.has(id));
+    NEON_REST.forEach((id) => { if (id !== rest) layoutFx.delete(id); });
     const body = document.body;
     [...body.classList].filter((c) => c.startsWith('lfx-')).forEach((c) => body.classList.remove(c));
     layoutFx.forEach((id) => body.classList.add(`lfx-${id}`));
@@ -705,6 +730,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       case 'flip':
         if (hasLayoutFx('fl-word') && dom.lfxWord) playFlipWord(win ? 'WIN ' : 'LOSS', delay + 450);
+        break;
+      case 'neon':
+        // Win: the number re-lights like a neon tube and a white pulse runs along the lines.
+        // Loss: the number re-lights and the lines short out for a moment.
+        if (hasLayoutFx(`neon-${kind}`)) {
+          lfxKick(num, 'neon-relight', 850, counted);
+          if (win) dom.neonLines?.querySelectorAll('.neon-tube').forEach((t) => lfxKick(t, 'neon-zapping', 650, counted));
+          else lfxKick(dom.neonLines, 'neon-short', 950, counted);
+        }
         break;
       default:
         break;
@@ -1137,6 +1171,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.style.setProperty('--rank-text-color', merged.rankTextColor || '#ffffff');
     document.documentElement.style.setProperty('--icon-color', iconColor);
     document.documentElement.style.setProperty('--separator-color', sepColor);
+    document.documentElement.style.setProperty('--neon-color', merged.neonColor || '#3ff0e6');
+    document.documentElement.style.setProperty('--neon-text', merged.neonTextColor || '#f3ecff');
+    document.documentElement.style.setProperty('--neon-wave', merged.neonWaveColor || '#ff4fd8');
     document.documentElement.style.setProperty('--font', merged.font || 'Arial, sans-serif');
     document.documentElement.style.setProperty('--font-size', `${merged.fontSize || 16}px`);
     document.documentElement.style.setProperty('--animation-duration-in', `${animDurationIn}s`);
@@ -2886,13 +2923,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (action === 'win') {
       previousState = { ...currentState };
-      currentState = { ...currentState, wins: currentState.wins + 1 };
+      currentState = { ...currentState, wins: currentState.wins + 1, recent: [...(currentState.recent || []), 'w'].slice(-10) };
       await updateContentAnimations();
       return;
     }
     if (action === 'loss') {
       previousState = { ...currentState };
-      currentState = { ...currentState, losses: currentState.losses + 1 };
+      currentState = { ...currentState, losses: currentState.losses + 1, recent: [...(currentState.recent || []), 'l'].slice(-10) };
       await updateContentAnimations();
       return;
     }
@@ -2936,7 +2973,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await sleep(120);
       if (!alive()) return;
       previousState = { ...currentState };
-      currentState = { ...currentState, wins: currentState.wins + 1 };
+      currentState = { ...currentState, wins: currentState.wins + 1, recent: [...(currentState.recent || []), 'w'].slice(-10) };
       await updateContentAnimations();
       if (!alive()) return;
       await restorePreviewHome(home);
@@ -3199,6 +3236,9 @@ document.addEventListener('DOMContentLoaded', () => {
         applySnapshot(msg, { animate: false, settingsOnly: true });
         return;
       }
+      // The admin's main preview gets stream changes from the admin page (so it can play
+      // them); a socket copy arriving first would jump the numbers and leave nothing to play.
+      if (isPreview && ADMIN_PREVIEW && msg.type !== 'hello' && msg.type !== 'settings') return;
       // Preview with local unsaved look: sync stats/game only, keep local settings.
       if (isPreview && preferPreviewLocalSettings()) {
         if (msg.state || msg.view) applyRemoteStateOnly(msg);
@@ -3226,6 +3266,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       if (data.type === 'widget-preview-state') {
+        // A change on stream plays as in OBS; anything else (load, demo reset) just shows it.
+        if (data.live && dom.widget.classList.contains('visible')) {
+          // The button reply and the socket both bring the same change: play it once.
+          const next = viewFromSnap(data);
+          const same = ['wins', 'losses', 'rank', 'mode', 'role', 'game']
+            .every((k) => next[k] === currentState[k]);
+          if (!same) applySnapshot({ state: data.state, view: data.view }, { animate: true });
+          return;
+        }
         applyRemoteStateOnly(data);
         showWidget(false);
         return;

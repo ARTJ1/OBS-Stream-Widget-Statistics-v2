@@ -6,6 +6,9 @@
   --rank-text-color: #ffffff;
   --icon-color: #ffffff;
   --separator-color: rgba(255, 255, 255, 0.55);
+  --neon-color: #3ff0e6;
+  --neon-text: #f3ecff;
+  --neon-wave: #ff4fd8;
   --font: 'Arial', sans-serif;
   --font-size: 16px;
   /* Opaque panel colour and flip-tile faces; JS sets --bg-solid from the skin. */
@@ -3348,6 +3351,12 @@ body.layout-tcard .tcard-stars {
 .tcard-stars span.on { color: #ffd34d; text-shadow: 0 0 6px rgba(255, 211, 77, 0.55); }
 body.skin-light .tcard-stars span.on { color: #b77900; text-shadow: 0 0 4px rgba(255, 200, 60, 0.6); }
 .tcard-stars span.pop { animation: starPop 0.8s cubic-bezier(0.3, 1.8, 0.5, 1); }
+/* Win-streak stars: the ones a loss takes away flare and fade out. */
+.tcard-stars span.drop { animation: starDrop 0.9s ease-out; }
+@keyframes starDrop {
+  0% { color: #ffd34d; text-shadow: 0 0 10px #ffd34d; transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
 @keyframes starPop {
   0% { transform: scale(0) rotate(-90deg); }
   60% { transform: scale(1.9) rotate(10deg); text-shadow: 0 0 14px #ffd34d; }
@@ -3910,3 +3919,149 @@ body.layout-flip.lfx-fl-word .lfx-word { grid-area: word; display: flex; justify
 .lfx-word i { width: .95em; height: 1.25em; border-radius: .14em; display: grid; place-items: center; font-style: normal; font-weight: 900; color: var(--rank-text-color); background: linear-gradient(var(--tile-top) 50%, var(--tile-bottom) 50%); }
 .lfx-word i.lfx-flap { animation: lfxFlap .34s ease-in-out; }
 @keyframes lfxFlap { 50% { transform: rotateX(-90deg); filter: brightness(.6); } }
+
+/* ===== Neon (layout by RosesBlue) =====
+   No panel: the rank icon, the division and W / L sit between two glowing lines that
+   taper at both ends. Colours: --neon-color (numbers, lines), --neon-text (W: / L:),
+   --neon-wave (the wave running along the lines). At rest one of neon-wave /
+   neon-breathe / neon-flicker plays; neon-win / neon-loss react to a counted game. */
+.neon-lines,
+.neon-k { display: none; }
+body.layout-neon .widget {
+  background: none !important;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0.75em 1.4em 0.75em 0.1em;
+  gap: 0.9em;
+  font-weight: 800;
+}
+body.layout-neon .widget-fx-layer,
+body.layout-neon .icon-fill-container,
+body.layout-neon .stat-sep { display: none; }
+body.layout-neon .rank-section { order: -2; gap: 0.45em; z-index: 2; }
+body.layout-neon .widget > .role-badge { order: -1; margin: 0; z-index: 2; }
+body.layout-neon .role-icon { width: 1.3em; height: 1.3em; }
+body.layout-neon #rank-animation-wrapper { width: 2.9em; height: 2.9em; margin: -0.35em 0; }
+body.layout-neon #rankValue {
+  color: var(--neon-color);
+  font-size: 1.55em;
+  font-weight: 800;
+  padding-bottom: 0;
+  text-shadow: 0 0 0.16em var(--neon-color), 0 0 0.4em color-mix(in srgb, var(--neon-color) 60%, transparent);
+}
+body.layout-neon .stats { gap: 1em; }
+body.layout-neon .stat-item { display: flex; align-items: baseline; gap: 0.3em; }
+body.layout-neon .stat-value,
+body.layout-neon #wins,
+body.layout-neon #losses {
+  color: var(--neon-color);
+  font-size: 1.35em;
+  min-width: 1ch;
+  text-align: left;
+  text-shadow: 0 0 0.22em var(--neon-color), 0 0 0.5em color-mix(in srgb, var(--neon-color) 50%, transparent);
+}
+body.layout-neon .neon-k {
+  display: inline-block;
+  font-size: 1.35em;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  background-image: linear-gradient(90deg, var(--neon-text) 0 36%, var(--neon-color) 45% 55%, var(--neon-text) 64% 100%);
+  background-size: 700% 100%;
+  background-position: 100% 0;
+  filter: drop-shadow(0 0 0.12em var(--neon-color)) drop-shadow(0 0 0.3em var(--neon-color));
+}
+body.layout-neon .neon-lines {
+  display: block;
+  position: absolute;
+  left: 1.3em;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.neon-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: max(2px, 0.18em);
+  filter: drop-shadow(0 0 0.18em var(--neon-color)) drop-shadow(0 0 0.38em var(--neon-color));
+}
+.neon-line.top { top: 0.3em; }
+.neon-line.bottom { bottom: 0.3em; }
+.neon-tube {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--neon-color);
+  clip-path: polygon(0 50%, 12% 0, 88% 0, 100% 50%, 88% 100%, 12% 100%);
+}
+.neon-tube i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  opacity: 0;
+}
+.neon-wave {
+  width: 110%;
+  left: -110%;
+  background: linear-gradient(90deg, transparent, var(--neon-wave) 30%, color-mix(in srgb, var(--neon-wave) 55%, #fff) 50%, var(--neon-wave) 70%, transparent);
+}
+.neon-zap {
+  width: 30%;
+  left: -30%;
+  background: linear-gradient(90deg, transparent, #fff, transparent);
+}
+
+/* At rest: the wave runs along the top line, then back along the bottom one; the
+   letters catch a band of the main colour as it passes. */
+body.layout-neon.lfx-neon-wave .neon-wave { opacity: 1; animation: neonWave 4.5s linear infinite; }
+body.layout-neon.lfx-neon-wave .neon-line.bottom .neon-wave { animation-direction: reverse; animation-delay: -2.25s; }
+body.layout-neon.lfx-neon-wave .neon-line { animation: neonLineGlow 4.5s linear infinite; }
+body.layout-neon.lfx-neon-wave .neon-line.bottom { animation-delay: -2.25s; }
+body.layout-neon.lfx-neon-wave .neon-k { animation: neonLetters 4.5s linear infinite; }
+body.layout-neon.lfx-neon-wave .stat-item + .stat-item .neon-k { animation-delay: 0.55s; }
+body.layout-neon.lfx-neon-breathe .neon-line,
+body.layout-neon.lfx-neon-breathe .neon-k { animation: neonBreathe 3.6s ease-in-out infinite; }
+body.layout-neon.lfx-neon-breathe .neon-line.bottom { animation-delay: -1.8s; }
+body.layout-neon.lfx-neon-flicker .neon-line,
+body.layout-neon.lfx-neon-flicker .neon-k { animation: neonFlicker 6s infinite; }
+body.layout-neon.lfx-neon-flicker .neon-line.bottom { animation-delay: -3.3s; }
+body.layout-neon.lfx-neon-flicker .stat-item + .stat-item .neon-k { animation-delay: 0.3s; }
+@keyframes neonWave { from { left: -110%; } to { left: 100%; } }
+@keyframes neonLineGlow {
+  0%, 100% { filter: drop-shadow(0 0 0.18em var(--neon-color)) drop-shadow(0 0 0.38em var(--neon-color)); }
+  50% { filter: drop-shadow(0 0 0.18em var(--neon-wave)) drop-shadow(0 0 0.38em var(--neon-wave)); }
+}
+@keyframes neonLetters {
+  0%, 20% { background-position: 100% 0; filter: drop-shadow(0 0 0.12em var(--neon-color)) drop-shadow(0 0 0.3em var(--neon-color)); }
+  40% { filter: drop-shadow(0 0 0.16em var(--neon-color)) drop-shadow(0 0 0.5em var(--neon-color)); }
+  60%, 100% { background-position: 0% 0; filter: drop-shadow(0 0 0.12em var(--neon-color)) drop-shadow(0 0 0.3em var(--neon-color)); }
+}
+@keyframes neonBreathe { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+@keyframes neonFlicker {
+  0%, 41%, 43%, 46%, 100% { opacity: 1; }
+  42% { opacity: 0.25; }
+  44% { opacity: 0.4; }
+}
+
+/* After a counted game. */
+body.layout-neon .stat-value.neon-relight { animation: neonRelight 0.8s; }
+.neon-tube.neon-zapping .neon-zap { opacity: 1; animation: neonZap 0.55s ease-out; }
+.neon-lines.neon-short .neon-line { animation: neonShort 0.9s !important; }
+@keyframes neonRelight {
+  0% { opacity: 0.15; }
+  12% { opacity: 1; }
+  20% { opacity: 0.25; }
+  32% { opacity: 1; filter: brightness(1.9); }
+  100% { opacity: 1; filter: none; }
+}
+@keyframes neonZap { from { left: -30%; } to { left: 100%; } }
+@keyframes neonShort {
+  0%, 18%, 70%, 100% { opacity: 1; }
+  10% { opacity: 0.15; }
+  26% { opacity: 0.1; }
+  42% { opacity: 0.8; }
+  55% { opacity: 0.3; }
+}
