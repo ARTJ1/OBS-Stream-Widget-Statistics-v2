@@ -249,10 +249,21 @@ async function deleteFontFile(file) {
   setStatusKey('msg.fontDeleted', true, { name: item.label });
 }
 
+// Neon glow sliders (percent; 100 is the default, keep in step with internal/store DefaultNeonGlow).
+const NEON_GLOWS = ['neonGlow', 'neonTextGlow'];
+function syncNeonGlowLabels() {
+  NEON_GLOWS.forEach((name) => {
+    const out = document.getElementById(`${name}Value`);
+    if (out && form[name]) out.textContent = `${form[name].value}%`;
+  });
+}
+NEON_GLOWS.forEach((name) => form[name]?.addEventListener('input', syncNeonGlowLabels));
 // Neon layout colours out of the box (keep in step with internal/store DefaultNeon*).
 const NEON_DEFAULTS = { neonColor: '#3ff0e6', neonTextColor: '#f3ecff', neonWaveColor: '#ff4fd8' };
 document.getElementById('neonColorsReset')?.addEventListener('click', () => {
   Object.entries(NEON_DEFAULTS).forEach(([name, value]) => { if (form[name]) form[name].value = value; });
+  NEON_GLOWS.forEach((name) => { if (form[name]) form[name].value = '100'; });
+  syncNeonGlowLabels();
   syncColorSwatches();
   form.dispatchEvent(new Event('change', { bubbles: true }));
 });
@@ -542,6 +553,10 @@ function fillAppearance(settings) {
   Object.keys(NEON_DEFAULTS).forEach((name) => {
     if (form[name] && settings[name]?.startsWith('#')) form[name].value = settings[name];
   });
+  NEON_GLOWS.forEach((name) => {
+    if (form[name]) form[name].value = String(Number.isFinite(settings[name]) ? settings[name] : 100);
+  });
+  syncNeonGlowLabels();
   if (form.vesselStyle) form.vesselStyle.value = settings.vesselStyle || 'classic';
   updateVesselCredit();
   fillSeparatorColor(settings.separatorColor || 'rgba(255,255,255,0.55)');
@@ -625,6 +640,8 @@ function readAppearance() {
     neonColor: form.neonColor?.value || NEON_DEFAULTS.neonColor,
     neonTextColor: form.neonTextColor?.value || NEON_DEFAULTS.neonTextColor,
     neonWaveColor: form.neonWaveColor?.value || NEON_DEFAULTS.neonWaveColor,
+    neonGlow: form.neonGlow ? Number(form.neonGlow.value) : 100,
+    neonTextGlow: form.neonTextGlow ? Number(form.neonTextGlow.value) : 100,
     vesselStyle: form.vesselStyle?.value || 'classic',
     separatorColor: buildSeparatorColor(),
     layout: form.layout?.value || 'detailed',

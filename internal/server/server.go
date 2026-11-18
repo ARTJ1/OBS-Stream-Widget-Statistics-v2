@@ -689,6 +689,15 @@ func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
 		if next.Scale == 0 {
 			next.Scale = s.Store.Settings().Scale
 		}
+		// 0 is a real neon glow value, so only a missing field keeps the current one.
+		var present map[string]json.RawMessage
+		_ = json.Unmarshal(body, &present)
+		if _, ok := present["neonGlow"]; !ok {
+			next.NeonGlow = s.Store.Settings().NeonGlow
+		}
+		if _, ok := present["neonTextGlow"]; !ok {
+			next.NeonTextGlow = s.Store.Settings().NeonTextGlow
+		}
 		snap, err := s.Store.UpdateSettings(next)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

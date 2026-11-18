@@ -1433,6 +1433,13 @@ input, select {
   padding: 10px 12px;
   font: inherit;
 }
+/* Sliders: the text-field padding and border above would stop the thumb short of the ends. */
+input[type="range"] {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
 .full { grid-column: 1 / -1; }
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .appearance-grid {

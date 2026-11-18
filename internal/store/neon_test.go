@@ -38,3 +38,14 @@ func TestWithNeonFx(t *testing.T) {
 		}
 	}
 }
+
+func TestNeonGlowClamp(t *testing.T) {
+	for in, want := range map[int]int{-5: 0, 0: 0, 60: 60, 200: 200, 900: 200} {
+		if got := clampNeonGlow(in); got != want {
+			t.Errorf("clampNeonGlow(%d) = %d, want %d", in, got, want)
+		}
+	}
+	if d := DefaultSettings(); d.NeonGlow != DefaultNeonGlow || d.NeonTextGlow != DefaultNeonGlow {
+		t.Errorf("default glow = %d/%d, want %d", d.NeonGlow, d.NeonTextGlow, DefaultNeonGlow)
+	}
+}
