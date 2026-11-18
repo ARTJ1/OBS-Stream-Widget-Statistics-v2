@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -103,8 +104,9 @@ type Settings struct {
 	HiddenTime      int    `json:"hiddenTime"`
 	AlwaysVisible   bool   `json:"alwaysVisible"` // skip the show/hide cycle
 
-	Layout string `json:"layout"` // detailed | mini | card | badge | strip | minimal | column | ring | slant | scoreboard | session | form | ladder | roles | hex | feed | tug | flip | tcard
-	// CardFx: trading-card reactions, comma list of stars|flip|heat|shine|float, or "none".
+	Layout string `json:"layout"` // detailed | mini | card | badge | strip | minimal | column | ring | slant | scoreboard | session | form | ladder | roles | hex | feed | tug | flip | tcard | neon
+	// CardFx: trading-card reactions, comma list of stars|flip|heat|shine|float|streak, or "none"
+	// (streak: the stars count the win streak instead of the rank).
 	CardFx string `json:"cardFx"`
 	// LayoutFx: reactions of every other layout (the widget moving on a win / loss, and
 	// layout details), comma list of ids like detailed-win or form-belt, or "none".
@@ -112,9 +114,13 @@ type Settings struct {
 	IconColor      string `json:"iconColor"`
 	VesselStyle    string `json:"vesselStyle"` // classic|royal|rage|inferno|toxic|nova|fang|hard|grim|solid|sharp|award|medal|miraqlesan
 	SeparatorColor string `json:"separatorColor"`
-	AppearEffect   string `json:"appearEffect"` // slide | fade | bounce | zoom
-	FillStyle      string `json:"fillStyle"`    // liquid | solid | glow | bubble
-	RankFx         string `json:"rankFx"`
+	// Neon layout (by RosesBlue): numbers and lines, the W: / L: letters, the wave on the lines.
+	NeonColor     string `json:"neonColor"`
+	NeonTextColor string `json:"neonTextColor"`
+	NeonWaveColor string `json:"neonWaveColor"`
+	AppearEffect  string `json:"appearEffect"` // slide | fade | bounce | zoom
+	FillStyle     string `json:"fillStyle"`    // liquid | solid | glow | bubble
+	RankFx        string `json:"rankFx"`
 
 	FillLimit       int    `json:"fillLimit"`
 	FillDurationMs  int    `json:"fillDurationMs"`
@@ -164,7 +170,32 @@ const DefaultLayoutFx = "detailed-win,detailed-loss,mini-win,mini-loss,card-win,
 	"scoreboard-win,scoreboard-loss,session-win,session-loss,form-win,form-loss,ladder-win,ladder-loss," +
 	"roles-win,roles-loss,hex-loss,feed-win,feed-loss,tug-win,tug-loss,flip-win,flip-loss," +
 	"det-trace,mini-coin,mini-grow,card-wr,card-curtain,min-dmg,col-lift,ring-mark,sb-led,ses-label," +
-	"form-belt,lad-near,lad-piano,rol-slide,rol-scan,hex-edges,hex-pulse,feed-flash,feed-cross,tug-jerk,tug-tension"
+	"form-belt,lad-near,lad-piano,rol-slide,rol-scan,hex-edges,hex-pulse,feed-flash,feed-cross,tug-jerk,tug-tension," +
+	neonLayoutFx
+
+// neonLayoutFx are the neon layout's switches on out of the box. "neon-set" is a marker:
+// a saved list without it predates the neon layout and gets these added once.
+const neonLayoutFx = "neon-win,neon-loss,neon-wave,neon-set"
+
+// Neon layout colours out of the box.
+const (
+	DefaultNeonColor     = "#3ff0e6"
+	DefaultNeonTextColor = "#f3ecff"
+	DefaultNeonWaveColor = "#ff4fd8"
+)
+
+// withNeonFx adds the neon layout defaults to a reaction list saved before it existed.
+func withNeonFx(v string) string {
+	for _, id := range strings.Split(v, ",") {
+		if strings.TrimSpace(id) == "neon-set" {
+			return v
+		}
+	}
+	if v == "" || v == "none" {
+		return neonLayoutFx
+	}
+	return v + "," + neonLayoutFx
+}
 
 func (s *Store) pushRecent(r string) {
 	s.recent = append(s.recent, r)
@@ -197,6 +228,9 @@ func DefaultSettings() Settings {
 		IconColor:       "#ffffff",
 		VesselStyle:     "classic",
 		SeparatorColor:  "rgba(255,255,255,0.55)",
+		NeonColor:       DefaultNeonColor,
+		NeonTextColor:   DefaultNeonTextColor,
+		NeonWaveColor:   DefaultNeonWaveColor,
 		AppearEffect:    "slide",
 		Layout:          "detailed",
 		CardFx:          DefaultCardFx,
@@ -518,9 +552,19 @@ func (s *Store) clamp() {
 	if s.settings.LayoutFx == "" {
 		s.settings.LayoutFx = DefaultLayoutFx
 	}
+	s.settings.LayoutFx = withNeonFx(s.settings.LayoutFx)
+	if !isHexColor(s.settings.NeonColor) {
+		s.settings.NeonColor = DefaultNeonColor
+	}
+	if !isHexColor(s.settings.NeonTextColor) {
+		s.settings.NeonTextColor = DefaultNeonTextColor
+	}
+	if !isHexColor(s.settings.NeonWaveColor) {
+		s.settings.NeonWaveColor = DefaultNeonWaveColor
+	}
 	switch s.settings.Layout {
 	case "detailed", "mini", "card", "badge", "strip", "minimal", "column", "ring", "slant", "scoreboard", "session",
-		"form", "ladder", "roles", "hex", "feed", "tug", "flip", "tcard":
+		"form", "ladder", "roles", "hex", "feed", "tug", "flip", "tcard", "neon":
 	default:
 		s.settings.Layout = "detailed"
 	}
@@ -545,6 +589,19 @@ func (s *Store) clamp() {
 	if s.settings.EmptyEffect == "" {
 		s.settings.EmptyEffect = "drain"
 	}
+}
+
+// isHexColor reports a #rgb or #rrggbb colour (what a colour picker sends).
+func isHexColor(v string) bool {
+	if len(v) != 4 && len(v) != 7 || v[0] != '#' {
+		return false
+	}
+	for _, c := range v[1:] {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", c) {
+			return false
+		}
+	}
+	return true
 }
 
 func (st State) View() View {

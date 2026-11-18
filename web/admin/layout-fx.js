@@ -105,8 +105,16 @@
       ['flip-loss', 'loss', 'Стук механизма', 'Табло стучит, как механизм с флапами.', 'Clack', 'The board clacks like a flap mechanism.'],
       ['fl-word', 'detail', 'Табличка', 'Ряд флапов под табло показывает WIN или LOSS. Виджет становится выше.', 'Word row', 'A row of flaps under the board shows WIN or LOSS. Makes the widget taller.'],
     ],
+    neon: [
+      ['neon-win', 'win', 'Перезажигание', 'Цифра побед мигает, как неоновая трубка, по линиям пробегает белый импульс.', 'Re-light', 'The wins number flickers back on like a neon tube and a white pulse runs along the lines.'],
+      ['neon-loss', 'loss', 'Замыкание', 'Цифра поражений перезажигается, линии моргают, будто коротят.', 'Short circuit', 'The losses number re-lights and the lines flicker as if shorting out.'],
+      ['neon-wave', 'idle', 'Бегущая волна', 'По линиям бежит волна, по буквам W: и L: — полоса основного цвета.', 'Running wave', 'A wave runs along the lines, a band of the main colour across W: and L:.'],
+      ['neon-breathe', 'idle', 'Дыхание', 'Линии и буквы плавно светлеют и гаснут.', 'Breathing', 'The lines and letters slowly brighten and dim.'],
+      ['neon-flicker', 'idle', 'Мерцание', 'Изредка линии и буквы коротко моргают, как настоящая неоновая лампа.', 'Flicker', 'Now and then the lines and letters blink like a real neon lamp.'],
+    ],
   };
-  const EXCLUSIVE = { 'form-belt': 'form-domino', 'form-domino': 'form-belt' };
+  // Switches that cannot be on together (each one turns the others off).
+  const EXCLUSIVE_GROUPS = [['form-belt', 'form-domino'], ['neon-wave', 'neon-breathe', 'neon-flicker']];
   const KIND = {
     win: ['победа', 'win'], loss: ['поражение', 'loss'], idle: ['в покое', 'at rest'], detail: ['деталь', 'detail'],
   };
@@ -150,17 +158,16 @@
       + (details.length ? `<h3 class="lfx-group">${t('lfx.details', 'Детали', 'Details')}</h3><div class="card-opts">${details.map(opt).join('')}</div>` : '');
   }
 
-  // A switch changed: keep the value, enforce Conveyor / Domino, say which game to show.
+  // A switch changed: keep the value, keep exclusive switches apart, say which game to show.
   function onChange(input) {
     const id = input.value;
     if (input.checked) {
       on.add(id);
-      const other = EXCLUSIVE[id];
-      if (other) {
+      (EXCLUSIVE_GROUPS.find((g) => g.includes(id)) || []).filter((other) => other !== id).forEach((other) => {
         on.delete(other);
         const box = document.querySelector(`input[name="layoutFx"][value="${other}"]`);
         if (box) box.checked = false;
-      }
+      });
     } else {
       on.delete(id);
     }

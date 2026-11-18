@@ -210,6 +210,7 @@
               <label class="card-opt"><input type="checkbox" name="cardFx" value="heat"><span><b data-i18n="card.heat">Фольга разогревается</b><span data-i18n="card.heatHint">Чем длиннее серия побед, тем быстрее крутится и ярче светится рамка.</span></span></label>
               <label class="card-opt"><input type="checkbox" name="cardFx" value="shine"><span><b data-i18n="card.shine">Блик</b><span data-i18n="card.shineHint">По карте пробегает отблеск после игры и смены ранга.</span></span></label>
               <label class="card-opt"><input type="checkbox" name="cardFx" value="float"><span><b data-i18n="card.float">Парение</b><span data-i18n="card.floatHint">Карта медленно покачивается в 3D, пока ничего не происходит.</span></span></label>
+              <label class="card-opt"><input type="checkbox" name="cardFx" value="streak"><span><b data-i18n="card.streak">Звёзды — серия побед</b><span data-i18n="card.streakHint">Звёзды считают победы подряд, а не ранг: +1 за победу (до 5), после поражения гаснут все.</span></span></label>
             </div>
           </section>
           <section class="panel card-options" id="layoutFxOptions" hidden>
@@ -267,21 +268,21 @@
                   <input name="bgColor" type="hidden" value="rgba(0,0,0,0.7)">
                 </div>
               </label>
-              <label class="color-field">
+              <label data-uses="std" class="color-field">
                 <span data-i18n="look.winsColor">Цвет текста побед</span>
                 <div class="color-row">
                   <input name="winsColor" type="color" value="#00ff00">
                   <span class="swatch-text" id="winsSwatch">12</span>
                 </div>
               </label>
-              <label class="color-field">
+              <label data-uses="std" class="color-field">
                 <span data-i18n="look.lossesColor">Цвет текста поражений</span>
                 <div class="color-row">
                   <input name="lossesColor" type="color" value="#ff0000">
                   <span class="swatch-text" id="lossesSwatch">3</span>
                 </div>
               </label>
-              <label class="color-field">
+              <label data-uses="std" class="color-field">
                 <span data-i18n="look.rankColor">Цвет текста ранга</span>
                 <div class="color-row">
                   <input name="rankTextColor" type="color" value="#ffffff">
@@ -295,6 +296,30 @@
                   <span class="swatch-text" id="iconSwatch">icon</span>
                 </div>
               </label>
+              <label data-uses="neon" class="color-field">
+                <span data-i18n="look.neonColor">Основной цвет (цифры и линии)</span>
+                <div class="color-row">
+                  <input name="neonColor" type="color" value="#3ff0e6">
+                  <span class="swatch-text" id="neonSwatch">4</span>
+                </div>
+              </label>
+              <label data-uses="neon" class="color-field">
+                <span data-i18n="look.neonTextColor">Цвет букв W: и L:</span>
+                <div class="color-row">
+                  <input name="neonTextColor" type="color" value="#f3ecff">
+                  <span class="swatch-text" id="neonTextSwatch">W: L:</span>
+                </div>
+              </label>
+              <label data-uses="neon" class="color-field">
+                <span data-i18n="look.neonWaveColor">Цвет волны на линиях</span>
+                <div class="color-row">
+                  <input name="neonWaveColor" type="color" value="#ff4fd8">
+                  <span class="swatch-text" id="neonWaveSwatch">~~~</span>
+                </div>
+              </label>
+              <div data-uses="neon" class="full btn-row">
+                <button type="button" id="neonColorsReset" data-i18n="look.neonReset">Цвета неона по умолчанию</button>
+              </div>
               <label data-uses="sep" class="color-field">
                 <span data-i18n="look.sepColor">Цвет разделителя</span>
                 <div class="color-row">
@@ -374,6 +399,7 @@
                   <option value="tug" data-i18n="layout.tug">Перетягивание</option>
                   <option value="flip" data-i18n="layout.flip">Перекидное табло</option>
                   <option value="tcard" data-i18n="layout.tcard">Коллекционная карта</option>
+                  <option value="neon" data-i18n="layout.neon">Неон</option>
                 </select>
               </label>
               </div>
@@ -731,7 +757,7 @@
             <a class="vessel-credit" id="vesselCredit" target="_blank" rel="noopener noreferrer" hidden>
               <svg class="vessel-credit-logo" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0 1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>
               <span class="vessel-credit-text">
-                <span class="vessel-credit-label" data-i18n="look.iconAuthor">Автор этих иконок</span>
+                <span class="vessel-credit-label" id="vesselCreditLabel" data-i18n="look.iconAuthor">Автор этих иконок</span>
                 <strong class="vessel-credit-name" id="vesselCreditName"></strong>
               </span>
               <span class="vessel-credit-go" data-i18n="look.iconAuthorGo">Twitch ↗</span>

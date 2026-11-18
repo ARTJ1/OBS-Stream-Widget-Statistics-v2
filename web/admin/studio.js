@@ -62,23 +62,43 @@
     tug: ['bgimage', 'bgcolor'],
     flip: ['bgimage', 'bgcolor'],
     tcard: ['bgcolor'],
+    // Neon has its own three colours instead of the win / loss / rank ones, and no panel.
+    neon: ['neon'],
   };
   const vesselCredit = document.getElementById('vesselCredit');
+  const vesselCreditLabel = document.getElementById('vesselCreditLabel');
+
+  // Show the layout's author, or else the icon pair's (see updateVesselCredit in admin.js).
+  function showCredit(parts) {
+    const author = LAYOUT_AUTHORS[layoutSelect.value];
+    if (vesselCreditLabel) {
+      const key = author ? 'look.layoutAuthor' : 'look.iconAuthor';
+      vesselCreditLabel.dataset.i18n = key;
+      vesselCreditLabel.textContent = t(key);
+    }
+    if (author) {
+      if (!vesselCredit) return;
+      vesselCredit.hidden = false;
+      vesselCredit.href = author.url;
+      document.getElementById('vesselCreditName').textContent = author.name;
+    } else if (!parts.has('vessels')) {
+      if (vesselCredit) vesselCredit.hidden = true;
+    } else {
+      updateVesselCredit();
+    }
+  }
 
   function applyLayoutParts() {
     const parts = new Set(LAYOUT_PARTS[layoutSelect.value] || LAYOUT_PARTS.detailed);
+    if (!parts.has('neon')) parts.add('std');
     // The role icon also uses the icon colour.
     const mode = lastSnap ? viewFromSnap(lastSnap).mode : 'classic';
     if (mode && mode !== 'classic') parts.add('roles');
     document.querySelectorAll('[data-uses]').forEach((el) => {
       el.hidden = !el.dataset.uses.split(' ').some((p) => parts.has(p));
     });
-    // The icon artist credit belongs to the trophy/skull icons.
-    if (!parts.has('vessels')) {
-      if (vesselCredit) vesselCredit.hidden = true;
-    } else {
-      updateVesselCredit();
-    }
+    // The icon artist credit belongs to the trophy/skull icons; a layout's own author wins.
+    showCredit(parts);
     const opt = [...layoutSelect.options].find((o) => o.value === layoutSelect.value);
     document.querySelectorAll('.layout-hidden-note').forEach((note) => {
       const panel = note.closest('.panel');
